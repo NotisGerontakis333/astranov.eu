@@ -5,17 +5,19 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no">
 <meta name="theme-color" content="#020617">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<title>ASTRANOV</title>
+<title>ASTRANOV • Live Delivery Network</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-:root{--blue:#00d8ff;--blue2:rgba(0,216,255,.38);--blue3:rgba(0,216,255,.12);--gold:#d7b650;--gold2:rgba(215,182,80,.42);--gold3:rgba(215,182,80,.13);--green:#00f09a;--red:#ff4d64;--ink:#020617;--ink2:rgba(2,8,23,.92);--text:#e9f7ff;--muted:rgba(233,247,255,.58);--safeTop:env(safe-area-inset-top,0px);--safeBot:env(safe-area-inset-bottom,0px)}
+:root{--blue:#00d8ff;--blue2:rgba(0,216,255,.38);--blue3:rgba(0,216,255,.12);--gold:#d7b650;--gold2:rgba(215,182,80,.42);--gold3:rgba(215,182,80,.13);--green:#00f09a;--red:#ff4d64;--purple:#c084fc;--ink:#020617;--ink2:rgba(2,8,23,.92);--text:#e9f7ff;--muted:rgba(233,247,255,.58);--safeTop:env(safe-area-inset-top,0px);--safeBot:env(safe-area-inset-bottom,0px)}
 html,body{width:100%;height:100%;overflow:hidden;background:#020617;color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;-webkit-tap-highlight-color:transparent;user-select:none;touch-action:manipulation}
 body{position:fixed;inset:0}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.08em}.layer{position:fixed;inset:0;display:none}.layer.on{display:block}
 #starfield{position:fixed;inset:0;z-index:0;background:radial-gradient(circle at 25% 18%,#11213d 0,#071124 26%,#020617 62%,#000006 100%);overflow:hidden}.star{position:absolute;width:1px;height:1px;border-radius:50%;background:rgba(255,255,255,.75);box-shadow:0 0 6px rgba(255,255,255,.55)}
 #brand{position:fixed;top:calc(var(--safeTop) + 13px);left:50%;transform:translateX(-50%);z-index:80;border:0;background:transparent;color:var(--blue);font-weight:900;font-size:15px;letter-spacing:.34em;text-shadow:0 0 14px var(--blue),0 0 34px rgba(0,216,255,.36);padding:8px 18px;cursor:pointer}.brandActive{filter:drop-shadow(0 0 15px var(--blue))}
+#liveBadge{position:fixed;top:calc(var(--safeTop) + 14px);left:50%;transform:translateX(92px);z-index:81;background:var(--green);color:#000;font-size:9px;font-weight:900;padding:1px 6px;border-radius:10px;min-width:16px;text-align:center;box-shadow:0 0 8px var(--green);display:none}
 #globeLayer{z-index:2}#globeHost{position:absolute;inset:0;overflow:hidden}.globe-gl{background:transparent!important}#spaceAnchors{position:fixed;inset:0;z-index:9;pointer-events:none;display:none}.space #spaceAnchors{display:block}.celestial{position:absolute;min-width:86px;min-height:42px;border:1px solid rgba(255,255,255,.16);border-radius:16px;background:rgba(2,8,23,.56);backdrop-filter:blur(10px);display:flex;align-items:center;gap:9px;padding:8px 10px;color:#f3fbff;box-shadow:0 0 22px rgba(0,216,255,.08)}.celestial b{font-size:11px;letter-spacing:.12em}.celestial span:first-child{width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center}.sun{left:14px;top:calc(var(--safeTop) + 58px)}.sun span:first-child{background:#ffd65a;color:#2b1d00;box-shadow:0 0 22px #ffd65a}.moon{left:14px;bottom:calc(var(--safeBot) + 18px)}.moon span:first-child{background:#dce8ff;color:#15213a}.mars{right:14px;top:calc(var(--safeTop) + 58px)}.mars span:first-child{background:#d56d46;color:#210900}.jupiter{right:14px;bottom:calc(var(--safeBot) + 18px)}.jupiter span:first-child{background:#c99a61;color:#241305}.iss{right:14px;top:50%;transform:translateY(-50%)}.iss span:first-child{background:#7fd6ff;color:#001b2c}
-#nationalLayer{z-index:20;background:#020617}#nationalMap,#cityMap{position:absolute;inset:0;background:#06101f}.leaflet-container{background:#06101f!important;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif!important}.leaflet-control-zoom,.leaflet-control-attribution{display:none!important}.nationalBeacon{width:18px;height:18px;border-radius:50%;background:var(--blue);border:2px solid rgba(255,255,255,.72);box-shadow:0 0 13px var(--blue),0 0 32px rgba(0,216,255,.36)}.nationalBeacon.gold{background:var(--gold);box-shadow:0 0 12px var(--gold),0 0 32px rgba(215,182,80,.4)}.beaconLabel{margin-top:19px;transform:translateX(-38%);color:var(--blue);font-size:10px;font-weight:800;letter-spacing:.08em;text-shadow:0 0 8px #001a2a;white-space:nowrap;border:0;background:transparent}.roundMarker{border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid;box-shadow:0 0 18px currentColor;background:rgba(2,8,23,.88)}.mkVendor{width:42px;height:42px;color:var(--gold);font-size:20px}.mkDriver{width:34px;height:34px;color:var(--green);font-size:17px}.mkUser{width:36px;height:36px;color:var(--blue);font-weight:900}.mkDest{width:32px;height:32px;color:var(--gold);font-weight:900}.mkChat{width:auto;height:auto;border-radius:16px;padding:6px 10px;color:var(--blue);background:rgba(2,8,23,.9);border:1px solid var(--blue2);font-size:11px;font-weight:900;letter-spacing:.08em;animation:bounce 1.4s infinite}.orderBubble{width:34px;height:34px;border-radius:50%;border:2px solid var(--gold);background:rgba(52,35,2,.9);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:900;box-shadow:0 0 16px var(--gold),0 0 32px rgba(215,182,80,.4);animation:bounce 1.25s infinite}.orderBubble::after{content:'💬';position:absolute;right:-8px;top:-8px;font-size:12px;background:#00121c;border-radius:50%;padding:2px;box-shadow:0 0 9px var(--blue)}@keyframes bounce{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-7px) scale(1.05)}}
+#nationalLayer{z-index:20;background:#020617}#nationalMap,#cityMap{position:absolute;inset:0;background:#06101f}.leaflet-container{background:#06101f!important;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif!important}.leaflet-control-zoom,.leaflet-control-attribution{display:none!important}.nationalBeacon{width:18px;height:18px;border-radius:50%;background:var(--blue);border:2px solid rgba(255,255,255,.72);box-shadow:0 0 13px var(--blue),0 0 32px rgba(0,216,255,.36)}.nationalBeacon.gold{background:var(--gold);box-shadow:0 0 12px var(--gold),0 0 32px rgba(215,182,80,.4)}.beaconLabel{margin-top:19px;transform:translateX(-38%);color:var(--blue);font-size:10px;font-weight:800;letter-spacing:.08em;text-shadow:0 0 8px #001a2a;white-space:nowrap;border:0;background:transparent}.roundMarker{border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid;box-shadow:0 0 18px currentColor;background:rgba(2,8,23,.88)}.mkVendor{width:42px;height:42px;color:var(--gold);font-size:20px}.mkDriver{width:34px;height:34px;color:var(--green);font-size:17px}.mkUser{width:36px;height:36px;color:var(--blue);font-weight:900}.mkDest{width:32px;height:32px;color:var(--gold);font-weight:900}.mkClient{width:32px;height:32px;color:var(--purple);font-weight:900}.mkChat{width:auto;height:auto;border-radius:16px;padding:6px 10px;color:var(--blue);background:rgba(2,8,23,.9);border:1px solid var(--blue2);font-size:11px;font-weight:900;letter-spacing:.08em;animation:bounce 1.4s infinite}.orderBubble{width:34px;height:34px;border-radius:50%;border:2px solid var(--gold);background:rgba(52,35,2,.9);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:900;box-shadow:0 0 16px var(--gold),0 0 32px rgba(215,182,80,.4);animation:bounce 1.25s infinite}.orderBubble::after{content:'💬';position:absolute;right:-8px;top:-8px;font-size:12px;background:#00121c;border-radius:50%;padding:2px;box-shadow:0 0 9px var(--blue)}.liveTracker{width:28px;height:28px;border-radius:50%;background:#00f09a;color:#000;display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 0 14px #00f09a,0 0 28px rgba(0,240,154,.6);animation:livePulse 1.2s infinite;z-index:1000}
+@keyframes livePulse{0%,100%{transform:scale(1)}50%{transform:scale(1.15)}}
 #cityLayer{z-index:30;background:#020617}#brightness{position:fixed;left:10px;top:50%;transform:translateY(-50%);z-index:46;display:none;flex-direction:column;align-items:center;gap:7px;padding:9px 6px;border:1px solid rgba(255,255,255,.12);border-radius:22px;background:rgba(2,8,23,.54);backdrop-filter:blur(10px);touch-action:none}.personal #brightness{display:flex}#brightness input{writing-mode:vertical-rl;direction:rtl;width:28px;height:152px;accent-color:var(--blue)}#brightness span{font-size:16px}.tileBrightLow .leaflet-tile{filter:brightness(.78) contrast(1.08) saturate(.75)}.tileBrightMid .leaflet-tile{filter:brightness(1.02) contrast(1.03) saturate(.88)}.tileBrightHigh .leaflet-tile{filter:brightness(1.22) contrast(1) saturate(1.02)}.routeDelivery{filter:drop-shadow(0 0 7px var(--blue)) drop-shadow(0 0 17px rgba(0,216,255,.65));animation:pulseLine 2s infinite}.routePickup{filter:drop-shadow(0 0 6px var(--gold));animation:pulseLine 2.2s infinite}.orderPolygon{filter:drop-shadow(0 0 9px var(--blue)) drop-shadow(0 0 18px rgba(0,216,255,.55));animation:pulseLine 1.8s infinite}@keyframes pulseLine{0%,100%{opacity:.72}50%{opacity:1}}
 #toast{position:fixed;left:50%;top:calc(var(--safeTop) + 58px);transform:translateX(-50%) translateY(-10px);z-index:200;max-width:90vw;opacity:0;pointer-events:none;border:1px solid var(--blue2);background:rgba(2,8,23,.9);backdrop-filter:blur(12px);border-radius:24px;padding:9px 15px;color:#eaffff;font-size:12px;letter-spacing:.05em;transition:.22s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
 .drawer{position:fixed;left:0;right:0;bottom:0;z-index:120;max-height:66vh;transform:translateY(108%);transition:transform .24s ease;background:rgba(2,8,23,.96);border-top:1px solid var(--blue2);border-radius:20px 20px 0 0;box-shadow:0 -16px 36px rgba(0,0,0,.48);backdrop-filter:blur(20px);overflow:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y}.drawer.open{transform:translateY(0)}.drawerHead{position:sticky;top:0;z-index:2;background:rgba(2,8,23,.98);display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.08)}.drawerTitle{font-size:12px;font-weight:900;letter-spacing:.13em;color:var(--blue);text-transform:uppercase}.xbtn{width:38px;height:38px;border-radius:50%;border:1px solid rgba(255,255,255,.13);background:rgba(255,255,255,.04);color:var(--muted);font-size:18px}.drawerBody{padding:10px 12px calc(var(--safeBot) + 12px)}.drawer.collapsed{max-height:48px;overflow:hidden}.drawer.collapsed .drawerBody{display:none}.drawer.collapsed{transform:translateY(calc(100% - 48px))}.drawer.collapsed .drawerHead{cursor:pointer}.btn{border:1px solid var(--blue2);background:var(--blue3);color:var(--text);border-radius:13px;min-height:44px;padding:9px 12px;font-weight:800;font-size:12px}.btn.gold{border-color:var(--gold2);background:var(--gold3);color:#ffe8a6}.btn.red{border-color:rgba(255,77,100,.35);background:rgba(255,77,100,.12);color:#ffb7c1}.cmdGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.cmdGrid .wide{grid-column:1/-1}.tiny{font-size:11px;color:var(--muted);line-height:1.35}.field,.select{min-height:40px;border:1px solid rgba(255,255,255,.14);border-radius:11px;background:rgba(255,255,255,.06);color:var(--text);padding:8px 9px;font-size:12px;outline:none}.select option{background:#071124;color:#e9f7ff}
@@ -23,11 +25,14 @@ body{position:fixed;inset:0}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,
 #productList{max-height:calc(66vh - 126px);overflow:auto;-webkit-overflow-scrolling:touch;padding:0 10px 12px}.productRow{display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:9px;align-items:center;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.035);border-radius:14px;padding:7px;margin-bottom:7px}.pimg{width:52px;height:52px;border-radius:12px;object-fit:cover;background:#10223b}.pname{font-weight:850;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pdesc{font-size:10px;color:var(--muted);line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.pmeta{font-size:11px;color:var(--gold);font-weight:900}.qtyBox{display:flex;align-items:center;gap:4px}.qbtn{width:36px;height:36px;border-radius:11px;border:1px solid var(--blue2);background:var(--blue3);color:var(--blue);font-size:18px;font-weight:900}.qtyInput{width:48px;height:36px;border-radius:10px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:var(--text);text-align:center;font-weight:900}.editBtn{width:36px;height:36px;border-radius:11px;border:1px solid var(--gold2);background:var(--gold3);color:#ffe7a4}.vendorMode .editBtn{display:inline-block}.editBtn{display:none}
 #pickBanner{position:fixed;left:50%;top:calc(var(--safeTop) + 58px);transform:translateX(-50%);z-index:92;display:none;border:1px solid var(--gold2);background:rgba(50,36,4,.92);color:#ffe7a4;border-radius:22px;padding:9px 14px;font-size:12px;font-weight:900;box-shadow:0 0 18px rgba(215,182,80,.33)}#pickBanner.on{display:block}
 .txRow{border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.035);border-radius:14px;padding:9px;margin-bottom:8px}.txTop{display:flex;justify-content:space-between;gap:8px;font-weight:900}.txActions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.chatLog{min-height:88px;max-height:180px;overflow:auto;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:8px;background:rgba(0,0,0,.15);margin:8px 0}.msg{font-size:12px;line-height:1.35;margin:4px 0}.msg b{color:var(--blue)}.chatInputRow{display:flex;gap:6px}.chatInputRow input{flex:1}.ledgerLine{display:grid;grid-template-columns:1fr auto;gap:8px;border-bottom:1px solid rgba(255,255,255,.07);padding:7px 0;font-size:12px}.ledgerLine b{color:var(--gold)}
+.orderList{margin:8px 0}.orderItem{padding:10px;border:1px solid var(--blue2);border-radius:12px;margin-bottom:8px;background:rgba(2,8,23,.6);cursor:pointer}
+.airspace-circle{stroke:#00d8ff;stroke-width:2;fill:#00d8ff;fill-opacity:0.08}
 </style>
 </head>
 <body class="global">
 <div id="starfield"></div>
 <button id="brand" aria-label="ASTRANOV command">ASTRANOV</button>
+<div id="liveBadge">0</div>
 <section id="globeLayer" class="layer on"><div id="globeHost"></div><div id="spaceAnchors"><div class="celestial sun"><span>☉</span><b>SUN</b></div><div class="celestial moon"><span>☾</span><b>MOON</b></div><div class="celestial mars"><span>●</span><b>MARS</b></div><div class="celestial jupiter"><span>●</span><b>JUPITER</b></div><div class="celestial iss"><span>◇</span><b>ISS</b></div></div></section>
 <section id="nationalLayer" class="layer"><div id="nationalMap"></div></section>
 <section id="cityLayer" class="layer"><div id="cityMap"></div></section>
@@ -46,8 +51,9 @@ body{position:fixed;inset:0}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,
       <button class="btn" data-cmd="global">Global</button>
       <button class="btn" data-cmd="space">Space</button>
       <button class="btn wide gold" data-cmd="rhodes">Personal · Rhodes</button>
+      <button class="btn" data-cmd="clear">Clear Map</button>
     </div>
-    <p class="tiny" style="margin-top:10px">Controls appear only when needed. Cash on delivery only. Owner 3% ledger is recorded per transaction.</p>
+    <p class="tiny" style="margin-top:10px">Click globe anywhere → airspace • Live driver tracking active • Real routing</p>
   </div>
 </div>
 
@@ -56,7 +62,7 @@ body{position:fixed;inset:0}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,
   <div id="checkoutRibbon">
     <button id="orderButton" class="orderAction empty">↓ ADD ITEMS</button>
     <span class="rchip slim">🏪 <b id="ribVendor">Vendor</b></span>
-    <span class="rchip">📍 <select id="destSelect"><option value="user">User</option><option value="other">Other address</option></select></span>
+    <span class="rchip">📍 <select id="destSelect"><option value="user">User location</option><option value="other">Other address</option></select></span>
     <span class="rchip">⚖ <input id="kgInput" type="number" min="0" step="0.1" placeholder="kg/L"></span>
     <span class="rchip">🚚 <select id="assignSelect"><option value="auto">Automatic</option><option value="choose">Choose driver</option><option value="pickup">Self-pickup</option></select></span>
     <span class="rchip rDetails">👤 <select id="driverSelect"></select></span>
@@ -65,7 +71,7 @@ body{position:fixed;inset:0}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,
     <span class="rchip rDetails">🧺 <b id="ribBasket">€0.00</b></span>
     <span class="rchip">💶 <b id="ribTotal">€0.00 COD</b></span>
     <span class="rchip rDetails">👥 <b id="ribDrivers">1 driver</b></span>
-    <span class="rchip rDetails">⏱ <input id="prepInput" type="time"><input id="pickupInput" type="time"><input id="arrivalInput" type="time"></span>
+    <span class="rchip rDetails">⏱ <input id="prepInput" type="time" value="12:30"><input id="pickupInput" type="time" value="13:00"><input id="arrivalInput" type="time" value="13:45"></span>
     <button class="btn gold rToggle" id="ribbonToggle">▾</button>
   </div>
   <div id="productList"></div>
@@ -76,7 +82,6 @@ body{position:fixed;inset:0}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,
   <div class="drawerBody" id="panelBody"></div>
 </div>
 
-<script src="https://unpkg.com/three@0.155.0/build/three.min.js"></script>
 <script src="https://unpkg.com/globe.gl@2.29.0/dist/globe.gl.min.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin></script>
 <script>
@@ -84,42 +89,342 @@ body{position:fixed;inset:0}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,
 const $=id=>document.getElementById(id);
 const TILES={dark:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',light:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'};
 const COUNTRIES=[{id:'gr',name:'Greece',lat:39.0742,lng:21.8243,alt:1.6,cities:[{id:'ath',name:'Athens',lat:37.9838,lng:23.7275,z:13},{id:'rho',name:'Rhodes',lat:36.4349,lng:28.2176,z:14},{id:'the',name:'Thessaloniki',lat:40.6401,lng:22.9444,z:13},{id:'pat',name:'Patras',lat:38.2466,lng:21.7346,z:13},{id:'her',name:'Heraklion',lat:35.3387,lng:25.1442,z:13}]},{id:'uk',name:'United Kingdom',lat:54.4,lng:-2.7,alt:1.85,cities:[{id:'lon',name:'London',lat:51.5074,lng:-0.1278,z:13},{id:'edi',name:'Edinburgh',lat:55.9533,lng:-3.1883,z:13}]},{id:'fr',name:'France',lat:46.2,lng:2.2,alt:1.85,cities:[{id:'par',name:'Paris',lat:48.8566,lng:2.3522,z:13},{id:'mar',name:'Marseille',lat:43.2965,lng:5.3698,z:13}]}];
-const DATA={vendorMode:false,view:'global',country:null,city:null,globe:null,nationalMap:null,cityMap:null,darkLayer:null,lightLayer:null,vendors:[],drivers:[],markers:[],routes:[],currentVendor:null,cart:{},selectedDest:null,selectedDriver:null,pickingDest:false,orders:[],ledger:[],messages:{},navLock:0};
+const DATA={vendorMode:false,view:'global',country:null,city:null,globe:null,nationalMap:null,cityMap:null,darkLayer:null,lightLayer:null,vendors:[],drivers:[],clients:[],markers:[],routes:[],liveTrackers:{},currentVendor:null,cart:{},selectedDest:null,selectedDriver:null,pickingDest:false,orders:[],ledger:[],messages:{},navLock:0};
+
 const baseProducts=[{name:'Pizza Margherita',desc:'Tomato, mozzarella, basil',price:9,kg:0.65,img:'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?auto=format&fit=crop&w=160&q=70'},{name:'Greek salad',desc:'Tomato, cucumber, feta, olives',price:6.5,kg:0.55,img:'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=160&q=70'},{name:'Milk 1L',desc:'Fresh milk bottle',price:1.8,kg:1,img:'https://images.unsplash.com/photo-1563636619-e9143da7973b?auto=format&fit=crop&w=160&q=70'},{name:'Olive oil 500ml',desc:'Extra virgin olive oil',price:8,kg:.5,img:'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&w=160&q=70'},{name:'Water pack 6×1.5L',desc:'Heavy pack, counts for driver capacity',price:3.2,kg:9,img:'https://images.unsplash.com/photo-1523362628745-0c100150b504?auto=format&fit=crop&w=160&q=70'}];
+
 function toast(m,d=2200){const t=$('toast');t.textContent=m;t.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>t.classList.remove('on'),d)}
+
 function km(a,b,c,d){const R=6371,la1=a*Math.PI/180,la2=c*Math.PI/180,dl=(c-a)*Math.PI/180,dn=(d-b)*Math.PI/180;const x=Math.sin(dl/2)**2+Math.cos(la1)*Math.cos(la2)*Math.sin(dn/2)**2;return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x))}
-function openDrawer(id){$(id).classList.add('open');$(id).classList.remove('collapsed')}function closeDrawer(id){$(id).classList.remove('open','collapsed')}function minimizeVendor(){if($('vendorSheet').classList.contains('open'))$('vendorSheet').classList.add('collapsed')}function setBodyMode(v){document.body.className=v+(DATA.vendorMode?' vendorMode':'')}function setView(v){DATA.view=v;setBodyMode(v);['globeLayer','nationalLayer','cityLayer'].forEach(id=>$(id).classList.remove('on'));if(v==='global'||v==='space')$('globeLayer').classList.add('on');if(v==='national')$('nationalLayer').classList.add('on');if(v==='personal')$('cityLayer').classList.add('on');if(DATA.globe){const ctl=DATA.globe.controls();ctl.autoRotate=(v==='global');DATA.globe.pointOfView({lat:DATA.country?DATA.country.lat:37,lng:DATA.country?DATA.country.lng:23,altitude:v==='space'?3.8:2.05},650)}closeDrawer('commandPanel')}
+
+function findClosestCountry(lat,lng){let closest=COUNTRIES[0],minD=Infinity;COUNTRIES.forEach(c=>{const d=km(lat,lng,c.lat,c.lng);if(d<minD){minD=d;closest=c;}});return closest;}
+
+function updateLiveBadge(){const count=DATA.orders.filter(o=>o.status==='active').length;const b=$('liveBadge');b.textContent=count;b.style.display=count>0?'block':'none';}
+
+function openDrawer(id){$(id).classList.add('open');$(id).classList.remove('collapsed')}
+function closeDrawer(id){$(id).classList.remove('open','collapsed')}
+function minimizeVendor(){if($('vendorSheet').classList.contains('open'))$('vendorSheet').classList.add('collapsed')}
+function setBodyMode(v){document.body.className=v+(DATA.vendorMode?' vendorMode':'')}
+function setView(v){DATA.view=v;setBodyMode(v);['globeLayer','nationalLayer','cityLayer'].forEach(id=>$(id).classList.remove('on'));if(v==='global'||v==='space')$('globeLayer').classList.add('on');if(v==='national')$('nationalLayer').classList.add('on');if(v==='personal')$('cityLayer').classList.add('on');if(DATA.globe){const ctl=DATA.globe.controls();ctl.autoRotate=(v==='global');DATA.globe.pointOfView({lat:DATA.country?DATA.country.lat:37,lng:DATA.country?DATA.country.lng:23,altitude:v==='space'?3.8:2.05},650)}closeDrawer('commandPanel')}
+
 function altitudeNav(dir){const now=Date.now();if(now-DATA.navLock<700)return;DATA.navLock=now;const country=DATA.country||COUNTRIES[0];if(dir==='in'){if(DATA.view==='space')return setView('global');if(DATA.view==='global')return openNational(country);if(DATA.view==='national')return openPersonal(country.cities[0]);}else{if(DATA.view==='personal')return openNational(country);if(DATA.view==='national')return setView('global');if(DATA.view==='global')return setView('space');}}
+
 function bindAltitudeGestures(el){if(!el||el.dataset.altBound)return;el.dataset.altBound='1';let pinchStart=0,pinched=false;el.addEventListener('wheel',e=>{if(e.target.closest&&e.target.closest('.drawer'))return;const dy=e.deltaY;if(Math.abs(dy)<22)return;if(DATA.view==='national'&&DATA.nationalMap&&DATA.nationalMap.getZoom()>6&&dy>0)return;if(DATA.view==='personal'&&DATA.cityMap&&DATA.cityMap.getZoom()>8&&dy>0)return;e.preventDefault();altitudeNav(dy<0?'in':'out')},{passive:false});el.addEventListener('touchstart',e=>{if(e.touches&&e.touches.length===2){const a=e.touches[0],b=e.touches[1];pinchStart=Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY);pinched=false}},{passive:true});el.addEventListener('touchmove',e=>{if(!pinchStart||!e.touches||e.touches.length!==2||pinched)return;const a=e.touches[0],b=e.touches[1];const d=Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY);if(Math.abs(d-pinchStart)>42){pinched=true;altitudeNav(d>pinchStart?'in':'out')}},{passive:true});el.addEventListener('touchend',()=>{pinchStart=0;pinched=false},{passive:true})}
+
 function makeStars(){const f=$('starfield');for(let i=0;i<130;i++){const s=document.createElement('i');s.className='star';s.style.left=Math.random()*100+'%';s.style.top=Math.random()*100+'%';s.style.opacity=.28+Math.random()*.7;f.appendChild(s)}}
-function initGlobe(){if(!window.Globe){toast('Globe engine not loaded');return}DATA.globe=Globe()($('globeHost')).backgroundColor('rgba(0,0,0,0)').globeImageUrl('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg').bumpImageUrl('https://unpkg.com/three-globe/example/img/earth-topology.png').showAtmosphere(true).atmosphereColor('#00d8ff').atmosphereAltitude(.18).pointsData(COUNTRIES).pointLat('lat').pointLng('lng').pointAltitude(.018).pointRadius(.42).pointColor(()=> '#00d8ff').pointResolution(20).onPointClick(c=>openNational(c));const ctl=DATA.globe.controls();ctl.autoRotate=true;ctl.autoRotateSpeed=.12;ctl.enableDamping=true;ctl.dampingFactor=.08;DATA.globe.pointOfView({lat:37,lng:23,altitude:2.05},0);window.addEventListener('resize',()=>DATA.globe.width(innerWidth).height(innerHeight));bindAltitudeGestures($('globeHost'));$('globeHost').addEventListener('dblclick',e=>{if(DATA.view==='global'){e.preventDefault();openNational(DATA.country||COUNTRIES[0])}})}
+
+function initGlobe(){if(!window.Globe){toast('Globe engine not loaded');return}
+  DATA.globe=Globe()($('globeHost'))
+    .backgroundColor('rgba(0,0,0,0)')
+    .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg')
+    .bumpImageUrl('https://unpkg.com/three-globe/example/img/earth-topology.png')
+    .showAtmosphere(true).atmosphereColor('#00d8ff').atmosphereAltitude(.18)
+    .pointsData(COUNTRIES).pointLat('lat').pointLng('lng').pointAltitude(.018).pointRadius(.42)
+    .pointColor(()=> '#00d8ff').pointResolution(20)
+    .onPointClick(c=>openNational(c))
+    .onGlobeClick((lat,lng)=>{const country=findClosestCountry(lat,lng);toast('Airspace detected: '+country.name);openNational(country);});
+
+  const renderer=DATA.globe.renderer&&DATA.globe.renderer();
+  if(renderer&&renderer.useLegacyLights!==undefined)renderer.useLegacyLights=false;
+
+  const ctl=DATA.globe.controls();ctl.autoRotate=true;ctl.autoRotateSpeed=.12;ctl.enableDamping=true;ctl.dampingFactor=.08;
+  DATA.globe.pointOfView({lat:37,lng:23,altitude:2.05},0);
+  window.addEventListener('resize',()=>DATA.globe.width(innerWidth).height(innerHeight));
+  bindAltitudeGestures($('globeHost'));
+  $('globeHost').addEventListener('dblclick',e=>{if(DATA.view==='global'){e.preventDefault();openNational(DATA.country||COUNTRIES[0])}})
+}
+
 function openNational(country){DATA.country=country;setView('national');setTimeout(()=>initNational(country),80)}
-function initNational(country){if(!DATA.nationalMap){DATA.nationalMap=L.map('nationalMap',{zoomControl:false,attributionControl:false,scrollWheelZoom:true});L.tileLayer(TILES.dark,{maxZoom:19}).addTo(DATA.nationalMap);DATA.nationalMap.on('zoomend',()=>{if(DATA.view==='national'&&DATA.nationalMap.getZoom()<=5)altitudeNav('out')});bindAltitudeGestures(DATA.nationalMap.getContainer())}DATA.nationalMap.eachLayer(l=>{if(l instanceof L.Marker)DATA.nationalMap.removeLayer(l)});const bounds=country.cities.map(c=>[c.lat,c.lng]);setTimeout(()=>{DATA.nationalMap.invalidateSize();DATA.nationalMap.fitBounds(bounds,{padding:[54,54],maxZoom:7});},60);country.cities.forEach((c,i)=>{const icon=L.divIcon({className:'',iconSize:[80,40],iconAnchor:[9,9],html:`<div class="nationalBeacon ${i===0?'gold':''}"></div><div class="beaconLabel">${c.name}</div>`});L.marker([c.lat,c.lng],{icon}).addTo(DATA.nationalMap).on('click',()=>openPersonal(c))})}
+
+function initNational(country){
+  if(!DATA.nationalMap){
+    DATA.nationalMap=L.map('nationalMap',{zoomControl:false,attributionControl:false,scrollWheelZoom:true});
+    L.tileLayer(TILES.dark,{maxZoom:19}).addTo(DATA.nationalMap);
+    DATA.nationalMap.on('zoomend',()=>{if(DATA.view==='national'&&DATA.nationalMap.getZoom()<=5)altitudeNav('out')});
+    bindAltitudeGestures(DATA.nationalMap.getContainer());
+  }
+  DATA.nationalMap.eachLayer(l=>{if(l instanceof L.Marker||l instanceof L.Circle)DATA.nationalMap.removeLayer(l)});
+  const bounds=country.cities.map(c=>[c.lat,c.lng]);
+  setTimeout(()=>{DATA.nationalMap.invalidateSize();DATA.nationalMap.fitBounds(bounds,{padding:[54,54],maxZoom:7});},60);
+
+  L.circle([country.lat,country.lng],{radius:180000,color:'#00d8ff',fillColor:'#00d8ff',fillOpacity:0.08,weight:2,className:'airspace-circle'}).addTo(DATA.nationalMap);
+
+  country.cities.forEach((c,i)=>{
+    const icon=L.divIcon({className:'',iconSize:[80,40],iconAnchor:[9,9],html:`<div class="nationalBeacon ${i===0?'gold':''}"></div><div class="beaconLabel">${c.name}</div>`});
+    L.marker([c.lat,c.lng],{icon}).addTo(DATA.nationalMap).on('click',()=>openPersonal(c));
+  });
+  toast('National airspace of '+country.name+' active • '+country.cities.length+' cities online');
+}
+
 function openPersonal(city){DATA.city=city;setView('personal');closeDrawer('vendorSheet');setTimeout(()=>initCity(city),80)}
+
 function genVendors(city){return[{id:'v1',name:'Aegean Market',emoji:'🥬',lat:city.lat+.003,lng:city.lng+.004,products:structuredClone(baseProducts)},{id:'v2',name:'Napoli Pizza',emoji:'🍕',lat:city.lat-.0035,lng:city.lng+.002,products:structuredClone(baseProducts.slice(0,3))},{id:'v3',name:'Rhodes Pharmacy',emoji:'⚕',lat:city.lat+.002,lng:city.lng-.004,products:[{name:'Vitamin C',desc:'1000mg tablets',price:6,kg:.12,img:'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=160&q=70'},{name:'Bandages',desc:'Basic pack',price:2.5,kg:.05,img:'https://images.unsplash.com/photo-1603398938378-e54eab446dde?auto=format&fit=crop&w=160&q=70'}]}]}
+
 function genDrivers(city){return[{id:'d1',name:'Nikos',lat:city.lat+.005,lng:city.lng-.002,icon:'🛵'},{id:'d2',name:'Maria',lat:city.lat-.004,lng:city.lng-.005,icon:'🚗'},{id:'d3',name:'Theo',lat:city.lat+.001,lng:city.lng+.007,icon:'🛵'},{id:'d4',name:'Eleni',lat:city.lat-.006,lng:city.lng+.004,icon:'🚲'}]}
-function initCity(city){if(!DATA.cityMap){DATA.cityMap=L.map('cityMap',{zoomControl:false,attributionControl:false,scrollWheelZoom:true}).setView([city.lat,city.lng],city.z||13);DATA.darkLayer=L.tileLayer(TILES.dark,{maxZoom:19}).addTo(DATA.cityMap);DATA.lightLayer=L.tileLayer(TILES.light,{maxZoom:19,opacity:0});DATA.lightLayer.addTo(DATA.cityMap);DATA.cityMap.on('zoomend',()=>{if(DATA.view==='personal'&&DATA.cityMap.getZoom()<=7)altitudeNav('out')});DATA.cityMap.on('click',e=>{if(DATA.pickingDest){finishDestPick(e.latlng);return}minimizeVendor()});bindAltitudeGestures(DATA.cityMap.getContainer())}DATA.cityMap.setView([city.lat,city.lng],city.z||13);DATA.markers.forEach(m=>m.remove());DATA.routes.forEach(r=>r.remove());DATA.markers=[];DATA.routes=[];DATA.vendors=genVendors(city);DATA.drivers=genDrivers(city);L.marker([city.lat,city.lng],{icon:divIcon('mkUser','U')}).addTo(DATA.cityMap);DATA.vendors.forEach(v=>{const m=L.marker([v.lat,v.lng],{icon:divIcon('mkVendor',v.emoji)}).addTo(DATA.cityMap).on('click',()=>openVendor(v));m.bindTooltip(v.name);DATA.markers.push(m)});DATA.drivers.forEach(d=>{const m=L.marker([d.lat,d.lng],{icon:divIcon('mkDriver',d.icon)}).addTo(DATA.cityMap).on('click',()=>selectDriver(d));m.bindTooltip(d.name);DATA.markers.push(m)});setTimeout(()=>DATA.cityMap.invalidateSize(),120)}
+
+function genClients(city){return[{id:'c1',name:'Villa Client',lat:city.lat-.0025,lng:city.lng+.0035,icon:'🏠'},{id:'c2',name:'Hotel Client',lat:city.lat+.0018,lng:city.lng-.0042,icon:'🏨'},{id:'c3',name:'Beach House',lat:city.lat-.004,lng:city.lng+.001,icon:'🏖️'}]}
+
+function initCity(city){
+  if(!DATA.cityMap){
+    DATA.cityMap=L.map('cityMap',{zoomControl:false,attributionControl:false,scrollWheelZoom:true}).setView([city.lat,city.lng],city.z||13);
+    DATA.darkLayer=L.tileLayer(TILES.dark,{maxZoom:19}).addTo(DATA.cityMap);
+    DATA.lightLayer=L.tileLayer(TILES.light,{maxZoom:19,opacity:0});DATA.lightLayer.addTo(DATA.cityMap);
+    DATA.cityMap.on('zoomend',()=>{if(DATA.view==='personal'&&DATA.cityMap.getZoom()<=7)altitudeNav('out')});
+    DATA.cityMap.on('click',e=>{if(DATA.pickingDest){finishDestPick(e.latlng);return}minimizeVendor()});
+    bindAltitudeGestures(DATA.cityMap.getContainer());
+  }
+  DATA.cityMap.setView([city.lat,city.lng],city.z||13);
+  clearMapLayers();
+  DATA.vendors=genVendors(city);
+  DATA.drivers=genDrivers(city);
+  DATA.clients=genClients(city);
+
+  L.marker([city.lat,city.lng],{icon:divIcon('mkUser','U')}).addTo(DATA.cityMap).bindTooltip('You are here');
+
+  DATA.vendors.forEach(v=>{
+    const m=L.marker([v.lat,v.lng],{icon:divIcon('mkVendor',v.emoji)}).addTo(DATA.cityMap).on('click',()=>openVendor(v));
+    m.bindTooltip(v.name+' • Tap to order');
+    DATA.markers.push(m);
+  });
+
+  DATA.drivers.forEach(d=>{
+    const m=L.marker([d.lat,d.lng],{icon:divIcon('mkDriver',d.icon)}).addTo(DATA.cityMap).on('click',()=>selectDriver(d));
+    m.bindTooltip(d.name+' • Available');
+    DATA.markers.push(m);
+  });
+
+  DATA.clients.forEach(cl=>{
+    const m=L.marker([cl.lat,cl.lng],{icon:divIcon('mkClient',cl.icon)}).addTo(DATA.cityMap);
+    m.bindTooltip(cl.name+' • Delivery destination');
+    DATA.markers.push(m);
+  });
+
+  setTimeout(()=>DATA.cityMap.invalidateSize(),120);
+  redrawAllOrders();
+  updateLiveBadge();
+  toast('City live: '+DATA.vendors.length+' vendors • '+DATA.drivers.length+' drivers • '+DATA.clients.length+' clients');
+}
+
+function clearMapLayers(){
+  DATA.markers.forEach(m=>m.remove());
+  DATA.routes.forEach(r=>r.remove());
+  Object.values(DATA.liveTrackers).forEach(t=>{if(t.interval)clearInterval(t.interval);if(t.marker)t.marker.remove()});
+  DATA.markers=[];DATA.routes=[];DATA.liveTrackers={};
+}
+
 function divIcon(cls,html){return L.divIcon({className:'',iconSize:[46,46],iconAnchor:[23,23],html:`<div class="roundMarker ${cls}">${html}</div>`})}
+
 function setBrightness(v){document.body.classList.remove('tileBrightLow','tileBrightMid','tileBrightHigh');document.body.classList.add(['tileBrightLow','tileBrightMid','tileBrightHigh'][+v]);if(DATA.lightLayer)DATA.lightLayer.setOpacity(+v===0?0:+v===1?.35:.82);localStorage.setItem('as_brightness',v)}
+
 function openVendor(v){DATA.currentVendor=v;DATA.cart={};DATA.selectedDriver=null;DATA.selectedDest=null;$('vendorTitle').textContent=v.name;$('ribVendor').textContent=v.emoji+' '+v.name;renderProducts();fillDrivers();updateRibbon();openDrawer('vendorSheet');closeDrawer('panelSheet')}
-function renderProducts(){const v=DATA.currentVendor;if(!v)return;$('productList').innerHTML=v.products.map((p,i)=>`<div class="productRow"><img class="pimg" src="${p.img}" alt=""><div><div class="pname">${p.name}</div><div class="pdesc">${p.desc}</div><div class="pmeta">€${p.price.toFixed(2)} · ${p.kg} kg/L</div></div><div class="qtyBox"><button class="qbtn" data-minus="${i}">−</button><input class="qtyInput" inputmode="numeric" type="number" min="0" step="1" value="${DATA.cart[i]||0}" data-qty="${i}"><button class="qbtn" data-plus="${i}">+</button><button class="editBtn" data-edit="${i}">✎</button></div></div>`).join('');$('productList').querySelectorAll('[data-plus]').forEach(b=>b.onclick=()=>{const i=+b.dataset.plus;DATA.cart[i]=(DATA.cart[i]||0)+1;renderProducts();updateRibbon()});$('productList').querySelectorAll('[data-minus]').forEach(b=>b.onclick=()=>{const i=+b.dataset.minus;DATA.cart[i]=Math.max(0,(DATA.cart[i]||0)-1);renderProducts();updateRibbon()});$('productList').querySelectorAll('[data-qty]').forEach(inp=>inp.onchange=()=>{DATA.cart[+inp.dataset.qty]=Math.max(0,parseInt(inp.value||0));updateRibbon()});$('productList').querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>editProduct(+b.dataset.edit))}
-function calc(){const v=DATA.currentVendor;if(!v)return null;const items=Object.entries(DATA.cart).map(([i,q])=>({p:v.products[+i],q:+q})).filter(x=>x.q>0);const basket=items.reduce((s,x)=>s+x.p.price*x.q,0);const autoKg=items.reduce((s,x)=>s+x.p.kg*x.q,0);const manual=parseFloat($('kgInput').value||0);const kg=manual>0?manual:autoKg;const pickup=$('assignSelect').value==='pickup';const dest=currentDest();const dist=pickup?0:km(v.lat,v.lng,dest.lat,dest.lng);const base=pickup?0:(dist<=3?3:3+(dist-3));const drivers=pickup?0:Math.max(1,Math.ceil(Math.max(.01,kg)/13));const load=pickup?0:Math.max(0,drivers-1);const delivery=+(base+load).toFixed(2);const total=+(basket+delivery).toFixed(2);return{items,basket,kg,dist,drivers,delivery,total,pickup,dest,load}}
-function currentDest(){return DATA.selectedDest||{lat:DATA.city.lat,lng:DATA.city.lng,label:'User'}}
-function updateRibbon(){const c=calc();if(!c)return;$('ribKm').textContent=c.dist.toFixed(1)+'km';$('ribDelivery').textContent='€'+c.delivery.toFixed(2);$('ribBasket').textContent='€'+c.basket.toFixed(2);$('ribTotal').textContent='€'+c.total.toFixed(2)+' COD';$('ribDrivers').textContent=c.pickup?'self-pickup':c.drivers+' driver'+(c.drivers>1?'s':'');const btn=$('orderButton');if(!c.items.length){btn.textContent='↓ ADD ITEMS';btn.classList.add('empty')}else{btn.textContent=c.pickup?'PLACE CASH ORDER':'PLACE CASH ORDER · '+c.drivers+' DRIVER'+(c.drivers>1?'S':'');btn.classList.remove('empty')}if(c.drivers>1&&!c.pickup)toast(c.drivers+' drivers required for '+c.kg.toFixed(1)+' kg/L',1400)}
+
+function renderProducts(){const v=DATA.currentVendor;if(!v)return;$('productList').innerHTML=v.products.map((p,i)=>`<div class="productRow"><img class="pimg" src="${p.img}" alt=""><div><div class="pname">${p.name}</div><div class="pdesc">${p.desc}</div><div class="pmeta">€${p.price.toFixed(2)} · ${p.kg} kg/L</div></div><div class="qtyBox"><button class="qbtn" data-minus="${i}">−</button><input class="qtyInput" inputmode="numeric" type="number" min="0" step="1" value="${DATA.cart[i]||0}" data-qty="${i}"><button class="qbtn" data-plus="${i}">+</button><button class="editBtn" data-edit="${i}">✎</button></div></div>`).join('');$('productList').querySelectorAll('[data-plus]').forEach(b=>b.onclick=()=>{const i=+b.dataset.plus;DATA.cart[i]=(DATA.cart[i]||0)+1;renderProducts();updateRibbon()});$('productList').querySelectorAll('[data-minus]').forEach(b=>b.onclick=()=>{const i=+b.dataset.minus;DATA.cart[i]=Math.max(0,(DATA.cart[i]||0)-1);renderProducts();updateRibbon()});$('productList').querySelectorAll('[data-qty]').forEach(inp=>inp.onchange=()=>{DATA.cart[+inp.dataset.qty]=Math.max(0,parseInt(inp.value||0)||0);renderProducts();updateRibbon()});$('productList').querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>editProduct(+b.dataset.edit))}
+
+function calc(){const v=DATA.currentVendor;if(!v)return null;const items=Object.entries(DATA.cart).map(([i,q])=>({p:v.products[+i],q:+q})).filter(x=>x.q>0);const basket=items.reduce((s,x)=>s+x.p.price*x.q,0);const autoKg=items.reduce((s,x)=>s+x.p.kg*x.q,0);const manual=parseFloat($('kgInput').value||0);const kg=manual>0?manual:autoKg;const pickup=$('assignSelect').value==='pickup';const dest=currentDest();const dist=pickup?0:km(v.lat,v.lng,dest.lat,dest.lng);const base=pickup?0:(dist<=3?3:3+(dist-3)*0.9);const drivers=pickup?0:Math.max(1,Math.ceil(Math.max(.01,kg)/13));const load=pickup?0:Math.max(0,drivers-1);const delivery=+(base+load*1.1).toFixed(2);const total=+(basket+delivery).toFixed(2);return{items,basket,kg,dist,drivers,delivery,total,pickup,dest,load}}
+
+function currentDest(){if(DATA.selectedDest)return DATA.selectedDest;const c=DATA.clients[0];return c?{lat:c.lat,lng:c.lng,label:c.name}:{lat:DATA.city.lat,lng:DATA.city.lng,label:'You'}}
+
+function updateRibbon(){const c=calc();if(!c)return;$('ribKm').textContent=c.dist.toFixed(1)+'km';$('ribDelivery').textContent='€'+c.delivery.toFixed(2);$('ribBasket').textContent='€'+c.basket.toFixed(2);$('ribTotal').textContent='€'+c.total.toFixed(2)+' COD';$('ribDrivers').textContent=c.pickup?'self-pickup':c.drivers+' driver'+(c.drivers>1?'s':'');const btn=$('orderButton');if(!c.items.length){btn.textContent='↓ ADD ITEMS';btn.classList.add('empty')}else{btn.textContent=c.pickup?'PLACE CASH ORDER':'PLACE CASH ORDER · '+c.drivers+' DRIVER'+(c.drivers>1?'S':'');btn.classList.remove('empty')}if(c.drivers>1&&!c.pickup)toast(c.drivers+' drivers required for '+c.kg.toFixed(1)+' kg',1400)}
+
 function fillDrivers(){const sel=$('driverSelect');sel.innerHTML='<option value="">Auto</option>'+DATA.drivers.map(d=>`<option value="${d.id}">${d.icon} ${d.name}</option>`).join('')}
+
 function selectDriver(d){DATA.selectedDriver=d;$('assignSelect').value='choose';$('driverSelect').value=d.id;updateRibbon();toast('Driver selected: '+d.name);if(DATA.currentVendor)openDrawer('vendorSheet')}
-function startDestPick(){DATA.pickingDest=true;$('pickBanner').classList.add('on');minimizeVendor();toast('Tap the delivery address on the map')}
-function finishDestPick(latlng){DATA.pickingDest=false;$('pickBanner').classList.remove('on');DATA.selectedDest={lat:latlng.lat,lng:latlng.lng,label:'Selected'};L.marker([latlng.lat,latlng.lng],{icon:divIcon('mkDest','⌖')}).addTo(DATA.cityMap);openDrawer('vendorSheet');updateRibbon()}
-function placeOrder(){const c=calc();if(!c||!c.items.length){$('productList').scrollTop=0;toast('Add items first');return}const drivers=c.pickup?[]:chooseDrivers(c.drivers);if(!c.pickup&&drivers.length<c.drivers){toast('Not enough drivers nearby');return}const id='ORD-'+(DATA.orders.length+1);const order={id,vendor:DATA.currentVendor,calc:c,drivers,status:'active',driverConfirmed:false,clientConfirmed:false,created:Date.now()};DATA.orders.push(order);DATA.messages[id]=[{who:'System',text:'Cash order placed. Driver and client must both confirm completion.'}];drawOrder(order);recordLedger(order);renderTransaction(order);toast(c.pickup?'Cash order created':drivers.length+' driver(s) assigned');closeDrawer('vendorSheet')}
+
+function startDestPick(){DATA.pickingDest=true;$('pickBanner').classList.add('on');minimizeVendor();toast('Tap map to choose delivery address (client or custom)')}
+
+function finishDestPick(latlng){DATA.pickingDest=false;$('pickBanner').classList.remove('on');DATA.selectedDest={lat:latlng.lat,lng:latlng.lng,label:'Custom Location'};L.marker([latlng.lat,latlng.lng],{icon:divIcon('mkDest','⌖')}).addTo(DATA.cityMap);openDrawer('vendorSheet');updateRibbon()}
+
+function placeOrder(){const c=calc();if(!c||!c.items.length){toast('Add items first');return}const drivers=c.pickup?[]:chooseDrivers(c.drivers);if(!c.pickup&&drivers.length<c.drivers){toast('Not enough drivers nearby');return}const id='ORD-'+Date.now().toString(36).toUpperCase();const order={id,vendor:DATA.currentVendor,calc:c,drivers,status:'active',driverConfirmed:false,clientConfirmed:false,created:Date.now()};DATA.orders.push(order);DATA.messages[id]=[{who:'System',text:'Cash order placed. Live tracking started.'}];drawOrder(order);recordLedger(order);renderTransaction(order);updateLiveBadge();toast(c.pickup?'Order placed (self-pickup)':'🚚 Live tracking started • Driver en route');closeDrawer('vendorSheet')}
+
 function chooseDrivers(n){if($('assignSelect').value==='choose'&&$('driverSelect').value){const d=DATA.drivers.find(x=>x.id===$('driverSelect').value);return d?[d]:[]}return DATA.drivers.slice(0,n)}
-function drawOrder(o){const v=o.vendor,dest=o.calc.dest,drivers=o.drivers;drivers.forEach((dr,i)=>{const pickup=L.polyline([[dr.lat,dr.lng],[v.lat,v.lng]],{color:'#d7b650',weight:5,opacity:.9,className:'routePickup'}).addTo(DATA.cityMap).on('click',()=>renderTransaction(o));const deliver=L.polyline([[v.lat,v.lng],[dest.lat,dest.lng]],{color:'#00d8ff',weight:6,opacity:.95,className:'routeDelivery'}).addTo(DATA.cityMap).on('click',()=>renderTransaction(o));DATA.routes.push(pickup,deliver)});const pts=[[dest.lat,dest.lng],[v.lat,v.lng],...drivers.map(d=>[d.lat,d.lng])];if(pts.length>2){const poly=L.polygon(pts,{color:'#00d8ff',fillColor:'#00d8ff',fillOpacity:.08,weight:4,opacity:.9,className:'orderPolygon'}).addTo(DATA.cityMap).on('click',()=>renderTransaction(o));DATA.routes.push(poly)}const spiral=DATA.orders.filter(x=>x.vendor.id===v.id).length;const ang=spiral*0.9,rad=.00055*spiral;const bubble=L.marker([v.lat+Math.sin(ang)*rad,v.lng+Math.cos(ang)*rad],{icon:L.divIcon({className:'',iconSize:[40,40],iconAnchor:[20,20],html:`<div class="orderBubble">${spiral}</div>`})}).addTo(DATA.cityMap).on('click',()=>renderTransaction(o));const mid=[(v.lat+dest.lat)/2,(v.lng+dest.lng)/2];const chat=L.marker(mid,{icon:L.divIcon({className:'',iconSize:[120,32],iconAnchor:[60,16],html:'<div class="mkChat">ORDER CHAT</div>'})}).addTo(DATA.cityMap).on('click',()=>renderTransaction(o));DATA.routes.push(bubble,chat)}
-function recordLedger(o){const fee=+(o.calc.total*.03).toFixed(2);DATA.ledger.push({type:'Cash goods invoice',from:'Client',to:o.vendor.name,amount:o.calc.basket},{type:'Delivery cash payment',from:'Client',to:o.drivers.map(d=>d.name).join(' + ')||'Self-pickup',amount:o.calc.delivery},{type:'Owner daily 3% payable',from:'Transaction parties',to:'ASTRANOV Owner',amount:fee})}
-function renderTransaction(o){$('panelTitle').textContent=o.id+' · TRANSACTION';const msgs=DATA.messages[o.id]||[];$('panelBody').innerHTML=`<div class="txRow"><div class="txTop"><span>${o.vendor.name}</span><b>€${o.calc.total.toFixed(2)} COD</b></div><div class="tiny">Drivers: ${o.drivers.map(d=>d.name).join(', ')||'Self-pickup'} · Delivery paid by client to driver(s).</div><div class="tiny">Prep ${$('prepInput').value||'--:--'} · Pickup ${$('pickupInput').value||'--:--'} · Arrival ${$('arrivalInput').value||'--:--'}</div><div class="txActions"><button class="btn gold" data-driverdone="${o.id}">${o.driverConfirmed?'Driver confirmed':'Driver confirms delivered'}</button><button class="btn gold" data-clientdone="${o.id}">${o.clientConfirmed?'Client confirmed':'Client confirms received'}</button></div></div><div class="chatLog" id="chatLog">${msgs.map(m=>`<div class="msg"><b>${m.who}:</b> ${m.text}</div>`).join('')}</div><div class="chatInputRow"><input class="field" id="chatInput" placeholder="Message client/vendor/driver"><button class="btn" id="chatSend">Send</button></div>`;openDrawer('panelSheet');$('panelBody').querySelector('[data-driverdone]').onclick=()=>{o.driverConfirmed=true;DATA.messages[o.id].push({who:'Driver',text:'Delivered. Waiting client receipt confirmation.'});maybeClose(o)};$('panelBody').querySelector('[data-clientdone]').onclick=()=>{o.clientConfirmed=true;DATA.messages[o.id].push({who:'Client',text:'Received. Thank you.'});maybeClose(o)};$('chatSend').onclick=()=>{const v=$('chatInput').value.trim();if(v){DATA.messages[o.id].push({who:'User',text:v});renderTransaction(o)}}}
-function maybeClose(o){if(o.driverConfirmed&&o.clientConfirmed){o.status='closed';DATA.messages[o.id].push({who:'System',text:'Order closed. Daily owner-fee ledger updated.'});toast('Order closed')}renderTransaction(o)}
-function showAccounting(){$('panelTitle').textContent='ACCOUNTING OFFICE';$('panelBody').innerHTML=DATA.ledger.length?DATA.ledger.map(l=>`<div class="ledgerLine"><span>${l.type}<br><span class="tiny">${l.from} → ${l.to}</span></span><b>€${l.amount.toFixed(2)}</b></div>`).join(''):'<div class="tiny">No transactions yet.</div>';openDrawer('panelSheet')}
-function editProduct(i){if(!DATA.vendorMode)return;const p=DATA.currentVendor.products[i];const name=prompt('Product name',p.name);if(name===null)return;p.name=name;p.desc=prompt('Description',p.desc)||p.desc;p.price=parseFloat(prompt('Price',p.price)||p.price);p.kg=parseFloat(prompt('kg/L',p.kg)||p.kg);p.img=prompt('Photo URL',p.img)||p.img;renderProducts();updateRibbon()}
-function voice(){const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){toast('Voice unavailable. Use command buttons.');return}const rec=new SR();rec.lang=navigator.language||'en-US';rec.onresult=e=>{const t=e.results[0][0].transcript.toLowerCase();if(t.includes('greece'))openNational(COUNTRIES[0]);else if(t.includes('account'))showAccounting();else if(t.includes('rhodes'))openPersonal(COUNTRIES[0].cities[1]);else if(t.includes('space'))setView('space');else toast(t)};rec.start();toast('Listening…')}
-function boot(){makeStars();initGlobe();setBrightness(localStorage.getItem('as_brightness')||0);$('brightnessInput').value=localStorage.getItem('as_brightness')||0;$('brightnessInput').oninput=e=>setBrightness(e.target.value);$('brand').onclick=()=>{openDrawer('commandPanel')};document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>closeDrawer(b.dataset.close));document.querySelectorAll('[data-cmd]').forEach(b=>b.onclick=()=>{const c=b.dataset.cmd;if(c==='voice')voice();if(c==='greece')openNational(COUNTRIES[0]);if(c==='rhodes'){DATA.country=COUNTRIES[0];openPersonal(COUNTRIES[0].cities[1])}if(c==='accounting')showAccounting();if(c==='vendor'){DATA.vendorMode=!DATA.vendorMode;setBodyMode(DATA.view);toast(DATA.vendorMode?'Vendor editing on':'Vendor editing off')}if(c==='global')setView('global');if(c==='space')setView('space')});$('destSelect').onchange=e=>{if(e.target.value==='other')startDestPick();else{DATA.selectedDest=null;updateRibbon()}};$('assignSelect').onchange=updateRibbon;$('driverSelect').onchange=()=>{DATA.selectedDriver=DATA.drivers.find(d=>d.id===$('driverSelect').value)||null;updateRibbon()};['kgInput','prepInput','pickupInput','arrivalInput'].forEach(id=>$(id).oninput=updateRibbon);$('orderButton').onclick=placeOrder;$('ribbonToggle').onclick=()=>{$('checkoutRibbon').classList.toggle('expanded')};$('vendorHead').onclick=e=>{if($('vendorSheet').classList.contains('collapsed')&&!e.target.dataset.close)$('vendorSheet').classList.remove('collapsed')};document.querySelectorAll('.drawer').forEach(d=>{d.addEventListener('touchmove',e=>e.stopPropagation(),{passive:true});d.addEventListener('wheel',e=>e.stopPropagation(),{passive:true})});/* no startup toast in zero-UI mode */}
+
+function drawOrder(o){
+  const v=o.vendor,dest=o.calc.dest,drivers=o.drivers;
+  DATA.routes=DATA.routes.filter(r=>{if(r._vendorId===v.id){r.remove();return false}return true;});
+
+  drivers.forEach(dr=>{
+    const pickup=L.polyline([[dr.lat,dr.lng],[v.lat,v.lng]],{color:'#d7b650',weight:5,opacity:.95,className:'routePickup',dashArray:'8,6'}).addTo(DATA.cityMap);
+    pickup._vendorId=v.id;
+    pickup.bindTooltip('🚚 Driver pickup → '+v.name).on('click',()=>renderTransaction(o));
+    DATA.routes.push(pickup);
+
+    const deliver=L.polyline([[v.lat,v.lng],[dest.lat,dest.lng]],{color:'#00d8ff',weight:6,opacity:1,className:'routeDelivery'}).addTo(DATA.cityMap);
+    deliver._vendorId=v.id;
+    deliver.bindTooltip('📦 Delivery to '+ (dest.label||'Client')).on('click',()=>renderTransaction(o));
+    DATA.routes.push(deliver);
+  });
+
+  const pts=[[dest.lat,dest.lng],[v.lat,v.lng],...drivers.map(d=>[d.lat,d.lng])];
+  if(pts.length>2){
+    const poly=L.polygon(pts,{color:'#00d8ff',fillColor:'#00d8ff',fillOpacity:.07,weight:3,opacity:.9,className:'orderPolygon'}).addTo(DATA.cityMap);
+    poly._vendorId=v.id;
+    poly.bindTooltip('📍 Live delivery zone • '+o.id).on('click',()=>renderTransaction(o));
+    DATA.routes.push(poly);
+  }
+
+  const spiral=DATA.orders.filter(x=>x.vendor.id===v.id).length;
+  const ang=spiral*0.85,rad=.0006*spiral;
+  const bubble=L.marker([v.lat+Math.sin(ang)*rad,v.lng+Math.cos(ang)*rad],{icon:L.divIcon({className:'',iconSize:[42,42],iconAnchor:[21,21],html:`<div class="orderBubble">${spiral}</div>`})}).addTo(DATA.cityMap).on('click',()=>renderTransaction(o));
+  bubble._vendorId=v.id;
+  DATA.routes.push(bubble);
+
+  const mid=[(v.lat+dest.lat)/2,(v.lng+dest.lng)/2];
+  const chat=L.marker(mid,{icon:L.divIcon({className:'',iconSize:[110,30],iconAnchor:[55,15],html:'<div class="mkChat">LIVE ROUTE</div>'})}).addTo(DATA.cityMap).on('click',()=>renderTransaction(o));
+  chat._vendorId=v.id;
+  DATA.routes.push(chat);
+
+  // Start live tracking animation
+  if(!o.pickup&&drivers.length>0)startLiveTracking(o,drivers[0],v,dest);
+}
+
+function startLiveTracking(order,driver,vendor,dest){
+  const key=order.id;
+  if(DATA.liveTrackers[key]){clearInterval(DATA.liveTrackers[key].interval);if(DATA.liveTrackers[key].marker)DATA.liveTrackers[key].marker.remove()}
+
+  const route=[[driver.lat,driver.lng],[vendor.lat,vendor.lng],[dest.lat,dest.lng]];
+  let progress=0;
+  const marker=L.marker(route[0],{icon:L.divIcon({className:'',iconSize:[28,28],iconAnchor:[14,14],html:`<div class="liveTracker">${driver.icon}</div>`})}).addTo(DATA.cityMap);
+  marker.bindTooltip('LIVE • '+driver.name+' en route');
+
+  const interval=setInterval(()=>{
+    progress+=0.018;
+    if(progress>=1){clearInterval(interval);marker.remove();toast(driver.name+' arrived at destination');return}
+    let p=progress*2;
+    let seg=Math.floor(p);
+    let localP=p-seg;
+    if(seg>1)seg=1,localP=1;
+    const from=route[seg],to=route[seg+1]||route[seg];
+    const lat=from[0]+(to[0]-from[0])*localP;
+    const lng=from[1]+(to[1]-from[1])*localP;
+    marker.setLatLng([lat,lng]);
+  },120);
+
+  DATA.liveTrackers[key]={marker,interval};
+}
+
+function recordLedger(o){const fee=+(o.calc.total*0.03).toFixed(2);DATA.ledger.push({type:'Goods invoice',from:'Client',to:o.vendor.name,amount:o.calc.basket},{type:'Delivery payment',from:'Client',to:o.drivers.map(d=>d.name).join(' + ')||'Self',amount:o.calc.delivery},{type:'Owner 3% fee',from:'Parties',to:'ASTRANOV',amount:fee})}
+
+function redrawAllOrders(){if(!DATA.cityMap)return;DATA.orders.filter(o=>o.status==='active').forEach(o=>drawOrder(o));updateLiveBadge()}
+
+function renderTransaction(o){
+  $('panelTitle').textContent=o.id+' • LIVE ROUTE';
+  const msgs=DATA.messages[o.id]||[];
+  const clientName=o.calc.dest.label||'Client';
+  $('panelBody').innerHTML=`
+    <div class="txRow">
+      <div class="txTop"><span>${o.vendor.name}</span><b>€${o.calc.total.toFixed(2)} COD</b></div>
+      <div class="tiny">🚚 ${o.drivers.map(d=>d.name).join(' + ')} → ${o.vendor.name} → ${clientName}</div>
+      <div class="tiny">Prep ${$('prepInput').value||'12:30'} • Pickup ${$('pickupInput').value||'13:00'} • ETA ${$('arrivalInput').value||'13:45'}</div>
+      <div class="txActions">
+        <button class="btn gold" data-driverdone="${o.id}">${o.driverConfirmed?'✅ Driver confirmed':'Driver confirms delivered'}</button>
+        <button class="btn gold" data-clientdone="${o.id}">${o.clientConfirmed?'✅ Client confirmed':'Client confirms received'}</button>
+        <button class="btn" data-track="${o.id}" style="background:rgba(0,240,154,.2);border-color:#00f09a">📍 Track Live</button>
+      </div>
+    </div>
+    <div class="chatLog" id="chatLog">${msgs.map(m=>`<div class="msg"><b>${m.who}:</b> ${m.text}</div>`).join('')}</div>
+    <div class="chatInputRow"><input class="field" id="chatInput" placeholder="Message driver / client / vendor"><button class="btn" id="chatSend">Send</button></div>
+    <div class="orderList"><div class="tiny">ACTIVE LIVE ROUTES</div>${DATA.orders.filter(x=>x.status==='active').map(ord=>`<div class="orderItem" data-ord="${ord.id}">${ord.id} — ${ord.vendor.name} → ${ord.calc.dest.label||'Client'} €${ord.calc.total.toFixed(2)}</div>`).join('')}</div>`;
+
+  openDrawer('panelSheet');
+
+  const db=$('panelBody').querySelector('[data-driverdone]');if(db)db.onclick=()=>{o.driverConfirmed=true;DATA.messages[o.id].push({who:'Driver',text:'Delivered. Awaiting client confirmation.'});maybeClose(o);renderTransaction(o)};
+  const cb=$('panelBody').querySelector('[data-clientdone]');if(cb)cb.onclick=()=>{o.clientConfirmed=true;DATA.messages[o.id].push({who:'Client',text:'Received. Thank you!'});maybeClose(o);renderTransaction(o)};
+
+  const trackBtn=$('panelBody').querySelector('[data-track]');if(trackBtn)trackBtn.onclick=()=>{const t=DATA.liveTrackers[o.id];if(t&&t.marker){DATA.cityMap.flyTo(t.marker.getLatLng(),15,{duration:0.8});toast('Tracking '+o.drivers[0].name)}else{toast('No active tracker for this order')}};
+
+  const send=$('chatSend');if(send)send.onclick=()=>{const v=$('chatInput').value.trim();if(v){DATA.messages[o.id].push({who:'User',text:v});$('chatInput').value='';renderTransaction(o)}};
+
+  $('panelBody').querySelectorAll('.orderItem').forEach(el=>el.onclick=()=>{const ord=DATA.orders.find(x=>x.id===el.dataset.ord);if(ord)renderTransaction(ord)});
+}
+
+function maybeClose(o){if(o.driverConfirmed&&o.clientConfirmed){o.status='closed';if(DATA.liveTrackers[o.id]){clearInterval(DATA.liveTrackers[o.id].interval);if(DATA.liveTrackers[o.id].marker)DATA.liveTrackers[o.id].marker.remove();delete DATA.liveTrackers[o.id]}DATA.messages[o.id].push({who:'System',text:'Order completed. 3% owner fee recorded.'});toast('✅ Order closed • Route completed');updateLiveBadge();renderTransaction(o)}}
+
+function showAccounting(){$('panelTitle').textContent='ACCOUNTING OFFICE';const total=DATA.ledger.reduce((s,l)=>s+l.amount,0);$('panelBody').innerHTML=DATA.ledger.length?`<div class="tiny" style="margin-bottom:8px">Total ledger: €${total.toFixed(2)} • 3% owner fee active</div>`+DATA.ledger.map(l=>`<div class="ledgerLine"><span>${l.type}<br><span class="tiny">${l.from} → ${l.to}</span></span><b>€${l.amount.toFixed(2)}</b></div>`).join(''):'<div class="tiny">No transactions yet. Place an order to see live routing ledger.</div>';openDrawer('panelSheet')}
+
+function editProduct(i){if(!DATA.vendorMode)return;const p=DATA.currentVendor.products[i];const name=prompt('Product name',p.name);if(name===null)return;p.name=name;p.desc=prompt('Description',p.desc)||p.desc;p.price=parseFloat(prompt('Price €',p.price)||p.price);p.kg=parseFloat(prompt('kg/L',p.kg)||p.kg);p.img=prompt('Photo URL',p.img)||p.img;renderProducts();updateRibbon()}
+
+function voice(){const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){toast('Voice not supported on this device');return}const rec=new SR();rec.lang=navigator.language||'en-US';rec.onresult=e=>{const t=e.results[0][0].transcript.toLowerCase();if(t.includes('greece'))openNational(COUNTRIES[0]);else if(t.includes('account'))showAccounting();else if(t.includes('rhodes')){DATA.country=COUNTRIES[0];openPersonal(COUNTRIES[0].cities[1])}else if(t.includes('space'))setView('space');else if(t.includes('clear'))clearAll();else if(t.includes('track')){const active=DATA.orders.find(o=>o.status==='active');if(active)renderTransaction(active)}else toast(t)};rec.start();toast('Listening for command…')}
+
+function clearAll(){DATA.orders=[];DATA.ledger=[];DATA.messages={};clearMapLayers();if(DATA.cityMap)redrawAllOrders();updateLiveBadge();toast('Map cleared • All routes & orders reset')}
+
+function boot(){
+  makeStars();
+  initGlobe();
+  setBrightness(localStorage.getItem('as_brightness')||0);
+  $('brightnessInput').value=localStorage.getItem('as_brightness')||0;
+  $('brightnessInput').oninput=e=>setBrightness(e.target.value);
+
+  $('brand').onclick=()=>{openDrawer('commandPanel')};
+  document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>closeDrawer(b.dataset.close));
+  document.querySelectorAll('[data-cmd]').forEach(b=>b.onclick=()=>{
+    const c=b.dataset.cmd;
+    if(c==='voice')voice();
+    if(c==='greece')openNational(COUNTRIES[0]);
+    if(c==='rhodes'){DATA.country=COUNTRIES[0];openPersonal(COUNTRIES[0].cities[1])}
+    if(c==='accounting')showAccounting();
+    if(c==='vendor'){DATA.vendorMode=!DATA.vendorMode;setBodyMode(DATA.view);toast(DATA.vendorMode?'Vendor editing enabled • Tap products to edit':'Vendor editing disabled')}
+    if(c==='global')setView('global');
+    if(c==='space')setView('space');
+    if(c==='clear')clearAll();
+  });
+
+  $('destSelect').onchange=e=>{if(e.target.value==='other')startDestPick();else{DATA.selectedDest=null;updateRibbon()}};
+  $('assignSelect').onchange=updateRibbon;
+  $('driverSelect').onchange=()=>{DATA.selectedDriver=DATA.drivers.find(d=>d.id===$('driverSelect').value)||null;updateRibbon()};
+  ['kgInput','prepInput','pickupInput','arrivalInput'].forEach(id=>$(id).oninput=updateRibbon);
+  $('orderButton').onclick=placeOrder;
+  $('ribbonToggle').onclick=()=>{$('checkoutRibbon').classList.toggle('expanded')};
+  $('vendorHead').onclick=e=>{if($('vendorSheet').classList.contains('collapsed')&&!e.target.dataset.close)$('vendorSheet').classList.remove('collapsed')};
+
+  document.querySelectorAll('.drawer').forEach(d=>{
+    d.addEventListener('touchmove',e=>e.stopPropagation(),{passive:true});
+    d.addEventListener('wheel',e=>e.stopPropagation(),{passive:true});
+  });
+
+  // Auto-start demo with TWO live orders for maximum impact
+  setTimeout(()=>{
+    DATA.country=COUNTRIES[0];
+    openPersonal(COUNTRIES[0].cities[1]);
+    setTimeout(()=>{
+      // Demo Order 1
+      const v1=DATA.vendors[0];
+      DATA.currentVendor=v1;
+      DATA.cart={0:2,1:1};
+      const d1=DATA.drivers[0];
+      DATA.selectedDriver=d1;
+      $('assignSelect').value='choose';
+      $('driverSelect').value=d1.id;
+      const calc1={items:[{p:v1.products[0],q:2},{p:v1.products[1],q:1}],basket:24.5,kg:1.85,dist:1.2,drivers:1,delivery:4.5,total:29,pickup:false,dest:DATA.clients[0],load:0};
+      const o1={id:'ORD-LIVE01',vendor:v1,calc:calc1,drivers:[d1],status:'active',driverConfirmed:false,clientConfirmed:false,created:Date.now()};
+      DATA.orders.push(o1);
+      DATA.messages['ORD-LIVE01']=[{who:'System',text:'Demo order 1 active. Live tracking: Driver → Aegean Market → Villa Client'}];
+      drawOrder(o1);
+      recordLedger(o1);
+
+      // Demo Order 2 (different vendor + driver)
+      setTimeout(()=>{
+        const v2=DATA.vendors[1];
+        DATA.currentVendor=v2;
+        DATA.cart={0:1};
+        const d2=DATA.drivers[1];
+        DATA.selectedDriver=d2;
+        $('assignSelect').value='choose';
+        $('driverSelect').value=d2.id;
+        const calc2={items:[{p:v2.products[0],q:1}],basket:9,kg:0.65,dist:2.1,drivers:1,delivery:3.8,total:12.8,pickup:false,dest:DATA.clients[1],load:0};
+        const o2={id:'ORD-LIVE02',vendor:v2,calc:calc2,drivers:[d2],status:'active',driverConfirmed:false,clientConfirmed:false,created:Date.now()};
+        DATA.orders.push(o2);
+        DATA.messages['ORD-LIVE02']=[{who:'System',text:'Demo order 2 active. Live tracking: Driver → Napoli Pizza → Hotel Client'}];
+        drawOrder(o2);
+        recordLedger(o2);
+        updateLiveBadge();
+        toast('🚀 Two live routes active • Watch the scooters move!');
+      },600);
+    },900);
+  },700);
+
+  toast('ASTRANOV ready • Click globe anywhere • Live driver tracking enabled',1800);
+}
+
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
 })();
 </script>
