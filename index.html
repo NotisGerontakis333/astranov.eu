@@ -569,23 +569,6 @@ function openChannel(name){
   state.balance=+(localStorage.astranovBalance||0);
 })();
 
-
-  $('panelSheet').classList.add('on');$('panelSheet').classList.remove('tall');
-  $('panelTitle').textContent=name.toUpperCase()+' CHANNEL';
-  const list=state.posts[name]||[];
-  $('panelBody').innerHTML=list.length
-    ? list.slice().reverse().map(p=>
-        '<div class="card feedPost"><div class="txTop"><b>'+esc(p.author)+'</b><span class="meta">'+new Date(p.time).toLocaleString()+'</span></div>'+
-        '<div class="meta">📍 '+esc(p.place||'')+'</div>'+
-        (p.mediaURL?(p.mediaType==='video'
-          ? '<video src="'+esc(p.mediaURL)+'" controls playsinline></video>'
-          : '<img src="'+esc(p.mediaURL)+'">'):'')+
-        (p.text?'<div style="margin-top:8px;font-size:13px">'+esc(p.text)+'</div>':'')+
-        '</div>'
-      ).join('')
-    : '<div class="feedEmpty">No posts in '+esc(name)+' yet.<br>Long-press any location → VIDEO → '+esc(name.toUpperCase())+' to record.</div>';
-}
-
 function captureMedia(channel,mode){
   const inp=document.createElement('input');
   inp.type='file';
