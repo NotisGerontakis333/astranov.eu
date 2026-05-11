@@ -1573,8 +1573,8 @@ function icon(html,size=42){return L.divIcon({className:'',iconSize:[size,size],
 function drawCity(){
   state.markers.forEach(m=>m.remove());state.markers=[];
   state.vendors=vendorsFor(state.city);state.drivers=driversFor(state.city);
-  /* YOU pin: only when logged in AND we have GPS coordinates */
-  if(state.user&&state.geo){
+  /* YOU pin: shows whenever GPS is available */
+  if(state.geo){
     state.markers.push(L.marker([state.geo.lat,state.geo.lng],{icon:icon('<div class="mapPin user">YOU</div>',44)}).addTo(state.cityMap).on('click',openYouTriangle));
   }
   const acctLat=state.city.lat+.0015,acctLng=state.city.lng-.0015;
