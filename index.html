@@ -1111,10 +1111,14 @@ function openProfile(){
   ps();
   $('panelTitle').textContent='👤 PROFILE';
   $('panelBody').innerHTML=
-    '<div class="card"><div class="meta">Signed in as</div>'+
-    '<div style="font-weight:1000;font-size:14px;margin-top:4px;color:'+(state.ownerAuthed?'#a77bff':'#fff')+'">'+(state.ownerAuthed?'Owner · Notis Astranov':'Guest')+'</div>'+
-    '<div class="meta" style="margin-top:8px">Location: '+esc(state.city?.name||state.country?.name||'—')+'</div>'+
-    '<div class="meta">Language: '+esc(navigator.language||'en-US')+'</div></div>'+
+    '<div class="card">'+
+    '<div class="meta">Signed in as</div>'+
+    '<div style="font-weight:1000;font-size:14px;margin-top:4px;color:'+(state.ownerAuthed?'#a77bff':state.user?'#fff':'var(--muted)')+'">'+(state.user?esc(state.user.name):state.ownerAuthed?'Owner':'Guest')+'</div>'+
+    (state.user?.email?'<div class="meta" style="margin-top:4px">✉ '+esc(state.user.email)+'</div>':'')+
+    (state.user?.phone?'<div class="meta">📱 '+esc(state.user.phone)+'</div>':'')+
+    '<div class="meta" style="margin-top:6px">📍 '+esc(state.city?.name||state.country?.name||'—')+'</div>'+
+    '<div class="meta">Balance: <b style="color:var(--g)">'+state.balance.toFixed(2)+' AVC</b></div>'+
+    '</div>'+
     '<div class="card">'+
     (state.ownerAuthed
       ?'<button class="smallBtn" id="profOut" style="width:100%">Sign out of Krypteia</button>'
@@ -1806,8 +1810,9 @@ $('bright').oninput=applyBrightness;
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){px();$('ownerGate').classList.remove('on');$('loginOverlay').classList.remove('on');closeVendor();closeTriMenu()}});
 document.querySelectorAll('.sheet,.panel').forEach(x=>{x.addEventListener('touchmove',e=>e.stopPropagation(),{passive:true});x.addEventListener('wheel',e=>e.stopPropagation(),{passive:true})});
 /* ── Multi-field drawer wiring ── */
-const mfOpen=(title)=>{
+const mfOpen=(title,bodyHtml)=>{
   $('mfTitle').textContent=title||'AstranoV AI';
+  if(bodyHtml!==undefined)$('mfBody').innerHTML=bodyHtml;
   $('mfDrawer').classList.add('mf-panel');
   $('mfDrawer').classList.remove('mf-tall','mf-full');
   $('ubwMask').classList.add('on');
@@ -1944,6 +1949,36 @@ setInterval(()=>{
   }).catch(()=>{});
 },18000);
 
+/* ── Supabase Realtime for circle_messages ── */
+(function initRealtime(){
+  try{
+    const ws=new WebSocket('wss://kzlabcrlrpbnfiiyrjvl.supabase.co/realtime/v1/websocket?apikey='+SB_KEY+'&vsn=1.0.0');
+    ws.onopen=()=>{
+      ws.send(JSON.stringify({topic:'realtime:public:circle_messages',event:'phx_join',payload:{},ref:'1'}));
+    };
+    ws.onmessage=e=>{
+      try{
+        const d=JSON.parse(e.data);
+        if(d.event==='INSERT'&&d.payload?.record){
+          const rec=d.payload.record;
+          if(rec.author===state.user?.name)return; /* own message */
+          const mf=$('mfDrawer');
+          const isOpen=mf.classList.contains('mf-panel')||mf.classList.contains('mf-tall')||mf.classList.contains('mf-full');
+          radarPulse(1);
+          if(!isOpen){
+            $('mfTitle').textContent='💬 '+esc(rec.circle_id||'Circle');
+            $('mfBody').innerHTML='<div class="aiBubble"><b>'+esc(rec.author||'?')+'</b><br>'+esc(rec.text||'')+'</div>'+
+              '<button class="smallBtn" style="width:100%;margin-top:6px" onclick="openCircle(\''+esc(rec.circle_id||'global')+'\')">Open circle →</button>';
+            mfTall();
+          }
+        }
+      }catch(ex){}
+    };
+    ws.onerror=()=>{};
+    /* Heartbeat every 30s */
+    setInterval(()=>{if(ws.readyState===1)ws.send(JSON.stringify({topic:'phoenix',event:'heartbeat',payload:{},ref:'hb'}))},30000);
+  }catch(ex){}
+})();
 initGlobe();
 applyBrightness();
 _resetFade();
