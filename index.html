@@ -358,7 +358,7 @@ function refreshUserBtn(){
   const ub=$('userBtn'),ico=$('ubIco'),bal=$('ubBal');if(!ub)return;
   if(state.user){
     ub.classList.add('authed');
-    ico.textContent=state.ownerAuthed?'⬡':'✓';
+    ico.textContent=state.ownerAuthed?'⬡':'👤';
     $('balAmt').textContent=state.balance.toFixed(2);
     bal.style.display='inline-flex';
   }else{
@@ -941,16 +941,36 @@ function setUserHere(){
   }
 }
 
-/* ── AI via Supabase ai-router Edge Function ── */
+/* ── AI via Supabase ai-router Edge Function with local fallback ── */
 async function aiAsk(text){
   const ctx={text,level:state.level,country:state.country?.name||null,city:state.city?.name||null,vendor:state.vendor?.name||null,ts:Date.now(),owner:state.ownerAuthed};
   try{
-    const ac=new AbortController();const tm=setTimeout(()=>ac.abort(),15000);
+    const ac=new AbortController();const tm=setTimeout(()=>ac.abort(),12000);
     const r=await sbFn('ai-router',ctx,ac.signal);
     clearTimeout(tm);
-    if(r.ok){const j=await r.json();if(j&&typeof j==='object')return j}
+    if(r.ok){const j=await r.json();if(j&&typeof j==='object'&&(j.text||j.action))return j}
   }catch(e){}
-  return{error:'AI backend unavailable. Manual mode active.',text:''};
+  return localAI(text);
+}
+function localAI(text){
+  const lo=text.toLowerCase().trim();
+  if(!lo)return{text:'Say or type something — I\'ll help navigate, find vendors, or answer questions.'};
+  if(lo.includes('hello')||lo.includes('hi')||lo.includes('hey'))return{text:'Hello! I\'m your AstranoV AI. I can navigate the globe, find vendors, open circles, manage orders, and more. What do you need?'};
+  if(lo.includes('vendor')||lo.includes('shop')||lo.includes('store')){
+    const vs=(state.vendors||[]).slice(0,5).map(v=>v.emoji+' '+v.name).join(', ');
+    return{text:vs?'Nearby vendors: '+vs+'. Tap one on the map or say its name.':'No vendors loaded yet. Navigate to a city first.'};
+  }
+  if(lo.includes('balance')||lo.includes('money')||lo.includes('avc'))return{text:'Your balance is '+state.balance.toFixed(2)+' AVC. Tap the top-left button → recharge to add funds.',action:{type:'accounting'}};
+  if(lo.includes('circle')||lo.includes('chat')||lo.includes('message'))return{text:'Opening circles…',action:{type:'open_channel',channel:'local'}};
+  if(lo.includes('where')||lo.includes('location')||lo.includes('gps'))return{text:'Tap the top-left 👤 button to locate yourself on the map.'};
+  if(lo.includes('deliver')||lo.includes('order'))return{text:'Navigate to a city, tap a shop on the map, add items to cart, and place your order. Drivers are assigned automatically.'};
+  if(lo.includes('help')||lo.includes('what can'))return{text:'I can: navigate (say a country or city), find vendors, open chat circles, check balance, manage orders, and activate Krypteia. Just ask.'};
+  for(const c of countries){
+    if(lo.includes(c.name.toLowerCase())){const ct=c.cities[0];return{text:'Navigating to '+c.name+(ct?', opening '+ct.name:'')+'…',action:{type:'navigate',country:c.name}}}
+    const city=c.cities.find(x=>lo.includes(x.name.toLowerCase()));
+    if(city)return{text:'Taking you to '+city.name+'…',action:{type:'navigate',country:c.name,city:city.name}};
+  }
+  return{text:'I heard: "'+text+'". The AI cloud backend isn\'t connected yet — deploy the astranov-api Edge Function on Supabase to unlock full AI. Meanwhile I can navigate, find vendors, and manage your account.'};
 }
 
 function speak(text){
@@ -1858,7 +1878,7 @@ const sendAI=()=>{const t=$('mfTxt')?.value?.trim();if(!t)return;$('mfTxt').valu
 $('mfSend').onclick=sendAI;
 $('mfTxt').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendAI()}};
 $('mfTxt').oninput=e=>{e.target.style.height='auto';e.target.style.height=Math.min(e.target.scrollHeight,72)+'px'};
-$('mfMic').onclick=toggleHandsFree;
+$('mfMic').onclick=()=>{const t=$('mfTxt')?.value?.trim();if(t){$('mfTxt').value='';$('mfTxt').style.height='auto';run(t)}else{toggleHandsFree()}};
 /* Drag handle to resize — guards against click firing after drag */
 let _mfDragY=null,_mfDragged=false;
 $('mfHandle').addEventListener('touchstart',e=>{_mfDragY=e.touches[0].clientY;_mfDragged=false},{passive:true});
@@ -1867,8 +1887,8 @@ document.addEventListener('touchmove',e=>{
   const dy=_mfDragY-e.touches[0].clientY;
   const mf=$('mfDrawer');
   if(Math.abs(dy)>12)_mfDragged=true;
-  if(dy>40){mf.classList.remove('mf-panel','mf-full');mf.classList.add('mf-tall')}
-  else if(dy>120){mf.classList.remove('mf-panel','mf-tall');mf.classList.add('mf-full')}
+  if(dy>120){mf.classList.remove('mf-panel','mf-tall');mf.classList.add('mf-full')}
+  else if(dy>40){mf.classList.remove('mf-panel','mf-full');mf.classList.add('mf-tall')}
   else if(dy<-40&&mf.classList.contains('mf-tall')){mf.classList.remove('mf-tall');mf.classList.add('mf-panel')}
   else if(dy<-40&&mf.classList.contains('mf-panel')){mf.classList.remove('mf-panel');mfClose()}
   if(Math.abs(dy)>80)_mfDragY=e.touches[0].clientY;
