@@ -46,10 +46,10 @@
 #ubwMask{position:fixed;inset:0;z-index:174;display:none;background:rgba(0,0,0,.38);backdrop-filter:blur(2px)}
 #ubwMask.on{display:block}
 /* ── Multi-field bottom drawer ── */
-#mfDrawer{position:fixed;left:0;right:0;bottom:0;z-index:175;background:rgba(0,0,0,.96);border-top:1px solid rgba(255,255,255,.06);border-radius:14px 14px 0 0;box-shadow:0 -4px 24px rgba(0,0,0,.85);backdrop-filter:blur(20px);display:flex;flex-direction:column;overflow:hidden;height:42px;transition:height .22s cubic-bezier(.25,.8,.25,1)}
-#mfDrawer.mf-panel{height:33vh}
-#mfDrawer.mf-tall{height:66vh}
-#mfDrawer.mf-full{height:92vh}
+#mfDrawer{position:fixed;left:0;right:0;bottom:0;z-index:175;background:rgba(0,0,0,.96);border-top:1px solid rgba(255,255,255,.06);border-radius:14px 14px 0 0;box-shadow:0 -4px 24px rgba(0,0,0,.85);backdrop-filter:blur(20px);display:flex;flex-direction:column;overflow:hidden;height:calc(72px + var(--sb));padding-bottom:var(--sb);transition:height .22s cubic-bezier(.25,.8,.25,1)}
+#mfDrawer.mf-panel{height:calc(33vh + var(--sb))}
+#mfDrawer.mf-tall{height:calc(66vh + var(--sb))}
+#mfDrawer.mf-full{height:calc(92vh + var(--sb))}
 #mfHandle{display:flex;align-items:center;padding:5px 10px 3px;flex-shrink:0;gap:6px;cursor:grab;min-height:22px;touch-action:none}
 .mfBar{width:34px;height:3px;border-radius:999px;background:rgba(255,255,255,.22);margin:0 auto;flex-shrink:0}
 #mfTitle{flex:1;font-size:10px;font-weight:800;letter-spacing:.08em;color:rgba(255,255,255,.38);text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
