@@ -260,7 +260,7 @@ const products=[
   {id:'p4',name:'Feta 200g',desc:'Traditional feta cheese',price:5.5,kg:.2,photo:'https://images.unsplash.com/photo-1559561853-08451507cbe7?auto=format&fit=crop&w=160&q=70'}
 ];
 
-const state={level:'global',country:countries[0],city:null,globe:null,nationalMap:null,nationalTile:null,cityMap:null,dark:null,light:null,vendors:[],drivers:[],markers:[],vendor:null,cart:{},destination:null,picking:false,selectedDriver:null,vendorMode:false,orders:[],ledger:[],messages:{},routeCache:new Map(),brightness:+(localStorage.astranovBrightness||35),ownerAuthed:false,user:null,sbToken:localStorage.astranovSbToken||null,balance:+(localStorage.astranovBalance||0),circles:{},customCircles:[],ownerAuthCallback:null,videoTiles:[],geo:null,navHistory:[],navForward:[]};
+const state={level:'global',country:countries[0],city:null,globe:null,nationalMap:null,nationalTile:null,cityMap:null,dark:null,light:null,vendors:[],drivers:[],markers:[],vendor:null,cart:{},destination:null,picking:false,selectedDriver:null,vendorMode:false,orders:[],ledger:[],invoices:[],messages:{},routeCache:new Map(),brightness:+(localStorage.astranovBrightness||35),ownerAuthed:false,user:null,sbToken:localStorage.astranovSbToken||null,balance:+(localStorage.astranovBalance||0),circles:{},customCircles:[],ownerAuthCallback:null,videoTiles:[],geo:null,navHistory:[],navForward:[],_pickup:false};
 /* Restore saved session */
 if(localStorage.astranovUser){try{state.user=JSON.parse(localStorage.astranovUser)}catch(e){}};
 
@@ -1611,9 +1611,18 @@ function currentDest(){return state.destination||state.city}
 
 function calc(){
   const items=state.vendor.items.map(it=>({it,q:state.cart[it.id]||0})).filter(x=>x.q>0);
-  const basket=items.reduce((s,x)=>s+x.it.price*x.q,0),autoKg=items.reduce((s,x)=>s+x.it.kg*x.q,0),manual=+$('kg')?.value||0,kg=manual>0?manual:autoKg;
-  const mode=$('assign')?.value||'auto',dest=currentDest(),dist=mode==='pickup'?0:km(state.vendor.lat,state.vendor.lng,dest.lat,dest.lng),base=mode==='pickup'?0:(dist<=3?3:3+(dist-3));
-  const drivers=mode==='pickup'?0:Math.max(1,Math.ceil(Math.max(.01,kg)/13)),load=mode==='pickup'?0:Math.max(0,drivers-1),delivery=+(base+load).toFixed(2),total=+(basket+delivery).toFixed(2),fee=+(total*.03).toFixed(2);
+  const basket=items.reduce((s,x)=>s+x.it.price*x.q,0);
+  const autoKg=items.reduce((s,x)=>s+x.it.kg*x.q,0);
+  const manual=+(document.getElementById('kg')?.value)||0,kg=manual>0?manual:autoKg;
+  /* mode: admin uses #assign select; client uses state._pickup flag */
+  const adminSel=state.vendorMode?(document.getElementById('assign')?.value||'auto'):null;
+  const mode=(!state.vendorMode&&state._pickup)?'pickup':(adminSel||'auto');
+  const dest=currentDest();
+  const dist=mode==='pickup'?0:km(state.vendor.lat,state.vendor.lng,dest.lat,dest.lng);
+  const base=mode==='pickup'?0:(dist<=3?3:3+(dist-3));
+  const drivers=mode==='pickup'?0:Math.max(1,Math.ceil(Math.max(.01,kg)/13));
+  const load=mode==='pickup'?0:Math.max(0,drivers-1);
+  const delivery=+(base+load).toFixed(2),total=+(basket+delivery).toFixed(2),fee=+(total*.03).toFixed(2);
   return{items,basket,kg,mode,dest,dist,drivers,delivery,total,fee};
 }
 
@@ -1651,14 +1660,6 @@ function renderRibbon(){
     if($('pickupChk'))$('pickupChk').onchange=e=>{state._pickup=e.target.checked;renderRibbon()};
   }
   $('place').onclick=placeOrder;
-}
-
-/* Patch calc() pickup mode from client checkbox */
-const _calcOrig=calc;
-function calc(){
-  const c=_calcOrig();
-  if(!state.vendorMode&&state._pickup)c.mode='pickup',c.delivery=0,c.drivers=0,c.total=+c.basket.toFixed(2);
-  return c;
 }
 
 function startPick(){state.picking=true;$('vendorSheet').classList.add('min');toast('Tap the map for delivery address')}
@@ -1721,9 +1722,52 @@ async function drawOrder(o){
 function ledgerFor(o){
   state.ledger.push(
     {type:'GOODS',from:'Client',to:o.vendor.name,amount:o.calc.basket,id:o.id},
-    {type:'DELIVERY CASH',from:'Client',to:o.drivers.map(d=>d.name).join(' + ')||'Self-pickup',amount:o.calc.delivery,id:o.id},
-    {type:'OWNER 3% DAILY PAYABLE',from:'Transaction',to:'AstranoV Owner',amount:o.calc.fee,id:o.id}
+    {type:'DELIVERY',from:'Client',to:o.drivers.map(d=>d.name).join(' + ')||'Self-pickup',amount:o.calc.delivery,id:o.id},
+    {type:'PLATFORM FEE 3%',from:'Transaction',to:'AstranoV',amount:o.calc.fee,id:o.id}
   );
+}
+
+/* ── Invoice system ── */
+let _invSeq=+(localStorage.astranovInvSeq||0);
+function _nextMark(){
+  _invSeq++;localStorage.astranovInvSeq=_invSeq;
+  const d=new Date();
+  return 'INV-'+d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(_invSeq).padStart(6,'0');
+}
+async function issueInvoice(order){
+  const mark=_nextMark();
+  const d=new Date();
+  const inv={
+    id:mark,order_id:order.id,
+    vendor_name:order.vendor.name,
+    buyer_id:state.user?.id||null,
+    mark,
+    items:order.calc.items.map(x=>({name:x.it.name,qty:x.q,unit_price:x.it.price,subtotal:+(x.it.price*x.q).toFixed(2)})),
+    subtotal:order.calc.basket,
+    delivery_fee:order.calc.delivery,
+    platform_fee:order.calc.fee,
+    vat_food:0.13,vat_service:0.24,
+    total:order.calc.total,
+    currency:'AVC',
+    issued_at:d.toISOString(),
+    period_month:d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'),
+    status:'issued',
+    mydata_mark:null
+  };
+  state.invoices.push(inv);
+  try{await sbFetch('/rest/v1/invoices',{method:'POST',body:JSON.stringify(inv),headers:{'Prefer':'return=minimal'}})}catch(e){}
+  return inv;
+}
+function openInvoices(){
+  ps();$('panelTitle').textContent='🧾 INVOICES';
+  const invs=state.invoices.slice().reverse();
+  $('panelBody').innerHTML=(invs.length
+    ?invs.map(i=>'<div class="ledgerRow"><div class="ledgerTop"><b style="color:var(--b)">'+esc(i.mark)+'</b><b style="color:var(--g)">'+money(i.total)+'</b></div>'
+      +'<div class="meta">Vendor: '+esc(i.vendor_name)+' · Period: '+esc(i.period_month)+'</div>'
+      +'<div class="meta">Basket: '+money(i.subtotal)+' · Delivery: '+money(i.delivery_fee)+' · Platform: '+money(i.platform_fee)+'</div>'
+      +'<div class="meta" style="color:rgba(0,215,255,.5)">MARK: '+esc(i.mark)+(i.mydata_mark?' · myDATA: '+esc(i.mydata_mark):'')+'</div>'
+      +'</div>').join('')
+    :'<div class="card"><div class="meta">No invoices yet. Invoices are issued automatically when orders close.</div></div>');
 }
 
 function removeLayers(o){(o.layers||[]).forEach(l=>{try{l.remove()}catch(e){}});o.layers=[]}
@@ -1742,15 +1786,25 @@ function openTransaction(o){
 }
 
 function maybeClose(o){
-  if(o.driverDone&&o.clientDone&&o.status!=='closed'){o.status='closed';removeLayers(o);state.messages[o.id].push({who:'System',text:'Order closed. Route, polygon, chat marker removed.'});toast('Order '+o.id+' closed')}
-  openTransaction(o);
+  if(o.driverDone&&o.clientDone&&o.status!=='closed'){
+    o.status='closed';removeLayers(o);
+    toast('Order '+o.id+' closed');
+    issueInvoice(o).then(inv=>{
+      state.messages[o.id].push({who:'System',text:'Order closed. Invoice '+inv.mark+' issued.'});
+      openTransaction(o);
+    });
+  }else{openTransaction(o)}
 }
 
 function accounting(){
-  ps();$('panelTitle').textContent='Accounting Office';
-  $('panelBody').innerHTML=state.ledger.length
-    ?state.ledger.slice().reverse().map(x=>'<div class="ledgerRow"><div class="ledgerTop"><span>'+esc(x.type)+'</span><span>'+money(x.amount)+'</span></div><div class="meta">'+esc(x.id)+' · '+esc(x.from)+' → '+esc(x.to)+'</div></div>').join('')
-    :'<div class="card">No completed transactions yet.</div>';
+  ps();$('panelTitle').textContent='⬡ Accounting';
+  const led=state.ledger.slice().reverse();
+  const invs=state.invoices.slice().reverse();
+  $('panelBody').innerHTML=
+    '<div class="quick" style="margin-bottom:8px"><button class="smallBtn" onclick="openInvoices()">🧾 Invoices ('+invs.length+')</button></div>'+
+    '<div class="card"><div class="txTop"><b>LEDGER</b><span class="meta">'+led.length+' entries</span></div>'+
+    (led.length?led.map(x=>'<div class="ledgerRow"><div class="ledgerTop"><span>'+esc(x.type)+'</span><b>'+money(x.amount)+'</b></div><div class="meta">'+esc(x.id)+' · '+esc(x.from)+' → '+esc(x.to)+'</div></div>').join(''):'<div class="meta">No transactions yet.</div>')+
+    '</div>';
 }
 
 function editItem(id){if(!state.vendorMode)return;const it=state.vendor.items.find(x=>x.id===id);const n=prompt('Name',it.name);if(n===null)return;it.name=n||it.name;it.desc=prompt('Description',it.desc)||it.desc;it.price=+(prompt('Price (AVC)',it.price)||it.price);it.kg=+(prompt('kg/L',it.kg)||it.kg);it.photo=prompt('Photo URL',it.photo)||it.photo;renderVendor()}
