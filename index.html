@@ -603,8 +603,6 @@ function initGlobe() {
     return
   }
 
-  splashDone()
-
   var arcs = []
   for (var i = 0; i < COUNTRIES.length; i++) {
     var a = COUNTRIES[i]
@@ -639,6 +637,12 @@ function initGlobe() {
   window.addEventListener('resize', function() {
     g.width(window.innerWidth).height(window.innerHeight)
   })
+
+  // Reveal globe only after textures render — not at constructor time when globe is still black
+  var _revealed = false
+  function revealGlobe() { if (_revealed) return; _revealed = true; splashDone() }
+  if (typeof g.onGlobeReady === 'function') { g.onGlobeReady(revealGlobe) }
+  setTimeout(revealGlobe, 4000)
 }
 
 // ── NATIONAL MAP ───────────────────────────────────
