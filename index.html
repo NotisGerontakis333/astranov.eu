@@ -12,15 +12,19 @@
 html,body{width:100%;height:100%;background:#000;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',sans-serif;overflow:hidden;user-select:none;-webkit-user-select:none}
 #globe-el{width:100%;height:100%;position:absolute;top:0;left:0}
 #map-el{width:100%;height:100%;position:absolute;top:0;left:0;display:none}
-#toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:rgba(255,255,255,.12);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.15);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;pointer-events:none;opacity:0;transition:opacity .3s;z-index:9999;white-space:nowrap}
-#bar{position:fixed;bottom:0;left:0;right:0;height:68px;background:rgba(0,0,0,.75);backdrop-filter:blur(20px);border-top:1px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:space-around;padding:0 6px;z-index:100}
+#toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:rgba(255,255,255,.12);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.15);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;pointer-events:none;opacity:0;transition:opacity .3s;z-index:9999;white-space:nowrap}
+#bar{position:fixed;bottom:0;left:0;right:0;height:68px;background:rgba(0,0,0,.82);backdrop-filter:blur(28px);border-top:1px solid rgba(255,255,255,.1);display:flex;align-items:center;justify-content:space-around;padding:0 6px;z-index:100;transform:translateY(100%);transition:transform .35s cubic-bezier(.32,1,.23,1)}
+#bar.tray-open{transform:translateY(0)}
+#tray-trigger{position:fixed;bottom:0;left:0;right:0;height:28px;z-index:90;cursor:pointer}
+#tray-trigger::after{content:'';position:absolute;bottom:8px;left:50%;transform:translateX(-50%);width:44px;height:3px;background:rgba(255,255,255,.2);border-radius:2px;transition:background .2s}
+#tray-trigger:hover::after{background:rgba(255,255,255,.4)}
 .bar-btn{position:relative;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 10px;border:none;background:none;color:rgba(255,255,255,.55);font-size:10px;cursor:pointer;border-radius:12px;transition:all .2s;min-width:50px}
 .bar-btn:active,.bar-btn.act{background:rgba(255,255,255,.1);color:#fff}
 .bar-icon{font-size:22px;line-height:1}
 .bar-badge{position:absolute;top:4px;right:6px;background:#ff3b30;color:#fff;border-radius:10px;min-width:16px;height:16px;font-size:10px;display:none;align-items:center;justify-content:center;padding:0 3px}
 #back-btn{position:fixed;top:16px;left:16px;width:44px;height:44px;border-radius:50%;background:rgba(0,0,0,.55);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.2);color:#fff;font-size:22px;display:none;align-items:center;justify-content:center;cursor:pointer;z-index:200}
 #lvl-label{position:fixed;top:16px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.55);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.12);color:rgba(255,255,255,.85);padding:6px 16px;border-radius:20px;font-size:13px;pointer-events:none;z-index:200;display:none;white-space:nowrap}
-.panel{position:fixed;bottom:68px;left:0;right:0;max-height:calc(100vh - 68px);overflow-y:auto;background:rgba(10,10,18,.96);backdrop-filter:blur(30px);border-top:1px solid rgba(255,255,255,.08);z-index:300;transform:translateY(100%);transition:transform .3s cubic-bezier(.32,1,.23,1)}
+.panel{position:fixed;bottom:0;left:0;right:0;max-height:100vh;overflow-y:auto;background:rgba(10,10,18,.96);backdrop-filter:blur(30px);border-top:1px solid rgba(255,255,255,.08);z-index:300;transform:translateY(100%);transition:transform .3s cubic-bezier(.32,1,.23,1)}
 .panel.open{transform:translateY(0)}
 .ph{width:36px;height:4px;background:rgba(255,255,255,.2);border-radius:2px;margin:12px auto 0}
 .ptitle{font-size:17px;font-weight:600;padding:14px 20px 8px;letter-spacing:-.3px}
@@ -90,6 +94,29 @@ pre.mono{font-family:monospace;font-size:12px;color:rgba(255,255,255,.65);white-
 .cleanTip{background:rgba(0,0,0,.75)!important;border:1px solid rgba(255,255,255,.12)!important;color:#fff!important;border-radius:8px!important;padding:4px 9px!important;font-size:12px!important;box-shadow:none!important}
 .leaflet-popup-content-wrapper{background:rgba(10,10,20,.97)!important;border:1px solid rgba(255,255,255,.1)!important;color:#fff!important;border-radius:14px!important;box-shadow:0 8px 30px rgba(0,0,0,.6)!important}
 .leaflet-popup-tip{background:rgba(10,10,20,.97)!important}
+/* ── COLLECTIVE INTELLIGENCE CYCLE ──────────────── */
+#cic-float{position:fixed;bottom:28px;right:16px;z-index:200;display:flex;flex-direction:column;align-items:center;cursor:pointer}
+#cic-orders-dot{position:absolute;top:-4px;right:-4px;width:14px;height:14px;border-radius:50%;background:#ff3b30;color:#fff;font-size:9px;font-weight:700;display:none;align-items:center;justify-content:center;z-index:3;border:2px solid #000}
+/* legacy widget class kept for transition */
+#cic-widget{position:relative;display:flex;flex-direction:column;align-items:center;cursor:pointer;padding:4px 0;min-width:50px;border:none;background:none;color:#fff;font-family:inherit}
+#cic-model-label{position:absolute;bottom:calc(100% + 4px);left:50%;transform:translateX(-50%);background:rgba(0,0,0,.82);backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.13);color:rgba(255,255,255,.92);padding:4px 10px;border-radius:9px;font-size:10px;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .35s,transform .35s;transform:translateX(-50%) translateY(4px);z-index:500}
+#cic-model-label.cic-show{opacity:1;transform:translateX(-50%) translateY(0)}
+.cic-ring{position:relative;width:60px;height:60px;flex-shrink:0}
+.cic-svg{position:absolute;top:0;left:0;pointer-events:none}
+.cic-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:26px;height:26px;border-radius:50%;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.1);color:#fff;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2;transition:all .2s;padding:0}
+.cic-center.hf-on{background:rgba(255,200,0,.3)!important;border-color:rgba(255,200,0,.7)!important;box-shadow:0 0 10px rgba(255,200,0,.4)}
+.cic-dot{position:absolute;width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.2);transition:background .3s,box-shadow .3s,transform .15s;cursor:pointer;z-index:1}
+.cic-dot:active{transform:scale(1.5)}
+.cic-dot.cic-active{background:var(--cc,#fff);box-shadow:0 0 6px var(--cc,#fff),0 0 14px rgba(255,255,255,.25)}
+.cic-dot.cic-locked{outline:2px solid #ffc800;outline-offset:2px}
+#cic-dot-astranov{width:11px;height:11px;background:radial-gradient(circle,#fff 0%,#ffc800 65%,rgba(255,200,0,.35) 100%)!important;box-shadow:0 0 5px rgba(255,200,0,.55);animation:cic-soul 2.6s ease-in-out infinite;margin-left:-1px;margin-top:-1px}
+#cic-dot-astranov.cic-active{box-shadow:0 0 10px #fff,0 0 18px rgba(255,200,0,.7)!important;animation:none}
+@keyframes cic-soul{0%,100%{box-shadow:0 0 5px rgba(255,200,0,.45)}50%{box-shadow:0 0 11px rgba(255,200,0,.85),0 0 20px rgba(255,200,0,.25)}}
+.cic-lbl-wrap{font-size:9px;color:rgba(255,255,255,.32);letter-spacing:.4px;margin-top:2px;line-height:1;white-space:nowrap}
+.cic-lbl-wrap span{color:rgba(255,255,255,.55)}
+@keyframes cic-think{0%,100%{opacity:.2}50%{opacity:.85}}
+.cic-thinking .cic-dot{animation:cic-think .75s ease-in-out infinite}
+@keyframes cic-spin{from{stroke-dashoffset:145}to{stroke-dashoffset:0}}
 </style>
 </head>
 <body>
@@ -98,15 +125,32 @@ pre.mono{font-family:monospace;font-size:12px;color:rgba(255,255,255,.65);white-
 <div id="toast"></div>
 <div id="back-btn" onclick="goBack()">&#8592;</div>
 <div id="lvl-label"></div>
+<!-- Swipe-up tray trigger — thin invisible strip at very bottom -->
+<div id="tray-trigger" onclick="trayShow()"></div>
+<!-- Navigation tray — hidden by default, appears on swipe-up -->
 <div id="bar">
-  <button class="bar-btn" onclick="openChannel('global')"><span class="bar-icon">&#127760;</span>Feed</button>
-  <button class="bar-btn" id="radar-btn" onclick="openRadar()">
+  <button class="bar-btn" onclick="openChannel('global');trayHide()"><span class="bar-icon">&#127760;</span>Feed</button>
+  <button class="bar-btn" id="radar-btn" onclick="openRadar();trayHide()">
     <span class="bar-icon">&#128225;</span>Radar
     <span id="radar-badge" class="bar-badge">0</span>
   </button>
-  <button class="bar-btn" onclick="openAIChat()"><span class="bar-icon">&#10022;</span>AI</button>
-  <button class="bar-btn" onclick="openAccounting()"><span class="bar-icon">&#128176;</span>Ledger</button>
-  <button class="bar-btn" onclick="openYou()"><span class="bar-icon">&#128100;</span>You</button>
+  <button class="bar-btn" onclick="openAccounting();trayHide()"><span class="bar-icon">&#128176;</span>Wallet</button>
+  <button class="bar-btn" onclick="openYou();trayHide()"><span class="bar-icon">&#128100;</span>You</button>
+</div>
+<!-- CIC ring — always floating bottom-right, the OS heartbeat -->
+<div id="cic-float" onclick="openAIChat()">
+  <div id="cic-model-label"></div>
+  <div class="cic-ring" id="cic-ring">
+    <svg class="cic-svg" width="60" height="60" viewBox="0 0 60 60">
+      <circle cx="30" cy="30" r="21" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="1.5"/>
+      <circle id="cic-arc" cx="30" cy="30" r="21" fill="none" stroke="rgba(255,200,0,.6)" stroke-width="2"
+        stroke-dasharray="0 132" stroke-linecap="round" transform="rotate(-90 30 30)" opacity="0"
+        style="transition:stroke-dasharray .4s"/>
+    </svg>
+    <button class="cic-center" id="cic-mic" onclick="event.stopPropagation();toggleHF()">&#127908;</button>
+    <div id="cic-orders-dot"></div>
+  </div>
+  <div class="cic-lbl-wrap">C.I. <span id="cic-mode-txt">Auto</span></div>
 </div>
 <div id="ui"></div>
 
@@ -142,7 +186,11 @@ var S = {
   hfRec: null,
   krypActive: false,
   selfCheckTimer: null,
-  radarCount: 0
+  radarCount: 0,
+  cicProvider: null,
+  cicVia: '',
+  cicManual: null,
+  cicThinking: false
 }
 
 // ── COUNTRIES DATA ─────────────────────────────────
@@ -387,6 +435,41 @@ function clearMarkers() {
 }
 
 // ── GLOBE ──────────────────────────────────────────
+// ── TRAY (swipe-up navigation) ─────────────────────
+var _trayTimer = null
+function trayShow() {
+  var bar = document.getElementById('bar')
+  if (bar) bar.classList.add('tray-open')
+  clearTimeout(_trayTimer)
+  _trayTimer = setTimeout(trayHide, 5000)
+}
+function trayHide() {
+  var bar = document.getElementById('bar')
+  if (bar) bar.classList.remove('tray-open')
+}
+function initTray() {
+  // Touch swipe-up from bottom 60px
+  var startY = 0
+  document.addEventListener('touchstart', function(e) {
+    startY = e.touches[0].clientY
+  }, {passive:true})
+  document.addEventListener('touchend', function(e) {
+    var endY = e.changedTouches[0].clientY
+    var fromBottom = startY > window.innerHeight - 60
+    if (fromBottom && startY - endY > 18) trayShow()
+  }, {passive:true})
+  // Click anywhere while tray is open → hide (unless clicking bar itself)
+  document.addEventListener('click', function(e) {
+    var bar = document.getElementById('bar')
+    if (bar && bar.classList.contains('tray-open') && !bar.contains(e.target)) {
+      trayHide()
+    }
+  })
+  // Brief peek on first load so user discovers the tray
+  setTimeout(function() { trayShow() }, 800)
+  setTimeout(function() { trayHide() }, 3200)
+}
+
 function initGlobe() {
   var el = document.getElementById('globe-el')
 
@@ -399,16 +482,24 @@ function initGlobe() {
     return bestD < 2500 ? best : null
   }
 
-  var g = Globe()(el)
-    .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-night.jpg')
-    .bumpImageUrl('https://unpkg.com/three-globe/example/img/earth-topology.png')
-    .backgroundImageUrl('https://unpkg.com/three-globe/example/img/night-sky.png')
-    .width(window.innerWidth)
-    .height(window.innerHeight)
-    .onGlobeClick(function(ev) {
-      var c = nearestCountry(ev.lat, ev.lng)
-      if (c) openNational(c)
-    })
+  var g
+  try {
+    g = Globe()(el)
+      .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-night.jpg')
+      .bumpImageUrl('https://unpkg.com/three-globe/example/img/earth-topology.png')
+      .backgroundImageUrl('https://unpkg.com/three-globe/example/img/night-sky.png')
+      .width(window.innerWidth)
+      .height(window.innerHeight)
+      .onGlobeClick(function(ev) {
+        var c = nearestCountry(ev.lat, ev.lng)
+        if (c) openNational(c)
+      })
+  } catch(e) {
+    console.error('Globe init failed:', e)
+    el.style.cssText = 'display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.4);font-size:14px'
+    el.textContent = 'Globe loading… tap a region below to navigate.'
+    return
+  }
 
   var arcs = []
   for (var i = 0; i < COUNTRIES.length; i++) {
@@ -1144,6 +1235,9 @@ function updateRadar() {
   var active = Object.values(S.orders).filter(function(o) { return o.status === 'active' }).length
   var badge = document.getElementById('radar-badge')
   if (badge) { badge.textContent = active; badge.style.display = active > 0 ? 'flex' : 'none' }
+  // Also show on CIC ring (always visible even when tray is hidden)
+  var dot = document.getElementById('cic-orders-dot')
+  if (dot) { dot.textContent = active || ''; dot.style.display = active > 0 ? 'flex' : 'none' }
 }
 
 function openRadar() {
@@ -1171,15 +1265,18 @@ function openAIChat() {
         return '<div class="cmsg ' + (m.role === 'user' ? 'cme' : 'cai') + '">' + esc(m.content) + '</div>'
       }).join('')
     : '<p class="muted center" style="padding:24px">I am Astranov AI. How can I help?</p>'
+  var provLabel = S.cicProvider ? (CIC_LABELS[S.cicProvider] || S.cicProvider) : 'Auto cycle'
   openPanel('ai',
-    '<div class="ptitle">&#10022; Astranov AI</div>' +
+    '<div class="ptitle">&#9711; Collective Intelligence' +
+    '<span id="ai-provider-badge" style="font-size:10px;font-weight:400;margin-left:10px;color:rgba(255,255,255,.45);letter-spacing:.3px">&#9679; ' + esc(provLabel) + '</span></div>' +
     '<div class="cwrap" id="ai-msgs">' + msgsHtml + '</div>' +
     '<div style="display:flex;gap:8px;padding:10px 16px 8px;align-items:center">' +
-    '<input class="inp" id="ai-inp" placeholder="Ask Astranov AI…" style="flex:1" onkeydown="if(event.key===\'Enter\')sendAI()">' +
+    '<input class="inp" id="ai-inp" placeholder="Ask Astranov C.I.…" style="flex:1" onkeydown="if(event.key===\'Enter\')sendAI()">' +
     '<button class="btn bp bsm" onclick="sendAI()">Send</button>' +
     '<button class="btn bs bsm" id="hf-btn" onclick="toggleHF()">' + (S.handsFree ? '&#127908; On' : '&#127908;') + '</button></div>' +
-    '<div style="display:flex;gap:8px;padding:0 16px 16px">' +
+    '<div style="display:flex;gap:8px;padding:0 16px 16px;flex-wrap:wrap">' +
     '<button class="btn bs bsm" onclick="openFeedback()">&#128172; Suggest improvement</button>' +
+    '<button class="btn bs bsm" onclick="askLastToCollective()">&#129489;&#8205;&#127891; Ask collective</button>' +
     (S.krypActive ? '<button class="btn bs bsm" onclick="openKrypteia()">&#9889; Krypteia</button>' +
                     '<button class="btn bs bsm" onclick="openProposals()">&#129516; Proposals</button>' : '') +
     '</div>'
@@ -1190,7 +1287,8 @@ function openAIChat() {
 
 function loadAIMemory() {
   if (!S.session) return
-  sbFetch('/rest/v1/ai_memory?user_id=eq.' + S.session.user.id + '&order=created_at.desc&limit=20&select=role,content')
+  // Only load public memory — private entries are never shown in chat
+  sbFetch('/rest/v1/ai_memory?user_id=eq.' + S.session.user.id + '&is_private=eq.false&order=created_at.desc&limit=20&select=role,content')
     .then(function(r) { return r.json() })
     .then(function(rows) {
       if (!Array.isArray(rows)) return
@@ -1219,11 +1317,13 @@ function sendAI(text) {
     el.innerHTML += '<div class="cmsg cai" id="ai-typing">…</div>'
     el.scrollTop = el.scrollHeight
   }
+  cicStartThinking()
   sbFn('ai-router', {
     text: text, level: S.level,
     country: S.country ? S.country.name : null,
     city: S.city ? S.city.name : null,
-    owner: !!(S.profile && S.profile.is_owner)
+    owner: !!(S.profile && S.profile.is_owner),
+    preferred_provider: S.cicManual || null
   }).then(function(resp) {
     var reply = (resp && resp.text) ? resp.text : 'I could not process that.'
     S.aiHistory.push({role:'assistant', content:reply})
@@ -1231,12 +1331,14 @@ function sendAI(text) {
     if (typing) typing.outerHTML = '<div class="cmsg cai">' + esc(reply) + '</div>'
     if (el) el.scrollTop = el.scrollHeight
     if (resp && resp.action) execAction(resp.action)
+    cicStopThinking(resp && resp.provider ? resp.provider : null, resp && resp.via ? resp.via : '')
   }).catch(function() {
     var reply = localAI(text)
     S.aiHistory.push({role:'assistant', content:reply})
     var typing = document.getElementById('ai-typing')
     if (typing) typing.outerHTML = '<div class="cmsg cai">' + esc(reply) + '</div>'
     if (el) el.scrollTop = el.scrollHeight
+    cicStopThinking(null, '')
   })
 }
 
@@ -1399,6 +1501,138 @@ function decideProposal(id, decision) {
   }
 }
 
+// ── COLLECTIVE INTELLIGENCE CYCLE ──────────────────
+var CIC_COLORS = {
+  astranov: '#ffffff',
+  claude: '#ffc800',
+  groq: '#00d4aa',
+  gemini: '#4285f4',
+  'openai-mini': '#10a37f'
+}
+var CIC_LABELS = {
+  astranov: 'Astranov C.I.',
+  claude: 'Claude Opus',
+  groq: 'Groq llama',
+  gemini: 'Gemini 2.0',
+  'openai-mini': 'GPT-4o mini'
+}
+var CIC_SHORT = {
+  astranov: 'Astranov',
+  claude: 'Claude',
+  groq: 'Groq',
+  gemini: 'Gemini',
+  'openai-mini': 'GPT'
+}
+
+function getCICNodes() {
+  // Astranov C.I. is always first — the collective itself, never absent.
+  // Free APIs follow. Claude appears only after Krypteia is active (owner).
+  var nodes = [{id:'astranov'}, {id:'groq'}, {id:'gemini'}, {id:'openai-mini'}]
+  if (S.krypActive) nodes.push({id:'claude'})
+  return nodes
+}
+
+function cicNodePos(i, total) {
+  var r = 21, angle = (i / total) * 2 * Math.PI - Math.PI / 2
+  return {
+    left: Math.round(30 + r * Math.cos(angle) - 4.5),
+    top: Math.round(30 + r * Math.sin(angle) - 4.5)
+  }
+}
+
+function initCICWidget() {
+  var ring = document.getElementById('cic-ring')
+  if (!ring) return
+  ring.querySelectorAll('.cic-dot').forEach(function(d) { d.remove() })
+  var nodes = getCICNodes()
+  nodes.forEach(function(n, i) {
+    var pos = cicNodePos(i, nodes.length)
+    var d = document.createElement('div')
+    d.className = 'cic-dot'
+    d.id = 'cic-dot-' + n.id
+    d.style.cssText = 'left:' + pos.left + 'px;top:' + pos.top + 'px'
+    d.style.setProperty('--cc', CIC_COLORS[n.id] || '#fff')
+    d.title = CIC_LABELS[n.id] || n.id
+    d.addEventListener('click', function(e) { e.stopPropagation(); cicNodeClick(n.id) })
+    ring.appendChild(d)
+  })
+  updateCICWidget(S.cicProvider, S.cicThinking)
+}
+
+function cicNodeClick(providerId) {
+  if (S.cicManual === providerId) {
+    S.cicManual = null
+    toast('C.I. — Auto cycle')
+  } else {
+    S.cicManual = providerId
+    toast('C.I. locked: ' + (CIC_LABELS[providerId] || providerId))
+  }
+  updateCICWidget(S.cicProvider, S.cicThinking)
+}
+
+function updateCICWidget(provider, thinking, via) {
+  if (provider) S.cicProvider = provider
+  if (via !== undefined) S.cicVia = via
+  S.cicThinking = !!thinking
+  var ring = document.getElementById('cic-ring')
+  if (ring) {
+    if (thinking) ring.classList.add('cic-thinking')
+    else ring.classList.remove('cic-thinking')
+  }
+  getCICNodes().forEach(function(n) {
+    var dot = document.getElementById('cic-dot-' + n.id)
+    if (!dot) return
+    dot.classList.remove('cic-active', 'cic-locked')
+    if (n.id === S.cicManual) dot.classList.add('cic-locked')
+    if (!thinking && n.id === S.cicProvider) dot.classList.add('cic-active')
+  })
+  // Arc: fill while thinking, empty when done
+  var arc = document.getElementById('cic-arc')
+  if (arc) {
+    if (thinking) { arc.style.opacity = '1'; arc.setAttribute('stroke-dasharray', '66 132') }
+    else { arc.style.opacity = '0'; arc.setAttribute('stroke-dasharray', '0 132') }
+  }
+  // Mode text in bar
+  var modeEl = document.getElementById('cic-mode-txt')
+  if (modeEl) modeEl.textContent = S.cicManual ? (CIC_SHORT[S.cicManual] || S.cicManual) : 'Auto'
+  // Floating label above widget — shows orchestration with "via" when in Astranov mode
+  var lbl = document.getElementById('cic-model-label')
+  if (lbl) {
+    var text = null
+    if (thinking) text = 'Thinking…'
+    else if (provider) {
+      text = CIC_LABELS[provider] || provider
+      if (provider === 'astranov' && S.cicVia) text += ' · via ' + (CIC_SHORT[S.cicVia] || S.cicVia)
+    } else if (S.cicManual) {
+      text = (CIC_LABELS[S.cicManual] || S.cicManual) + ' ⬡'
+    }
+    if (text) { lbl.textContent = '◉ ' + text; lbl.classList.add('cic-show') }
+    else { lbl.classList.remove('cic-show') }
+  }
+  // Live badge inside chat panel
+  var badge = document.getElementById('ai-provider-badge')
+  if (badge && provider) {
+    var t = CIC_LABELS[provider] || provider
+    if (provider === 'astranov' && S.cicVia) t += ' · via ' + (CIC_SHORT[S.cicVia] || S.cicVia)
+    badge.innerHTML = '&#9679; ' + esc(t)
+  }
+}
+
+function cicStartThinking() {
+  updateCICWidget(null, true)
+}
+
+function cicStopThinking(provider, via) {
+  updateCICWidget(provider || null, false, via)
+  if (provider) {
+    var dot = document.getElementById('cic-dot-' + provider)
+    if (dot) {
+      dot.style.transform = 'scale(1.5)'
+      setTimeout(function() { dot.style.transform = '' }, 300)
+    }
+  }
+}
+
 // ── VOICE ──────────────────────────────────────────
 var SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition
 
@@ -1414,6 +1648,8 @@ function startHF() {
   S.hfRec = rec; S.handsFree = true
   var btn = document.getElementById('hf-btn')
   if (btn) btn.textContent = '🌈 On'
+  var mic = document.getElementById('cic-mic')
+  if (mic) mic.classList.add('hf-on')
   toast('Listening…')
 }
 
@@ -1422,6 +1658,8 @@ function stopHF() {
   S.hfRec = null; S.handsFree = false
   var btn = document.getElementById('hf-btn')
   if (btn) btn.innerHTML = '&#127908;'
+  var mic = document.getElementById('cic-mic')
+  if (mic) mic.classList.remove('hf-on')
   toast('Voice stopped')
 }
 
@@ -1430,6 +1668,7 @@ function activateKrypteia() {
   S.krypActive = true
   clearInterval(S.selfCheckTimer)
   S.selfCheckTimer = setInterval(krypSelfCheck, 5 * 60 * 1000)
+  initCICWidget()
   toast('⚡ Krypteia active')
 }
 
@@ -1444,6 +1683,8 @@ function openKrypteia() {
     '<button class="kb" onclick="krypExport()"><span class="ki">&#128190;</span>Export<br><small style="opacity:.6">Download code</small></button>' +
     '<button class="kb" onclick="krypIPGuard()"><span class="ki">&#128737;</span>IP Guard<br><small style="opacity:.6">Search threats</small></button>' +
     '<button class="kb" onclick="krypChecks()"><span class="ki">&#9989;</span>Checks<br><small style="opacity:.6">Verify system</small></button>' +
+    '<button class="kb" onclick="krypMemory()"><span class="ki">&#128274;</span>Memory<br><small style="opacity:.6">Public / private</small></button>' +
+    '<button class="kb" onclick="krypQueue()"><span class="ki">&#129489;&#8205;&#127891;</span>Collective Queue<br><small style="opacity:.6">Human + architect Q&amp;A</small></button>' +
     '</div>'
   )
 }
@@ -1578,6 +1819,135 @@ function krypChecks() {
   })
 }
 
+function krypMemory() {
+  if (!S.krypActive || !S.session) return
+  openPanel('kryp-memory',
+    '<div class="ptitle">&#128274; Memory Privacy</div>' +
+    '<div class="psect"><p class="muted" style="margin-bottom:10px">Public memories are used as AI context. Mark sensitive entries private — they will never be sent to any AI.</p></div>' +
+    '<div id="mem-list" style="padding:0 16px"><p class="muted center" style="padding:24px">Loading…</p></div>'
+  )
+  sbFetch('/rest/v1/ai_memory?user_id=eq.' + S.session.user.id + '&order=created_at.desc&limit=50&select=id,role,content,is_private,created_at')
+    .then(function(r) { return r.json() })
+    .then(function(rows) {
+      var el = document.getElementById('mem-list')
+      if (!el) return
+      if (!Array.isArray(rows) || !rows.length) {
+        el.innerHTML = '<p class="muted center" style="padding:24px">No memory entries yet</p>'
+        return
+      }
+      el.innerHTML = rows.map(function(m) {
+        var priv = m.is_private
+        var short = esc((m.content || '').slice(0, 80)) + ((m.content || '').length > 80 ? '…' : '')
+        return '<div style="background:rgba(255,255,255,.04);border-radius:12px;padding:10px 12px;margin-bottom:8px;display:flex;align-items:flex-start;gap:10px">' +
+          '<div style="flex:1">' +
+          '<div style="font-size:11px;color:rgba(255,255,255,.35);margin-bottom:3px">' + esc(m.role) + ' · ' + new Date(m.created_at).toLocaleString() + '</div>' +
+          '<div style="font-size:13px">' + short + '</div></div>' +
+          '<button class="btn bsm ' + (priv ? 'br' : 'bg') + '" style="flex-shrink:0;font-size:11px" onclick="toggleMemPrivacy(' + JSON.stringify(m.id) + ',' + JSON.stringify(!priv) + ')">' +
+          (priv ? '&#128274; Private' : '&#128275; Public') + '</button></div>'
+      }).join('')
+    }).catch(function() {
+      var el = document.getElementById('mem-list')
+      if (el) el.innerHTML = '<p class="muted center" style="padding:24px">Could not load memory</p>'
+    })
+}
+
+function toggleMemPrivacy(id, makePrivate) {
+  if (!S.krypActive) return
+  sbFetch('/rest/v1/ai_memory?id=eq.' + id, {
+    method: 'PATCH',
+    body: JSON.stringify({ is_private: makePrivate }),
+    headers: { 'Prefer': 'return=minimal' }
+  }).then(function() {
+    toast(makePrivate ? 'Marked private — AI will not see this' : 'Marked public — AI will use this as context')
+    krypMemory()
+  }).catch(function() { toast('Could not update memory entry') })
+}
+
+function krypQueue() {
+  if (!S.session) return
+  openPanel('kryp-queue',
+    '<div class="ptitle">&#129489;&#8205;&#127891; Collective Queue</div>' +
+    '<div class="psect"><p class="muted" style="margin-bottom:10px">Questions the AIs deferred to humans or the architect. Answer to teach the C.I.</p></div>' +
+    '<div id="cq-list" style="padding:0 16px"><p class="muted center" style="padding:24px">Loading…</p></div>'
+  )
+  sbFetch('/rest/v1/cic_queue?status=eq.open&order=created_at.desc&limit=50&select=id,question,reason,for_owner,created_at,user_id')
+    .then(function(r) { return r.json() })
+    .then(function(rows) {
+      var el = document.getElementById('cq-list')
+      if (!el) return
+      if (!Array.isArray(rows) || !rows.length) {
+        el.innerHTML = '<p class="muted center" style="padding:24px">No open questions</p>'
+        return
+      }
+      el.innerHTML = rows.map(function(q) {
+        var badge = q.for_owner ? '<span class="badge by">architect</span>' : '<span class="badge bb">collective</span>'
+        return '<div style="background:rgba(255,255,255,.04);border-radius:12px;padding:12px;margin-bottom:8px">' +
+          '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">' + badge +
+          '<span class="muted" style="font-size:11px">' + new Date(q.created_at).toLocaleString() + '</span></div>' +
+          '<div style="font-size:14px;margin-bottom:8px">' + esc(q.question) + '</div>' +
+          (q.reason ? '<div class="muted" style="font-size:11px;margin-bottom:8px">reason: ' + esc(q.reason) + '</div>' : '') +
+          '<textarea class="inp" id="cq-a-' + q.id + '" rows="2" placeholder="Your answer to the C.I.…" style="margin-bottom:6px"></textarea>' +
+          '<div style="display:flex;gap:8px;justify-content:flex-end">' +
+          '<button class="btn bs bsm" onclick="dismissQueue(' + q.id + ')">Dismiss</button>' +
+          '<button class="btn bp bsm" onclick="answerQueue(' + q.id + ')">Answer</button></div></div>'
+      }).join('')
+    }).catch(function() {
+      var el = document.getElementById('cq-list')
+      if (el) el.innerHTML = '<p class="muted center" style="padding:24px">Could not load queue</p>'
+    })
+}
+
+function answerQueue(id) {
+  var ta = document.getElementById('cq-a-' + id)
+  var answer = ta ? ta.value.trim() : ''
+  if (!answer) { toast('Write an answer first'); return }
+  sbFetch('/rest/v1/cic_queue?id=eq.' + id, {
+    method:'PATCH',
+    body: JSON.stringify({
+      status:'answered', answer:answer,
+      answered_by: S.session && S.session.user ? S.session.user.id : null,
+      answered_at: new Date().toISOString()
+    }),
+    headers:{'Prefer':'return=minimal'}
+  }).then(function() {
+    toast('Answer recorded — C.I. learned')
+    krypQueue()
+  }).catch(function() { toast('Could not save answer') })
+}
+
+function dismissQueue(id) {
+  sbFetch('/rest/v1/cic_queue?id=eq.' + id, {
+    method:'PATCH',
+    body: JSON.stringify({ status:'dismissed', answered_at: new Date().toISOString() }),
+    headers:{'Prefer':'return=minimal'}
+  }).then(function() { krypQueue() }).catch(function() {})
+}
+
+function askLastToCollective() {
+  var last = null
+  for (var i = S.aiHistory.length - 1; i >= 0; i--) {
+    if (S.aiHistory[i].role === 'user') { last = S.aiHistory[i].content; break }
+  }
+  if (!last) { toast('Ask Astranov C.I. something first'); return }
+  askCollective(last, 'user escalation from C.I. chat', false)
+}
+
+function askCollective(question, reason, forOwner) {
+  if (!S.session) { toast('Sign in to ask the collective'); return }
+  sbFetch('/rest/v1/cic_queue', {
+    method:'POST',
+    body: JSON.stringify({
+      user_id: S.session.user.id,
+      question: question,
+      reason: reason || 'user request',
+      for_owner: !!forOwner,
+      context: { level:S.level, country:S.country?S.country.name:null, city:S.city?S.city.name:null }
+    }),
+    headers:{'Prefer':'return=minimal'}
+  }).then(function() { toast(forOwner ? 'Sent to the architect' : 'Sent to the collective') })
+    .catch(function() { toast('Could not reach the collective') })
+}
+
 function krypSelfCheck() {
   if (!S.krypActive) return
   var data = {
@@ -1644,6 +2014,8 @@ function init() {
     }
   } catch(e) {}
 
+  initTray()
+  initCICWidget()
   initGlobe()
 }
 
