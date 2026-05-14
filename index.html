@@ -15,12 +15,13 @@ html,body{width:100%;height:100%;background:#000;color:#fff;font-family:-apple-s
 #toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:rgba(255,255,255,.12);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.15);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;pointer-events:none;opacity:0;transition:opacity .3s;z-index:9999;white-space:nowrap}
 #back-btn{position:fixed;top:16px;left:80px;width:40px;height:40px;border-radius:50%;background:rgba(0,0,0,.55);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.2);color:#fff;font-size:20px;display:none;align-items:center;justify-content:center;cursor:pointer;z-index:200}
 /* Splash screen */
-#splash{position:fixed;top:0;left:0;width:100%;height:100%;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:500;gap:20px;transition:opacity .7s ease}
+#splash{position:fixed;top:0;left:0;width:100%;height:100%;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:500;gap:18px;transition:opacity .35s ease}
 #splash.fade{opacity:0;pointer-events:none}
 #splash.done{display:none}
 #splash-name{font-size:24px;font-weight:200;letter-spacing:8px;color:rgba(255,255,255,.88);text-transform:uppercase}
 #splash-bar{width:110px;height:1px;background:rgba(255,255,255,.1);border-radius:1px;overflow:hidden}
-#splash-prog{height:100%;width:5%;background:#0a84ff;border-radius:1px;transition:width .35s ease}
+#splash-prog{height:100%;width:5%;background:#0a84ff;border-radius:1px;transition:width .25s ease;animation:splashload 1.1s ease-out forwards}
+@keyframes splashload{0%{width:5%}100%{width:100%}}
 /* Drag handle shared */
 .wdh{font-size:13px;color:rgba(255,255,255,.2);cursor:move;touch-action:none;user-select:none;-webkit-user-select:none;line-height:1;align-self:stretch;display:flex;align-items:center;justify-content:center;padding:0 2px;border-radius:4px}
 .wdh:hover{color:rgba(255,255,255,.5)}
@@ -532,21 +533,24 @@ function clearMarkers() {
 
 var _globeCdnWait = 0
 var _globeInitTries = 0
+var _splashHidden = false
 
 function splashProg(pct) {
   var el = document.getElementById('splash-prog')
-  if (el) el.style.width = Math.min(100, pct) + '%'
+  if (el) { el.style.animation = 'none'; el.style.width = Math.min(100, pct) + '%' }
 }
 
 function splashDone() {
+  if (_splashHidden) return
+  _splashHidden = true
   var s = document.getElementById('splash')
-  if (!s || s.classList.contains('done')) return
-  splashProg(100)
-  setTimeout(function() {
-    s.classList.add('fade')
-    setTimeout(function() { s.classList.add('done') }, 700)
-  }, 250)
+  if (!s) return
+  s.classList.add('fade')
+  setTimeout(function() { s.classList.add('done') }, 360)
 }
+
+// Always hide splash by 1.2s — globe renders behind it
+setTimeout(splashDone, 1200)
 
 function showGlobeFallback() {
   splashDone()
@@ -566,8 +570,7 @@ function showGlobeFallback() {
 function initGlobe() {
   if (typeof Globe === 'undefined') {
     _globeCdnWait++
-    if (_globeCdnWait > 60) { showGlobeFallback(); return }
-    splashProg(5 + _globeCdnWait * 1.2)
+    if (_globeCdnWait > 12) { showGlobeFallback(); return }
     setTimeout(initGlobe, 250)
     return
   }
@@ -584,7 +587,6 @@ function initGlobe() {
 
   var g
   try {
-    splashProg(85)
     g = Globe()(el)
       .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-night.jpg')
       .bumpImageUrl('https://unpkg.com/three-globe/example/img/earth-topology.png')
