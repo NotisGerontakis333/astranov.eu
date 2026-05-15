@@ -202,25 +202,44 @@ pre.mono{font-family:monospace;font-size:12px;color:rgba(255,255,255,.65);white-
   var SBD = 'https://kzlabcrlrpbnfiiyrjvl.supabase.co'
   var KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6bGFiY3JscnBibmZpaXlyanZsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxNjg3OTAsImV4cCI6MjA4OTc0NDc5MH0.TyshChfsIkc-k357FGME-8TnZn-zxeD74jL-GYRVlkg'
   var _sid = Math.random().toString(36).slice(2, 8)
-  function dbg(type, data) {
+  var _log = []
+
+  function flush() {
+    var payload = { session: _sid, ua: navigator.userAgent.slice(0,120), ts: Date.now(), events: _log.slice() }
+    // Write to public storage bucket — readable by Claude via WebFetch with no auth
+    fetch(SBD + '/storage/v1/object/debug-pub/errors.json', {
+      method: 'POST',
+      headers: { 'apikey': KEY, 'Authorization': 'Bearer ' + KEY, 'Content-Type': 'application/json', 'x-upsert': 'true' },
+      body: JSON.stringify(payload, null, 2)
+    }).catch(function(){})
+    // Also write to analytics_events
     fetch(SBD + '/rest/v1/analytics_events', {
       method: 'POST',
       headers: { 'apikey': KEY, 'Authorization': 'Bearer ' + KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-      body: JSON.stringify({ type: 'debug_' + type, data: data, ts: Date.now(), session_id: _sid })
+      body: JSON.stringify({ type: 'debug_snapshot', data: payload, ts: Date.now(), session_id: _sid })
     }).catch(function(){})
   }
+
+  var _flushTimer = null
+  function dbg(type, data) {
+    _log.push({ type: type, data: data, t: Date.now() })
+    clearTimeout(_flushTimer)
+    _flushTimer = setTimeout(flush, 1200)
+  }
+
   window.addEventListener('error', function(e) {
-    dbg('jserror', { msg: e.message, src: e.filename, line: e.lineno, col: e.colno })
+    dbg('jserror', { msg: e.message, src: (e.filename||'').split('/').slice(-1)[0], line: e.lineno, col: e.colno })
   })
   window.addEventListener('unhandledrejection', function(e) {
-    dbg('promise', { msg: String(e.reason) })
+    dbg('promise', { msg: String(e.reason && e.reason.message ? e.reason.message : e.reason) })
   })
   var _oc = console.error.bind(console)
   console.error = function() {
     _oc.apply(console, arguments)
-    dbg('console_error', { msg: Array.from(arguments).map(String).join(' ') })
+    dbg('console_error', { msg: Array.from(arguments).map(function(a){ return typeof a === 'object' ? JSON.stringify(a) : String(a) }).join(' ').slice(0,300) })
   }
   window._dbg = dbg
+  window._dbgFlush = flush
 })()
 
 // ── CONSTANTS ──────────────────────────────────────
@@ -2199,6 +2218,7 @@ function makeDraggable(elId, handleSel, storageKey) {
 
 // ── INIT ───────────────────────────────────────────
 function init() {
+  window._dbg && _dbg('init', { ua: navigator.userAgent.slice(0,80), w: window.innerWidth, h: window.innerHeight, Globe_defined: typeof Globe })
   var h = new Date().getHours()
   if (h >= 22 || h < 6) S.conditions.night = true
 
