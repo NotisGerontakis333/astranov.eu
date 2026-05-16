@@ -142,6 +142,25 @@ pre.mono{font-family:monospace;font-size:12px;color:rgba(255,255,255,.65);white-
 @keyframes cic-think{0%,100%{opacity:.3}50%{opacity:1}}
 .cic-thinking .cic-chip{animation:cic-think .75s ease-in-out infinite}
 @keyframes cic-spin{from{stroke-dashoffset:145}to{stroke-dashoffset:0}}
+/* ── LIVE / WebRTC widget ─────────────────────────── */
+#live-widget{position:fixed;bottom:100px;left:16px;z-index:200;display:flex;flex-direction:column;align-items:center;gap:3px}
+#live-btn{width:50px;height:50px;border-radius:50%;background:rgba(0,0,0,.6);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.2);color:#fff;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s}
+#live-btn.live-active{background:rgba(255,59,48,.25);border-color:rgba(255,59,48,.6);box-shadow:0 0 12px rgba(255,59,48,.4)}
+@keyframes live-pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,59,48,.5)}70%{box-shadow:0 0 0 8px rgba(255,59,48,0)}}
+#live-btn.live-active{animation:live-pulse 2s infinite}
+#live-lbl{font-size:9px;color:rgba(255,255,255,.35);letter-spacing:.4px}
+#live-peers{font-size:9px;color:rgba(255,59,48,.8);font-weight:600;display:none}
+/* crawler status chip */
+#crawler-chip{position:fixed;top:60px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.7);backdrop-filter:blur(14px);border:1px solid rgba(10,132,255,.3);color:rgba(10,132,255,.9);padding:4px 12px;border-radius:14px;font-size:11px;pointer-events:none;opacity:0;transition:opacity .3s;z-index:201;white-space:nowrap}
+#crawler-chip.visible{opacity:1}
+/* vendor registration pill in city view */
+#vendor-reg-btn{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);z-index:200;background:rgba(10,132,255,.18);backdrop-filter:blur(14px);border:1px solid rgba(10,132,255,.35);color:rgba(10,132,255,1);padding:8px 18px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;display:none;white-space:nowrap;transition:all .2s}
+#vendor-reg-btn:active{background:rgba(10,132,255,.3)}
+/* live video grid */
+#live-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:12px 16px}
+.live-tile{position:relative;border-radius:12px;overflow:hidden;background:#111;aspect-ratio:4/3}
+.live-tile video{width:100%;height:100%;object-fit:cover;display:block}
+.live-tile-lbl{position:absolute;bottom:6px;left:8px;font-size:10px;color:rgba(255,255,255,.8);background:rgba(0,0,0,.5);padding:2px 6px;border-radius:6px}
 </style>
 </head>
 <body>
@@ -151,6 +170,17 @@ pre.mono{font-family:monospace;font-size:12px;color:rgba(255,255,255,.65);white-
 <div id="back-btn" onclick="goBack()">&#8592;</div>
 <div id="lvl-label"></div>
 <div id="splash"><div id="splash-name">ASTRANOV</div><div id="splash-bar"><div id="splash-prog"></div></div></div>
+<!-- Live / WebRTC widget — bottom-left floating -->
+<div id="live-widget">
+  <div class="wdh" title="Drag">&#8942;</div>
+  <button id="live-btn" onclick="openLive()" title="Live social">&#127909;</button>
+  <div id="live-lbl">LIVE</div>
+  <div id="live-peers"></div>
+</div>
+<!-- Crawler status chip -->
+<div id="crawler-chip"></div>
+<!-- Vendor register pill (city level only) -->
+<div id="vendor-reg-btn" onclick="openVendorReg()">+ Register my venue</div>
 <!-- Top-left wallet widget -->
 <div id="wallet-widget">
   <div class="wdh" title="Drag to move">&#8942;</div>
@@ -539,6 +569,8 @@ function setLevel(lvl) {
   var backBtn = document.getElementById('back-btn')
   var lblEl = document.getElementById('lvl-label')
 
+  var regBtn = document.getElementById('vendor-reg-btn')
+  if (regBtn) regBtn.style.display = lvl === 'city' ? 'block' : 'none'
   if (lvl === 'global') {
     globeEl.style.display = 'block'
     mapEl.style.display = 'none'
@@ -749,7 +781,7 @@ function openCity(city) {
   // Load real vendors from Supabase
   var dlat = .3, dlng = .4
   sbFetch('/rest/v1/vendors?lat=gte.' + (city.lat - dlat) + '&lat=lte.' + (city.lat + dlat) +
-    '&lng=gte.' + (city.lng - dlng) + '&lng=lte.' + (city.lng + dlng) + '&select=*&limit=50')
+    '&lng=gte.' + (city.lng - dlng) + '&lng=lte.' + (city.lng + dlng) + '&select=*&limit=80')
     .then(function(r) { return r.json() })
     .then(function(rows) {
       if (!Array.isArray(rows)) return
@@ -762,6 +794,9 @@ function openCity(city) {
         })
       })
     }).catch(function() {})
+
+  // Crawl live OSM data for this city via vendor-crawler edge function
+  crawlVendors(city.lat, city.lng)
 
   map.on('click', function(e) {
     if (e.originalEvent && e.originalEvent._av) return
@@ -888,17 +923,18 @@ function confirmOrder(vId) {
   var items = bk.items.filter(function(i) { return i.qty > 0 })
   if (!items.length) { toast('Add items first'); return }
   var c = calcOrder(vendor, items)
+
+  // Optimistically register locally
   var oId = 'ORD-' + uid().toUpperCase()
-  var driver = DEMO_DRIVERS[Math.floor(Math.random() * DEMO_DRIVERS.length)]
   var order = {
     id: oId, vendor: vendor, items: items, calc: c,
-    status: 'pending', clientDone: false, driverDone: false, driver: driver,
+    status: 'pending', clientDone: false, driverDone: false, driver: null,
     lat: S.city ? S.city.lat : vendor.lat,
     lng: S.city ? S.city.lng : vendor.lng,
     createdAt: nowMs()
   }
   S.orders[oId] = order
-  S.msgs[oId] = [{who:'System', text:'Order placed. Finding driver…', ts:nowMs()}]
+  S.msgs[oId] = [{who:'System', text:'Placing order…', ts:nowMs()}]
   vendor.reserveBalance = (vendor.reserveBalance || 0) + c.reserve30
   S.ledger.push({ts:nowMs(), type:'RESERVE', label:'Reserve allocated',
     amount:c.reserve30, id:oId, from:'Basket', to:'Reserve Pool'})
@@ -906,21 +942,86 @@ function confirmOrder(vId) {
     S.profile.balance = Math.max(0, (S.profile.balance || 0) - c.clientTotal)
     S.ledger.push({ts:nowMs(), type:'PAYMENT', label:'Order payment',
       amount:-c.clientTotal, id:oId, from:'Wallet', to:vendor.name})
-    sbFetch('/rest/v1/balance_ledger?user_id=eq.' + S.profile.id, {
-      method:'PATCH', body:JSON.stringify({balance:S.profile.balance}),
-      headers:{'Prefer':'return=minimal'}
-    }).catch(function() {})
   }
   delete S.basket[vId]
   closeAll()
-  setTimeout(function() {
-    order.status = 'active'
-    S.msgs[oId].push({who:'System', text:driver.name + ' is on the way ' + driver.emoji, ts:nowMs()})
-    updateRadar()
-    toast(driver.name + ' assigned!')
-  }, 2000)
   openOrder(oId)
+
+  // Submit to order-intake edge function
+  var authHeader = S.session && S.session.access_token
+    ? 'Bearer ' + S.session.access_token : 'Bearer ' + SB_KEY
+  fetch(SB + '/functions/v1/order-intake', {
+    method: 'POST',
+    headers: {
+      'apikey': SB_KEY,
+      'Authorization': authHeader,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      vendor_id: vendor.id,
+      items: items,
+      calc: c,
+      delivery_lat: S.city ? S.city.lat : null,
+      delivery_lng: S.city ? S.city.lng : null
+    })
+  })
+  .then(function(r) { return r.json() })
+  .then(function(res) {
+    if (res.ok && res.order) {
+      var dbOrder = res.order
+      var driver = { name: dbOrder.driver_name || 'Driver', emoji: dbOrder.driver_emoji || '🚴' }
+      order.driver = driver
+      order.dbId = dbOrder.id
+      order.status = 'active'
+      S.msgs[oId].push({who:'System', text:'Order confirmed! ' + driver.name + ' ' + driver.emoji + ' is on the way.', ts:nowMs()})
+      toast(driver.name + ' assigned!')
+      updateRadar()
+      openOrder(oId)
+      // Subscribe to real-time order updates
+      subscribeOrderUpdates(dbOrder.id, oId)
+    } else {
+      S.msgs[oId].push({who:'System', text:'Order submitted (ref: ' + oId + ')', ts:nowMs()})
+      openOrder(oId)
+    }
+  })
+  .catch(function() {
+    S.msgs[oId].push({who:'System', text:'Order submitted locally — ref: ' + oId, ts:nowMs()})
+    openOrder(oId)
+  })
+
   trackEvent('place_order', {vendor:vendor.name, total:c.clientTotal})
+}
+
+function subscribeOrderUpdates(dbOrderId, localOId) {
+  try {
+    var ch = window._sbRealtime = window._sbRealtime || {}
+    if (ch['order_' + dbOrderId]) return
+    var channel = createRealtimeChannel('order-' + dbOrderId)
+    ch['order_' + dbOrderId] = channel
+    channel
+      .on('postgres_changes', {event: 'UPDATE', schema: 'public', table: 'orders', filter: 'id=eq.' + dbOrderId},
+        function(payload) {
+          var row = payload.new
+          if (!row) return
+          var o = S.orders[localOId]
+          if (!o) return
+          var prev = o.status
+          o.status = row.status
+          var msgs = {
+            accepted: 'Vendor accepted your order!',
+            preparing: 'Preparing your order...',
+            on_way: o.driver ? o.driver.name + ' is on the way!' : 'Driver on the way!',
+            delivered: 'Order delivered!',
+            cancelled: 'Order was cancelled.'
+          }
+          if (msgs[row.status] && row.status !== prev) {
+            S.msgs[localOId].push({who:'System', text:msgs[row.status], ts:nowMs()})
+          }
+          updateRadar()
+        }
+      )
+      .subscribe()
+  } catch(e) {}
 }
 
 function orderMsgsHtml(oId) {
@@ -2216,6 +2317,318 @@ function makeDraggable(elId, handleSel, storageKey) {
   handle.addEventListener('touchend', function() { end() }, {passive:true})
 }
 
+// ── OSM CRAWLER ────────────────────────────────────
+function crawlVendors(lat, lng) {
+  var chip = document.getElementById('crawler-chip')
+  if (chip) { chip.textContent = '🔍 Loading live venues…'; chip.classList.add('visible') }
+  fetch(SB + '/functions/v1/vendor-crawler', {
+    method: 'POST',
+    headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ lat: lat, lng: lng, radius: 2500 })
+  })
+  .then(function(r) { return r.json() })
+  .then(function(res) {
+    if (chip) { chip.classList.remove('visible') }
+    if (res.ok && res.count > 0) {
+      // Reload vendors from Supabase now that crawler inserted fresh data
+      var dlat = .15, dlng = .2
+      sbFetch('/rest/v1/vendors?lat=gte.' + (lat - dlat) + '&lat=lte.' + (lat + dlat) +
+        '&lng=gte.' + (lng - dlng) + '&lng=lte.' + (lng + dlng) + '&select=*&limit=120')
+        .then(function(r2) { return r2.json() })
+        .then(function(rows) {
+          if (!Array.isArray(rows)) return
+          rows.forEach(function(row) {
+            addVendorMarker({
+              id: row.id, name: row.name || '(venue)', emoji: row.emoji || '🎪',
+              lat: +row.lat, lng: +row.lng,
+              items: Array.isArray(row.items) ? row.items : [],
+              reserveBalance: +(row.reserve_balance || 0), owner_id: row.owner_id
+            })
+          })
+          toast(res.count + ' live venues loaded')
+        }).catch(function() {})
+    }
+  })
+  .catch(function() {
+    if (chip) chip.classList.remove('visible')
+  })
+}
+
+// ── SUPABASE REALTIME ──────────────────────────────
+function createRealtimeChannel(name) {
+  return {
+    _name: name,
+    _handlers: [],
+    on: function(event, filter, cb) { this._handlers.push({event:event, filter:filter, cb:cb}); return this },
+    subscribe: function() {
+      var self = this
+      // Poll orders table for updates as a lightweight realtime substitute
+      // (Supabase Realtime WebSocket requires additional client setup)
+      if (self._filter && self._filter.filter) {
+        var id = self._filter.filter.replace('id=eq.', '')
+        self._pollTimer = setInterval(function() {
+          sbFetch('/rest/v1/orders?id=eq.' + id + '&select=status,driver_name,driver_emoji')
+            .then(function(r) { return r.json() })
+            .then(function(rows) {
+              if (!Array.isArray(rows) || !rows[0]) return
+              self._handlers.forEach(function(h) {
+                if (h.event === 'UPDATE') h.cb({ new: rows[0] })
+              })
+            }).catch(function() {})
+        }, 5000)
+      }
+      return this
+    }
+  }
+}
+
+// ── WEBRTC LIVE ────────────────────────────────────
+var _rtc = {
+  active: false,
+  room: null,
+  pc: null,
+  localStream: null,
+  remoteStreams: {},
+  peerId: Math.random().toString(36).slice(2, 10),
+  pollTimer: null
+}
+
+var STUN = { iceServers: [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' }
+]}
+
+function openLive() {
+  var roomId = S.city ? S.city.name.toLowerCase().replace(/\s/g, '-') : 'global'
+  openPanel('live',
+    '<div class="ptitle">&#127909; Live — ' + esc(S.city ? S.city.name : 'Global') + '</div>' +
+    '<div class="psect">' +
+    '<p class="muted" style="margin-bottom:12px">Real-time video with others in this city. Peer-to-peer, no server.</p>' +
+    '<div id="live-grid"><div class="live-tile" id="local-tile"><video id="local-vid" autoplay muted playsinline></video><div class="live-tile-lbl">You</div></div></div>' +
+    '<div class="brow">' +
+    (!_rtc.active
+      ? '<button class="btn bp" onclick="startLive(' + JSON.stringify(roomId) + ')">&#127909; Go Live</button>'
+      : '<button class="btn bd" onclick="stopLive()">&#9209;&#65039; Stop</button>') +
+    '</div></div>'
+  )
+}
+
+function startLive(roomId) {
+  _rtc.room = roomId
+  navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+    .then(function(stream) {
+      _rtc.localStream = stream
+      _rtc.active = true
+      var vid = document.getElementById('local-vid')
+      if (vid) vid.srcObject = stream
+      var liveBtn = document.getElementById('live-btn')
+      if (liveBtn) liveBtn.classList.add('live-active')
+      broadcastPresence(roomId)
+      pollRoomSignals(roomId)
+      toast('You are live in ' + roomId)
+    })
+    .catch(function(e) {
+      toast('Camera/mic access denied')
+      window._dbg && _dbg('webrtc_error', { msg: String(e) })
+    })
+}
+
+function stopLive() {
+  if (_rtc.localStream) {
+    _rtc.localStream.getTracks().forEach(function(t) { t.stop() })
+    _rtc.localStream = null
+  }
+  if (_rtc.pc) { _rtc.pc.close(); _rtc.pc = null }
+  if (_rtc.pollTimer) { clearInterval(_rtc.pollTimer); _rtc.pollTimer = null }
+  _rtc.active = false
+  _rtc.remoteStreams = {}
+  var liveBtn = document.getElementById('live-btn')
+  if (liveBtn) liveBtn.classList.remove('live-active')
+  var peers = document.getElementById('live-peers')
+  if (peers) peers.style.display = 'none'
+  toast('Live stopped')
+}
+
+function broadcastPresence(room) {
+  sbFetch('/rest/v1/webrtc_signals', {
+    method: 'POST',
+    body: JSON.stringify({ room: room, from_peer: _rtc.peerId, type: 'join', payload: { ts: nowMs() } }),
+    headers: { 'Prefer': 'return=minimal' }
+  }).catch(function() {})
+}
+
+function sendSignal(room, toPeer, type, payload) {
+  sbFetch('/rest/v1/webrtc_signals', {
+    method: 'POST',
+    body: JSON.stringify({ room: room, from_peer: _rtc.peerId, to_peer: toPeer, type: type, payload: payload }),
+    headers: { 'Prefer': 'return=minimal' }
+  }).catch(function() {})
+}
+
+var _rtcLastSeen = 0
+function pollRoomSignals(room) {
+  _rtc.pollTimer = setInterval(function() {
+    var since = _rtcLastSeen || (Date.now() - 30000)
+    sbFetch('/rest/v1/webrtc_signals?room=eq.' + encodeURIComponent(room) +
+      '&created_at=gt.' + new Date(since).toISOString() +
+      '&from_peer=neq.' + _rtc.peerId + '&order=created_at.asc&limit=20')
+      .then(function(r) { return r.json() })
+      .then(function(rows) {
+        if (!Array.isArray(rows)) return
+        _rtcLastSeen = Date.now()
+        rows.forEach(function(sig) { handleSignal(sig) })
+      }).catch(function() {})
+  }, 2500)
+}
+
+function handleSignal(sig) {
+  if (sig.type === 'join' && !_rtc.remoteStreams[sig.from_peer]) {
+    initiateCall(sig.from_peer)
+    var peers = document.getElementById('live-peers')
+    if (peers) { peers.textContent = Object.keys(_rtc.remoteStreams).length + 1 + ' live'; peers.style.display = 'block' }
+  }
+  if (sig.type === 'offer' && (sig.to_peer === _rtc.peerId || !sig.to_peer)) {
+    answerCall(sig.from_peer, sig.payload)
+  }
+  if (sig.type === 'answer' && sig.to_peer === _rtc.peerId) {
+    if (_rtc.pc) _rtc.pc.setRemoteDescription(new RTCSessionDescription(sig.payload)).catch(function() {})
+  }
+  if (sig.type === 'ice' && sig.to_peer === _rtc.peerId) {
+    if (_rtc.pc) _rtc.pc.addIceCandidate(new RTCIceCandidate(sig.payload)).catch(function() {})
+  }
+}
+
+function initiateCall(remotePeer) {
+  var pc = new RTCPeerConnection(STUN)
+  _rtc.pc = pc
+  if (_rtc.localStream) {
+    _rtc.localStream.getTracks().forEach(function(t) { pc.addTrack(t, _rtc.localStream) })
+  }
+  pc.ontrack = function(e) { addRemoteTile(remotePeer, e.streams[0]) }
+  pc.onicecandidate = function(e) {
+    if (e.candidate) sendSignal(_rtc.room, remotePeer, 'ice', e.candidate.toJSON())
+  }
+  pc.createOffer().then(function(offer) {
+    return pc.setLocalDescription(offer).then(function() {
+      sendSignal(_rtc.room, remotePeer, 'offer', offer)
+    })
+  }).catch(function() {})
+}
+
+function answerCall(remotePeer, offer) {
+  var pc = new RTCPeerConnection(STUN)
+  _rtc.pc = pc
+  if (_rtc.localStream) {
+    _rtc.localStream.getTracks().forEach(function(t) { pc.addTrack(t, _rtc.localStream) })
+  }
+  pc.ontrack = function(e) { addRemoteTile(remotePeer, e.streams[0]) }
+  pc.onicecandidate = function(e) {
+    if (e.candidate) sendSignal(_rtc.room, remotePeer, 'ice', e.candidate.toJSON())
+  }
+  pc.setRemoteDescription(new RTCSessionDescription(offer))
+    .then(function() { return pc.createAnswer() })
+    .then(function(answer) {
+      return pc.setLocalDescription(answer).then(function() {
+        sendSignal(_rtc.room, remotePeer, 'answer', answer)
+      })
+    }).catch(function() {})
+}
+
+function addRemoteTile(peerId, stream) {
+  _rtc.remoteStreams[peerId] = stream
+  var grid = document.getElementById('live-grid')
+  if (!grid) return
+  var tile = document.createElement('div')
+  tile.className = 'live-tile'
+  tile.id = 'tile-' + peerId
+  var vid = document.createElement('video')
+  vid.autoplay = true
+  vid.playsInline = true
+  vid.srcObject = stream
+  var lbl = document.createElement('div')
+  lbl.className = 'live-tile-lbl'
+  lbl.textContent = 'Peer'
+  tile.appendChild(vid)
+  tile.appendChild(lbl)
+  grid.appendChild(tile)
+}
+
+// ── VENDOR REGISTRATION ────────────────────────────
+function openVendorReg() {
+  if (!S.session) { toast('Sign in to register your venue'); openLogin(); return }
+  openPanel('vendor-reg',
+    '<div class="ptitle">&#127968; Register Your Venue</div>' +
+    '<div class="ilabel">Venue name</div>' +
+    '<div class="igrp"><input class="inp" id="vreg-name" placeholder="e.g. My Restaurant"></div>' +
+    '<div class="ilabel">Category</div>' +
+    '<div class="igrp"><select class="inp" id="vreg-cat">' +
+    '<option value="restaurant">🍽️ Restaurant</option>' +
+    '<option value="cafe">☕ Café</option>' +
+    '<option value="fast_food">🍔 Fast Food</option>' +
+    '<option value="bakery">🥐 Bakery</option>' +
+    '<option value="pharmacy">💊 Pharmacy</option>' +
+    '<option value="supermarket">🛒 Supermarket</option>' +
+    '<option value="shop">🏪 Shop</option>' +
+    '<option value="service">✂️ Service</option>' +
+    '</select></div>' +
+    '<div class="ilabel">Menu items (JSON array)</div>' +
+    '<div class="igrp"><textarea class="inp" id="vreg-items" rows="4" placeholder=\'[{"id":"1","name":"Burger","price":8,"emoji":"🍔"}]\'></textarea></div>' +
+    '<div class="ilabel">Delivery radius (km)</div>' +
+    '<div class="igrp"><input class="inp" id="vreg-radius" type="number" value="3" min="1" max="20"></div>' +
+    '<div class="ilabel">Minimum order (AVC)</div>' +
+    '<div class="igrp"><input class="inp" id="vreg-min" type="number" value="10" min="1"></div>' +
+    '<div class="brow"><button class="btn bp bblk" onclick="submitVendorReg()">Register Venue</button></div>'
+  )
+}
+
+function submitVendorReg() {
+  if (!S.session) return
+  var name = (document.getElementById('vreg-name') || {}).value || ''
+  var cat = (document.getElementById('vreg-cat') || {}).value || 'shop'
+  var itemsRaw = (document.getElementById('vreg-items') || {}).value || '[]'
+  var radius = parseFloat((document.getElementById('vreg-radius') || {}).value) || 3
+  var minOrder = parseFloat((document.getElementById('vreg-min') || {}).value) || 10
+  if (!name.trim()) { toast('Enter a venue name'); return }
+  var items
+  try { items = JSON.parse(itemsRaw) } catch(e) { toast('Menu JSON invalid'); return }
+  var catEmoji = {'restaurant':'🍽️','cafe':'☕','fast_food':'🍔','bakery':'🥐','pharmacy':'💊','supermarket':'🛒','shop':'🏪','service':'✂️'}
+  var payload = {
+    name: name.trim(),
+    emoji: catEmoji[cat] || '🎪',
+    category: cat,
+    lat: S.city ? S.city.lat + (Math.random() - .5) * .01 : 0,
+    lng: S.city ? S.city.lng + (Math.random() - .5) * .01 : 0,
+    owner_id: S.session.user.id,
+    items: items,
+    delivery_enabled: ['restaurant','cafe','fast_food','bakery'].includes(cat),
+    delivery_radius_km: radius,
+    min_order_avc: minOrder,
+    is_active: true
+  }
+  sbFetch('/rest/v1/vendors', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    headers: { 'Prefer': 'return=representation' }
+  })
+  .then(function(r) { return r.json() })
+  .then(function(res) {
+    var row = Array.isArray(res) ? res[0] : res
+    if (row && row.id) {
+      addVendorMarker({
+        id: row.id, name: row.name, emoji: row.emoji,
+        lat: row.lat, lng: row.lng,
+        items: Array.isArray(row.items) ? row.items : [],
+        reserveBalance: 0, owner_id: row.owner_id
+      })
+      toast('Venue registered!')
+      closeAll()
+    } else {
+      toast('Registration failed — check console')
+    }
+  })
+  .catch(function() { toast('Could not register venue') })
+}
+
 // ── INIT ───────────────────────────────────────────
 function init() {
   window._dbg && _dbg('init', { ua: navigator.userAgent.slice(0,80), w: window.innerWidth, h: window.innerHeight, Globe_defined: typeof Globe })
@@ -2239,6 +2652,7 @@ function init() {
   makeDraggable('wallet-widget', '.wdh', 'av_pos_wallet')
   makeDraggable('radar-widget', '.wdh', 'av_pos_radar')
   makeDraggable('cic-float', '#cic-drag', 'av_pos_cic')
+  makeDraggable('live-widget', '.wdh', 'av_pos_live')
   initGlobe()
 }
 
