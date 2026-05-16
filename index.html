@@ -114,7 +114,8 @@ pre.mono{font-family:monospace;font-size:12px;color:rgba(255,255,255,.65);white-
 .stat-label{font-size:11px;color:rgba(255,255,255,.45);margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px}
 .stat-val{font-size:16px;font-weight:600}
 .leaflet-container{background:#08080f}
-.leaflet-tile-pane{filter:brightness(.75) saturate(1.1)}
+.leaflet-tile-pane.tp-dark{filter:brightness(.75) saturate(1.1)}
+.leaflet-tile-pane.tp-sat{filter:brightness(.9) saturate(1.15) contrast(1.05)}
 .cleanTip{background:rgba(0,0,0,.75)!important;border:1px solid rgba(255,255,255,.12)!important;color:#fff!important;border-radius:8px!important;padding:4px 9px!important;font-size:12px!important;box-shadow:none!important}
 .leaflet-popup-content-wrapper{background:rgba(10,10,20,.97)!important;border:1px solid rgba(255,255,255,.1)!important;color:#fff!important;border-radius:14px!important;box-shadow:0 8px 30px rgba(0,0,0,.6)!important}
 .leaflet-popup-tip{background:rgba(10,10,20,.97)!important}
@@ -150,6 +151,8 @@ pre.mono{font-family:monospace;font-size:12px;color:rgba(255,255,255,.65);white-
 #live-btn.live-active{animation:live-pulse 2s infinite}
 #live-lbl{font-size:9px;color:rgba(255,255,255,.35);letter-spacing:.4px}
 #live-peers{font-size:9px;color:rgba(255,59,48,.8);font-weight:600;display:none}
+#mapview-btn{position:fixed;top:70px;right:16px;z-index:201;width:38px;height:38px;border-radius:50%;background:rgba(0,0,0,.6);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.2);color:#fff;font-size:17px;cursor:pointer;display:none;align-items:center;justify-content:center;transition:all .2s}
+#mapview-btn:active{background:rgba(255,255,255,.1)}
 /* crawler status chip */
 #crawler-chip{position:fixed;top:60px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.7);backdrop-filter:blur(14px);border:1px solid rgba(10,132,255,.3);color:rgba(10,132,255,.9);padding:4px 12px;border-radius:14px;font-size:11px;pointer-events:none;opacity:0;transition:opacity .3s;z-index:201;white-space:nowrap}
 #crawler-chip.visible{opacity:1}
@@ -177,6 +180,8 @@ pre.mono{font-family:monospace;font-size:12px;color:rgba(255,255,255,.65);white-
   <div id="live-lbl">LIVE</div>
   <div id="live-peers"></div>
 </div>
+<!-- Map view toggle (satellite / dark) — visible only on Leaflet levels -->
+<button id="mapview-btn" onclick="toggleMapView()" title="Toggle satellite / dark">🛰️</button>
 <!-- Crawler status chip -->
 <div id="crawler-chip"></div>
 <!-- Vendor register pill (city level only) -->
@@ -277,6 +282,10 @@ var SB = 'https://kzlabcrlrpbnfiiyrjvl.supabase.co'
 var SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6bGFiY3JscnBibmZpaXlyanZsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxNjg3OTAsImV4cCI6MjA4OTc0NDc5MH0.TyshChfsIkc-k357FGME-8TnZn-zxeD74jL-GYRVlkg'
 var TILE = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
 var TILE_ATTR = '&copy; CARTO'
+var TILE_SAT = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+var TILE_SAT_ATTR = 'Esri World Imagery'
+var CESIUM_ION_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIzYTI0NjM1MC05MTAyLTQ1NjItOGI5Yi1kZTUxMWVlODA0MzQiLCJpZCI6NDMyMzAwLCJzdWIiOiJBc3RyYW5vdiIsImlzcyI6Imh0dHBzOi8vaW9uLmNlc2l1bS5jb20iLCJhdWQiOiJBTENJIiwiaWF0IjoxNzc4OTIwOTU3fQ.HPPdCQ7u_BWDoS7uK5uwqHHtmUivbU82u_bwHLhHkag'
+var MAP_VIEW = (function(){ try { return localStorage.getItem('av_map_view') || 'sat' } catch(e){ return 'sat' } })()
 
 // ── STATE ──────────────────────────────────────────
 var S = {
@@ -571,6 +580,11 @@ function setLevel(lvl) {
 
   var regBtn = document.getElementById('vendor-reg-btn')
   if (regBtn) regBtn.style.display = lvl === 'city' ? 'block' : 'none'
+  var mvBtn = document.getElementById('mapview-btn')
+  if (mvBtn) {
+    mvBtn.style.display = (lvl === 'national' || lvl === 'city') ? 'flex' : 'none'
+    mvBtn.textContent = MAP_VIEW === 'sat' ? '🛰️' : '🌑'
+  }
   if (lvl === 'global') {
     globeEl.style.display = 'block'
     mapEl.style.display = 'none'
@@ -730,6 +744,29 @@ function initGlobe() {
 }
 
 // ── NATIONAL MAP ───────────────────────────────────
+function addBaseTiles(map) {
+  var url = MAP_VIEW === 'sat' ? TILE_SAT : TILE
+  var attr = MAP_VIEW === 'sat' ? TILE_SAT_ATTR : TILE_ATTR
+  var layer = L.tileLayer(url, {attribution: attr, maxZoom: 19}).addTo(map)
+  map._baseLayer = layer
+  var pane = map.getPane('tilePane')
+  if (pane) { pane.classList.toggle('tp-dark', MAP_VIEW !== 'sat'); pane.classList.toggle('tp-sat', MAP_VIEW === 'sat') }
+  return layer
+}
+
+function toggleMapView() {
+  MAP_VIEW = MAP_VIEW === 'sat' ? 'dark' : 'sat'
+  try { localStorage.setItem('av_map_view', MAP_VIEW) } catch(e) {}
+  ;[S.natMap, S.cityMap].forEach(function(m) {
+    if (!m) return
+    if (m._baseLayer) m.removeLayer(m._baseLayer)
+    addBaseTiles(m)
+  })
+  var btn = document.getElementById('mapview-btn')
+  if (btn) btn.textContent = MAP_VIEW === 'sat' ? '🛰️' : '🌑'
+  toast(MAP_VIEW === 'sat' ? 'Satellite view' : 'Dark view')
+}
+
 function openNational(country) {
   if (typeof country === 'string') {
     var name = country
@@ -741,7 +778,7 @@ function openNational(country) {
   var el = document.getElementById('map-el')
   el.innerHTML = ''
   var map = L.map(el, {zoomControl:false, attributionControl:false}).setView([country.lat, country.lng], 6)
-  L.tileLayer(TILE, {attribution:TILE_ATTR, maxZoom:18}).addTo(map)
+  addBaseTiles(map)
   S.natMap = map
 
   country.cities.forEach(function(city) {
@@ -764,7 +801,7 @@ function openCity(city) {
   var el = document.getElementById('map-el')
   el.innerHTML = ''
   var map = L.map(el, {zoomControl:false, attributionControl:false}).setView([city.lat, city.lng], 13)
-  L.tileLayer(TILE, {attribution:TILE_ATTR, maxZoom:18}).addTo(map)
+  addBaseTiles(map)
   S.cityMap = map
 
   // Demo vendors seeded near city centre
