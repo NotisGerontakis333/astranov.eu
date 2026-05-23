@@ -35,36 +35,60 @@ const SEED_CITIES = [
 ]
 
 // OSM amenity/shop → signal_category + title template
+// Coverage now spans every informant category that has a sensible OSM
+// proxy: dating (nightclub/lounge), real_estate (estate_agent), classifieds
+// (marketplace), sports (stadium/pitch), culture (museum/theatre/gallery),
+// food (restaurant/cafe/bakery), travel (hotel/attraction).
 const CATEGORY_MAP: Record<string, { cat: string; label: string }> = {
-  restaurant:   { cat: 'commerce',    label: 'Restaurant' },
-  cafe:         { cat: 'social',      label: 'Café' },
-  fast_food:    { cat: 'commerce',    label: 'Fast Food' },
-  bar:          { cat: 'social',      label: 'Bar' },
-  nightclub:    { cat: 'social',      label: 'Club' },
-  pub:          { cat: 'social',      label: 'Pub' },
+  // FOOD
+  restaurant:   { cat: 'food',        label: 'Restaurant' },
+  cafe:         { cat: 'food',        label: 'Café' },
+  fast_food:    { cat: 'food',        label: 'Fast Food' },
+  bakery:       { cat: 'food',        label: 'Bakery' },
+  ice_cream:    { cat: 'food',        label: 'Ice Cream' },
+  // DATING / NIGHTLIFE
+  bar:          { cat: 'dating',      label: 'Bar' },
+  nightclub:    { cat: 'dating',      label: 'Club' },
+  pub:          { cat: 'dating',      label: 'Pub' },
+  // COMMERCE
   pharmacy:     { cat: 'commerce',    label: 'Pharmacy' },
   supermarket:  { cat: 'commerce',    label: 'Supermarket' },
   convenience:  { cat: 'commerce',    label: 'Convenience Store' },
-  marketplace:  { cat: 'commerce',    label: 'Marketplace' },
-  museum:       { cat: 'news',        label: 'Museum' },
-  theatre:      { cat: 'social',      label: 'Theatre' },
-  cinema:       { cat: 'social',      label: 'Cinema' },
-  library:      { cat: 'news',        label: 'Library' },
-  park:         { cat: 'social',      label: 'Park' },
-  gym:          { cat: 'social',      label: 'Gym' },
-  hospital:     { cat: 'news',        label: 'Hospital' },
-  school:       { cat: 'news',        label: 'School' },
-  university:   { cat: 'news',        label: 'University' },
-  hotel:        { cat: 'commerce',    label: 'Hotel' },
-  attraction:   { cat: 'news',        label: 'Attraction' },
-  gallery:      { cat: 'news',        label: 'Gallery' },
   clothes:      { cat: 'commerce',    label: 'Shop' },
   electronics:  { cat: 'commerce',    label: 'Electronics' },
-  books:        { cat: 'news',        label: 'Bookshop' },
-  sports:       { cat: 'social',      label: 'Sports' },
-  bakery:       { cat: 'commerce',    label: 'Bakery' },
   hairdresser:  { cat: 'commerce',    label: 'Salon' },
   bank:         { cat: 'commerce',    label: 'Bank' },
+  // CLASSIFIEDS / MARKETPLACE
+  marketplace:  { cat: 'classifieds', label: 'Marketplace' },
+  // CULTURE
+  museum:       { cat: 'culture',     label: 'Museum' },
+  theatre:      { cat: 'culture',     label: 'Theatre' },
+  cinema:       { cat: 'culture',     label: 'Cinema' },
+  gallery:      { cat: 'culture',     label: 'Gallery' },
+  library:      { cat: 'culture',     label: 'Library' },
+  // SPORTS
+  sports:       { cat: 'sports',      label: 'Sports' },
+  stadium:      { cat: 'sports',      label: 'Stadium' },
+  pitch:        { cat: 'sports',      label: 'Pitch' },
+  gym:          { cat: 'sports',      label: 'Gym' },
+  swimming_pool:{ cat: 'sports',      label: 'Pool' },
+  // SCIENCE
+  university:   { cat: 'science',     label: 'University' },
+  research_institute: { cat: 'science', label: 'Research Institute' },
+  // TRAVEL
+  hotel:        { cat: 'travel',      label: 'Hotel' },
+  hostel:       { cat: 'travel',      label: 'Hostel' },
+  attraction:   { cat: 'travel',      label: 'Attraction' },
+  viewpoint:    { cat: 'travel',      label: 'Viewpoint' },
+  park:         { cat: 'travel',      label: 'Park' },
+  // SOCIAL
+  community_centre: { cat: 'social',  label: 'Community Centre' },
+  // REAL ESTATE
+  estate_agent: { cat: 'real_estate', label: 'Estate Agent' },
+  // NEWS (civic)
+  hospital:     { cat: 'news',        label: 'Hospital' },
+  school:       { cat: 'news',        label: 'School' },
+  books:        { cat: 'news',        label: 'Bookshop' },
 }
 
 async function crawlCity(city: { name: string; lat: number; lng: number }, radius = 2500): Promise<number> {
@@ -72,11 +96,12 @@ async function crawlCity(city: { name: string; lat: number; lng: number }, radiu
   const query = `[out:json][timeout:20];
 (
   node["amenity"~"^(${amenityList})$"](around:${radius},${city.lat},${city.lng});
-  node["shop"~"^(clothes|electronics|books|sports|bakery|hairdresser|convenience|supermarket)$"](around:${radius},${city.lat},${city.lng});
-  node["tourism"~"^(museum|attraction|gallery|hotel)$"](around:${radius},${city.lat},${city.lng});
-  node["leisure"~"^(park|gym|sports_centre)$"](around:${radius},${city.lat},${city.lng});
+  node["shop"~"^(clothes|electronics|books|sports|bakery|hairdresser|convenience|supermarket|estate_agent)$"](around:${radius},${city.lat},${city.lng});
+  node["tourism"~"^(museum|attraction|gallery|hotel|hostel|viewpoint)$"](around:${radius},${city.lat},${city.lng});
+  node["leisure"~"^(park|fitness_centre|sports_centre|stadium|pitch|swimming_pool)$"](around:${radius},${city.lat},${city.lng});
+  node["office"~"^(estate_agent|research)$"](around:${radius},${city.lat},${city.lng});
 )->._;
-out body qt 60;`
+out body qt 80;`
 
   const resp = await fetch('https://overpass-api.de/api/interpreter', {
     method: 'POST',
@@ -125,11 +150,12 @@ serve(async (req) => {
         const query = `[out:json][timeout:20];
 (
   node["amenity"~"^(${amenityList})$"](around:${radius},${city.lat},${city.lng});
-  node["shop"~"^(clothes|electronics|books|sports|bakery|hairdresser|convenience|supermarket)$"](around:${radius},${city.lat},${city.lng});
-  node["tourism"~"^(museum|attraction|gallery|hotel)$"](around:${radius},${city.lat},${city.lng});
-  node["leisure"~"^(park|gym|sports_centre)$"](around:${radius},${city.lat},${city.lng});
+  node["shop"~"^(clothes|electronics|books|sports|bakery|hairdresser|convenience|supermarket|estate_agent)$"](around:${radius},${city.lat},${city.lng});
+  node["tourism"~"^(museum|attraction|gallery|hotel|hostel|viewpoint)$"](around:${radius},${city.lat},${city.lng});
+  node["leisure"~"^(park|fitness_centre|sports_centre|stadium|pitch|swimming_pool)$"](around:${radius},${city.lat},${city.lng});
+  node["office"~"^(estate_agent|research)$"](around:${radius},${city.lat},${city.lng});
 )->._;
-out body qt 60;`
+out body qt 80;`
 
         const resp = await fetch('https://overpass-api.de/api/interpreter', {
           method: 'POST', body: query,

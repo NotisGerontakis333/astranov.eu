@@ -3314,6 +3314,12 @@ const _INFORMANT_VIDEO_CATALOG = {
   dating:       'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4',
   real_estate:  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
   classifieds:  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/WhatCarCanYouGetForAGrand.mp4',
+  sports:       'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/WeAreGoingOnBullrun.mp4',
+  tech:         'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4',
+  science:      'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
+  culture:      'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4',
+  food:         'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+  travel:       'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
 };
 function _informantVideoURL(inf) {
   if (inf && typeof inf.video_url === 'string' && inf.video_url.trim()) return inf.video_url.trim();
@@ -3355,8 +3361,8 @@ const _orbState = []; // [{ kind, infId|sysId, cart, beam, isEvent, color, lat, 
 const _SYSTEM_ORB_TIERS = [
   { id: 'sys-me',       name: 'Me',        emoji: '◉',  color: '#7eebb4', alt:  1_800_000, latOff:   0, boost: 1.10, classes: 'system sys-me',       onclick: 'expandMeOrb()' },
   { id: 'sys-pilot',    name: 'Pilot',     emoji: '🌍', color: '#6dd0ff', alt: 22_000_000, latOff:  28, boost: 0.95, classes: 'system sys-pilot',    onclick: 'pilotHome()' },
-  { id: 'sys-astranov', name: 'Astranov',  emoji: '◈',  color: '#a8c8ee', alt: 16_000_000, latOff: -28, boost: 0.85, classes: 'system sys-astranov', onclick: 'openAstranovChat()' },
-  { id: 'sys-discover', name: 'Discover',  emoji: '⬢',  color: '#ffb464', alt: 10_000_000, latOff: -52, boost: 0.75, classes: 'system sys-discover', onclick: 'gadgetRelease(\'discover\', null)' },
+  { id: 'sys-astranov', name: 'Astranov',  emoji: '◈',  color: '#a8c8ee', alt: 16_000_000, latOff: -28, boost: 0.85, classes: 'system sys-astranov', onclick: 'openAstranov()' },
+  { id: 'sys-discover', name: 'Discover',  emoji: '⬢',  color: '#ffb464', alt: 10_000_000, latOff: -52, boost: 0.75, classes: 'system sys-discover', onclick: 'openFeedPanel()' },
 ];
 
 // User location tracked for the Me beam. Updated by the existing
@@ -3592,14 +3598,26 @@ function agentCard({ emoji = '◈', name, role = '', color = '#7eb4ff', status =
 // The list lives in localStorage so it persists across sessions on this
 // device. The 6 seeds appear only if the list is empty.
 const _INFORMANT_SEED = [
-  { id: 'news',   name: 'News',   emoji: '📰', color: '#00d4ff', category: 'news',        topic: '' },
-  { id: 'jobs',   name: 'Jobs',   emoji: '💼', color: '#7cff7c', category: 'jobs',        topic: '' },
-  { id: 'offers', name: 'Offers', emoji: '🏷',  color: '#ffaa00', category: 'commerce',    topic: '' },
-  { id: 'social', name: 'Social', emoji: '💬', color: '#ff7edc', category: 'social',      topic: '' },
-  { id: 'estate', name: 'Estate', emoji: '🏠', color: '#b48cff', category: 'real_estate', topic: '' },
-  { id: 'mkt',    name: 'Market', emoji: '📋', color: '#bfa073', category: 'classifieds', topic: '' },
+  { id: 'news',    name: 'News',    emoji: '📰', color: '#00d4ff', category: 'news',        topic: '' },
+  { id: 'sports',  name: 'Sports',  emoji: '⚽', color: '#7eebb4', category: 'sports',      topic: '' },
+  { id: 'tech',    name: 'Tech',    emoji: '🛰', color: '#ff8a4a', category: 'tech',        topic: '' },
+  { id: 'science', name: 'Science', emoji: '🔬', color: '#4ad4ff', category: 'science',    topic: '' },
+  { id: 'culture', name: 'Culture', emoji: '🎭', color: '#ffd47e', category: 'culture',    topic: '' },
+  { id: 'food',    name: 'Food',    emoji: '🍽', color: '#ff9944', category: 'food',        topic: '' },
+  { id: 'travel',  name: 'Travel',  emoji: '✈️', color: '#6dd0ff', category: 'travel',     topic: '' },
+  { id: 'dating',  name: 'Dating',  emoji: '❤️', color: '#ff3a6e', category: 'dating',     topic: '' },
+  { id: 'jobs',    name: 'Jobs',    emoji: '💼', color: '#7cff7c', category: 'jobs',        topic: '' },
+  { id: 'offers',  name: 'Offers',  emoji: '🏷',  color: '#ffaa00', category: 'commerce',    topic: '' },
+  { id: 'social',  name: 'Social',  emoji: '💬', color: '#ff7edc', category: 'social',      topic: '' },
+  { id: 'estate',  name: 'Estate',  emoji: '🏠', color: '#b48cff', category: 'real_estate', topic: '' },
+  { id: 'mkt',     name: 'Market',  emoji: '📋', color: '#bfa073', category: 'classifieds', topic: '' },
 ];
-const _CAT_COLORS = { news:'#00d4ff', jobs:'#7cff7c', commerce:'#ffaa00', social:'#ff7edc', dating:'#ff3a6e', real_estate:'#b48cff', classifieds:'#bfa073' };
+const _CAT_COLORS = {
+  news:'#00d4ff', jobs:'#7cff7c', commerce:'#ffaa00', social:'#ff7edc',
+  dating:'#ff3a6e', real_estate:'#b48cff', classifieds:'#bfa073',
+  sports:'#7eebb4', tech:'#ff8a4a', science:'#4ad4ff', culture:'#ffd47e',
+  food:'#ff9944', travel:'#6dd0ff',
+};
 function _loadInformants() {
   try { const s = JSON.parse(localStorage.getItem('astranov_informants_v2') || 'null'); if (Array.isArray(s) && s.length) return s; } catch (_) {}
   return _INFORMANT_SEED.map(x => ({ ...x }));
@@ -7399,9 +7417,9 @@ window.expandMeOrb = function() {
   } catch (_) {}
 };
 
-// Astranov tap: open the AI chat, start the conversation as before.
+// Astranov tap: open the AI chat + listen + talk directly.
 window.openAstranovChat = function() {
-  try { if (typeof gadgetRelease === 'function') return gadgetRelease('ai', null); } catch (_) {}
+  try { if (typeof openAstranov === 'function') return openAstranov(); } catch (_) {}
 };
 
 // ── VOLUME SLIDER — same shape as the brightness slider ────────────────
