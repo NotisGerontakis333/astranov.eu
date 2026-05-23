@@ -2645,11 +2645,122 @@ async function bootCesium() {
     const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
     handler.setInputAction(onCanvasClick, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
+    // TWO-FINGER DRAG ZOOM (binding) — Cesium's default touch model uses
+    // two-finger drag for tilt, which is wrong for AstranoV: the user
+    // wants drag-down = zoom in, drag-up = zoom out, and a sudden BIG
+    // drag = skip tiers entirely (global ↔ city in one gesture).
+    // We disable Cesium's tilt + look on two-finger drag and install
+    // our own touch handler on the canvas.
+    try {
+      const ssc = viewer.scene.screenSpaceCameraController;
+      // Drop the two-finger drag tilt — we'll own that gesture.
+      ssc.tiltEventTypes = ssc.tiltEventTypes ? [] : [];
+      ssc.lookEventTypes = ssc.lookEventTypes ? [] : [];
+    } catch (_) {}
+    _wireTwoFingerZoom(viewer.scene.canvas);
+
     // Hide boot veil
     setTimeout(() => $('boot').classList.add('gone'), 400);
   } catch (e) {
     fatal(e.message || String(e));
   }
+}
+
+// TWO-FINGER DRAG ZOOM
+//   • While two fingers are down, track the average Y of their midpoint.
+//   • Per-frame Δy (positive = moved down on screen) → camera moves DOWN
+//     (zoom in / get closer). Negative Δy → camera moves UP (zoom out).
+//   • If TOTAL Δy during the gesture exceeds ~⅓ of the viewport height
+//     (i.e. a big swipe), on touchend we skip a tier: global → personal
+//     (city), or personal → global, in one flight.
+function _wireTwoFingerZoom(canvas) {
+  if (!canvas || canvas.__twoFingerWired) return;
+  canvas.__twoFingerWired = true;
+  let lastMidY = null;
+  let startMidY = null;
+  let startTime = 0;
+  let cumulativeDy = 0;
+  let active = false;
+
+  function midY(touches) {
+    let s = 0; for (let i = 0; i < touches.length; i++) s += touches[i].clientY;
+    return s / touches.length;
+  }
+  function adjustAltitude(factor) {
+    try {
+      const c = viewer.camera.positionCartographic;
+      const newH = Math.max(80, Math.min(50_000_000, c.height * factor));
+      viewer.camera.setView({
+        destination: Cesium.Cartesian3.fromRadians(c.longitude, c.latitude, newH),
+        orientation: { heading: viewer.camera.heading, pitch: viewer.camera.pitch, roll: 0 },
+      });
+    } catch (_) {}
+  }
+  function skipFlight() {
+    try {
+      const h = viewer.camera.positionCartographic.height;
+      const lat = Cesium.Math.toDegrees(viewer.camera.positionCartographic.latitude);
+      const lng = Cesium.Math.toDegrees(viewer.camera.positionCartographic.longitude);
+      // Started high → dive straight to city. Started low → fly to global.
+      // The threshold for "high" is the global LEVEL boundary.
+      if (h > LEVEL_THRESHOLDS.global) {
+        // Big down-swipe (cumulative dy positive) goes to city; big up-swipe
+        // is unusual at this altitude — just go national.
+        const target = cumulativeDy > 0 ? 6_000 : 700_000;
+        viewer.camera.flyTo({
+          destination: Cesium.Cartesian3.fromDegrees(lng, lat, target),
+          duration: 1.6,
+          orientation: { heading: 0, pitch: Cesium.Math.toRadians(target < 10_000 ? -65 : -90), roll: 0 },
+        });
+      } else if (h < LEVEL_THRESHOLDS.national * 1.2) {
+        // From city/personal, a big up-swipe goes straight to global.
+        if (cumulativeDy < 0) {
+          viewer.camera.flyTo({
+            destination: Cesium.Cartesian3.fromDegrees(lng, 20, 28_000_000),
+            duration: 1.8,
+            orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 },
+          });
+        }
+      }
+    } catch (_) {}
+  }
+
+  canvas.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 2) {
+      active = true;
+      lastMidY = midY(e.touches);
+      startMidY = lastMidY;
+      startTime = performance.now();
+      cumulativeDy = 0;
+      e.preventDefault();
+    }
+  }, { passive: false });
+
+  canvas.addEventListener('touchmove', (e) => {
+    if (!active || e.touches.length !== 2) return;
+    const my = midY(e.touches);
+    const dy = my - lastMidY;
+    lastMidY = my;
+    cumulativeDy += dy;
+    // Per-frame altitude factor: drag-down (dy > 0) → factor < 1 → zoom in.
+    // 1px ≈ 0.4% altitude change feels natural.
+    const factor = Math.pow(0.996, dy);
+    adjustAltitude(factor);
+    e.preventDefault();
+  }, { passive: false });
+
+  function end(e) {
+    if (!active) return;
+    active = false;
+    // BIG-DRAG TIER SKIP — if the gesture covered > 1/3 of the viewport in
+    // < 600ms, treat it as a decisive global ↔ city jump.
+    const dt = performance.now() - startTime;
+    const big = Math.abs(cumulativeDy) > (window.innerHeight * 0.33) && dt < 600;
+    if (big) skipFlight();
+    lastMidY = null; startMidY = null; cumulativeDy = 0;
+  }
+  canvas.addEventListener('touchend',    end);
+  canvas.addEventListener('touchcancel', end);
 }
 
 /* ==============================================================
