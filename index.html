@@ -790,6 +790,10 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     writing-mode: vertical-lr; direction: rtl;
     width: 6px; height: 120px; accent-color: #7eebb4; cursor: pointer; background: transparent;
   }
+  #depth-wrap .depth-readout {
+    font-size: 9px; letter-spacing: 0.18em; color: #7eebb4;
+    font-variant-numeric: tabular-nums; opacity: 0.85;
+  }
 
   /* VOLUME SLIDER — identical chrome to #bright-wrap, mirrored to the
      right edge. Controls Astranov's voice loudness live. Visible only
@@ -2428,6 +2432,7 @@ This block strives to get shorter, more inclusive, more precise with every edit.
 <div id="depth-wrap" title="Depth focus">
   <span class="depth-ico">◉</span>
   <input id="depth-slider" type="range" min="600000" max="2400000" step="20000" value="1500000" aria-label="Depth focus">
+  <span class="depth-readout" id="depth-readout">1500</span>
 </div>
 
 <!-- Brightness slider — left edge. Controls map luminosity live. -->
@@ -3765,6 +3770,9 @@ function _projectOrbs() {
       el.style.setProperty('--orb-z', (((s.alt || _ORB_ALT) - _ORB_ALT) / _ORB_Z_SPREAD).toFixed(3));
       el.style.transform = `translate3d(${(win.x - 32).toFixed(1)}px, ${(win.y - 32).toFixed(1)}px, 0) scale(${scale.toFixed(3)})`;
       el.style.opacity = dofOpacity.toFixed(3);
+      // Out-of-focus orbs are non-interactive — prevents tapping a
+      // ghost behind the layer the user is actually looking at.
+      el.style.pointerEvents = (focalNorm > 0.55) ? 'none' : 'auto';
     } else {
       el.style.opacity = '0';
     }
@@ -7723,6 +7731,8 @@ function _applyDepth(v) {
   try { localStorage.setItem('astranov_focal_alt', String(v)); } catch (_) {}
   const el = document.getElementById('depth-slider');
   if (el && Number(el.value) !== v) el.value = String(v);
+  const r = document.getElementById('depth-readout');
+  if (r) r.textContent = String(Math.round(v / 1000)) + ' km';
 }
 (function wireDepth() {
   const s = document.getElementById('depth-slider'); if (!s) return setTimeout(wireDepth, 100);
