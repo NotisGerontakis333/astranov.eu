@@ -213,6 +213,24 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     to every SpeechSynthesisUtterance.volume call. NO beam-orb chains,
     NO bespoke slider chrome — same control language as brightness.
 
+5j. DEPTH — the third Z dimension of the orb cloud (binding)
+    The orbital cloud is NOT a flat ring. Every orb sits at a stable
+    per-id altitude (_orbZ): informants spread across 600 – 2,400 km
+    via a hash-derived offset; system tiers retain their declared
+    altitudes. The user navigates the depth axis via:
+      • The #depth-slider (left edge, just below #bright-wrap) which
+        sets window._focalAlt in metres. Persists in localStorage.
+      • Shift+wheel anywhere on the globe shifts focal in 50 km steps.
+    Each frame, _projectOrbs computes focalNorm = |orb.alt - focalAlt|
+    / _ORB_Z_SPREAD and applies:
+      • Blur up to ~5.5 px out-of-focus (composes with horizon DOF).
+      • Opacity from 1.0 at focus down to 0.45 at far Z.
+      • Scale falloff from 1.0 at focus down to 0.7 at far Z.
+    Effect: only the orbs at the focal plane read sharp. Sliding depth
+    reveals the layered cloud — an advanced-user affordance for managing
+    many orbs without traditional 3D rendering. CSS variable --orb-z
+    is exposed per orb for future shader-side effects.
+
 5i. GAMING GRAPHICS — WebGL PBR shader + Cesium bloom (binding)
     The Living-Orb Engine renders through ONE shared WebGL context
     running a real PBR fragment shader:
@@ -753,6 +771,25 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   @keyframes pilot-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
   /* Me orb identity glow — always the warmest, always the user's anchor. */
   .informant.sys-me .orb { border-color: rgba(126,235,180,0.95); }
+
+  /* DEPTH SLIDER (§5j) — third Z dimension control. Lives on the left
+     edge, below the brightness slider. Moves the user's focal plane
+     through the orb cloud; orbs at the plane render sharp, others blur.
+     Visible only at the global tier. */
+  #depth-wrap {
+    position: fixed; left: 8px; top: calc(50% + 110px); transform: translateY(-50%);
+    z-index: 45; display: flex; flex-direction: column; align-items: center; gap: 8px;
+    padding: 12px 6px; border-radius: 16px;
+    background: rgba(6,12,24,0.55); backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px); border: 1px solid rgba(120,180,255,0.16);
+  }
+  body:not(.at-global) #depth-wrap { display: none; }
+  #depth-wrap .depth-ico { font-size: 13px; color: #7eebb4; opacity: 0.85; }
+  #depth-slider {
+    -webkit-appearance: slider-vertical; appearance: slider-vertical;
+    writing-mode: vertical-lr; direction: rtl;
+    width: 6px; height: 120px; accent-color: #7eebb4; cursor: pointer; background: transparent;
+  }
 
   /* VOLUME SLIDER — identical chrome to #bright-wrap, mirrored to the
      right edge. Controls Astranov's voice loudness live. Visible only
@@ -2385,6 +2422,14 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   <input id="vol-slider" type="range" min="0" max="1" step="0.02" value="1" aria-label="Voice volume">
 </div>
 
+<!-- Depth slider — moves the focal plane through the orb cloud. Orbs at
+     the focal altitude render sharp + full size; orbs outside blur and
+     fade. Lives just below the brightness slider on the left edge. -->
+<div id="depth-wrap" title="Depth focus">
+  <span class="depth-ico">◉</span>
+  <input id="depth-slider" type="range" min="600000" max="2400000" step="20000" value="1500000" aria-label="Depth focus">
+</div>
+
 <!-- Brightness slider — left edge. Controls map luminosity live. -->
 <div id="bright-wrap" title="Map brightness">
   <span class="bright-ico">☀</span>
@@ -3499,8 +3544,20 @@ function videoOrbHTML(emoji, color, seed, videoUrl, imageUrl) {
 // Per-frame: project to canvas, compute camera grazing (rim glow + soft
 // DOF blur), compute sun dot (warm tint on the night side), occlude the
 // far hemisphere. The orb itself never rotates — content stays upright.
+// DEPTH MODEL (§5j) — every orb has a stable Z offset so the orbital
+// cloud is 3D, not a flat ring. _orbZ(id) returns the orb's actual
+// altitude (1,000-3,000 km for informants, tier-derived for system).
+// _focalAlt is the user's current "focus plane"; orbs near it render
+// sharp + full size, orbs far from it blur + shrink + fade. This is
+// the depth-of-field affordance that makes the cloud navigable.
 const _ORB_ALT = 1_500_000;
-const _orbState = []; // [{ kind, infId|sysId, cart, beam, isEvent, color, lat, lon, orbDef? }, ...]
+const _ORB_Z_SPREAD = 900_000;          // ±900km informant spread
+window._focalAlt = _ORB_ALT;            // user's focus plane; live-tuned
+function _orbZ(id) {
+  // Stable, deterministic Z offset across ±_ORB_Z_SPREAD for any string id.
+  return _ORB_ALT + (_hashSeed(String(id) || 'a') - 0.5) * 2 * _ORB_Z_SPREAD;
+}
+const _orbState = []; // [{ kind, infId|sysId, cart, beam, isEvent, color, lat, lon, alt, orbDef? }, ...]
 
 // APEX TIER — the four system agents. Altitude = importance. Latitude
 // offsets give vertical separation in screen space at the global tier;
@@ -3587,7 +3644,10 @@ function _refreshOrbAnchors(items) {
       if (located) { lat = located.lat; lon = located.lng; isEvent = true; eventTitle = located.title; }
     }
     if (inf._krypteia) color = '#ff5a4a';
-    const cart = Cesium.Cartesian3.fromDegrees(lon, lat, _ORB_ALT);
+    // Each orb sits at a STABLE per-id altitude on the Z-axis. The cloud
+    // is 3D — depth-of-field reveals only orbs at the focal plane.
+    const orbAlt = _orbZ(infId || (inf._krypteia ? 'krypteia' : ('new-' + i)));
+    const cart = Cesium.Cartesian3.fromDegrees(lon, lat, orbAlt);
     let beam = null;
     if (isEvent && viewer) {
       try {
@@ -3596,7 +3656,7 @@ function _refreshOrbAnchors(items) {
           polyline: {
             positions: [
               Cesium.Cartesian3.fromDegrees(lon, lat, 1000),
-              Cesium.Cartesian3.fromDegrees(lon, lat, _ORB_ALT),
+              Cesium.Cartesian3.fromDegrees(lon, lat, orbAlt),
             ],
             width: 3,
             arcType: Cesium.ArcType.NONE,
@@ -3609,13 +3669,13 @@ function _refreshOrbAnchors(items) {
         });
       } catch (_) {}
     }
-    _orbState.push({ kind: 'informant', infId, cart, beam, isEvent, color, lat, lon, eventTitle });
+    _orbState.push({ kind: 'informant', infId, cart, beam, isEvent, color, lat, lon, alt: orbAlt, eventTitle });
   }
   // Append the apex tier. Their cart is recomputed each frame from the
   // camera's longitude — they're camera-anchored so they never go behind
   // Earth and the user always sees them where they expect.
   for (const tier of _SYSTEM_ORB_TIERS) {
-    _orbState.push({ kind: 'system', sysId: tier.id, cart: null, beam: null, isEvent: false, color: tier.color, lat: 0, lon: 0, orbDef: tier });
+    _orbState.push({ kind: 'system', sysId: tier.id, cart: null, beam: null, isEvent: false, color: tier.color, lat: 0, lon: 0, alt: tier.alt, orbDef: tier });
   }
   // The Me beam is its own entity — refreshed when the level becomes
   // global and whenever setUserLocation is called.
@@ -3679,11 +3739,19 @@ function _projectOrbs() {
       const d = Cesium.Cartesian3.distance(s.cart, camPos);
       let scale = Math.max(0.5, Math.min(1.45, 14_000_000 / d));
       if (s.kind === 'system' && s.orbDef && s.orbDef.boost) scale *= s.orbDef.boost;
+      // DEPTH-OF-FIELD (§5j) — orbs at the focal plane render full; orbs
+      // outside it blur, dim, and shrink. The user navigates the cloud
+      // by shifting the focal plane via the depth slider.
+      const focalDelta = Math.abs((s.alt || _ORB_ALT) - (window._focalAlt || _ORB_ALT));
+      const focalNorm  = Math.min(1, focalDelta / _ORB_Z_SPREAD);
+      const dofBlur    = focalNorm * 5.5;       // up to 5.5px out-of-focus blur
+      const dofOpacity = 1 - focalNorm * 0.55;  // 1 at focus → 0.45 at far Z
+      scale *= (1 - focalNorm * 0.30);          // 1.0 at focus → 0.70 at far Z
       // Grazing: dot of orb-unit and camera-unit (both from earth center).
       const orbUnit = Cesium.Cartesian3.normalize(s.cart, _v3b);
       const dotCam = Math.max(-1, Math.min(1, Cesium.Cartesian3.dot(orbUnit, camUnit)));
       const grazing = Math.max(0, 0.6 - dotCam);
-      const blurPx = (grazing * 3.4).toFixed(2);
+      const blurPx = (grazing * 3.4 + dofBlur).toFixed(2);
       const rim = Math.min(1, grazing * 1.7).toFixed(3);
       let night = 0;
       if (sunDir) {
@@ -3694,8 +3762,9 @@ function _projectOrbs() {
       el.style.setProperty('--orb-blur', `${blurPx}px`);
       el.style.setProperty('--orb-rim', rim);
       el.style.setProperty('--orb-night', night.toFixed(2));
+      el.style.setProperty('--orb-z', (((s.alt || _ORB_ALT) - _ORB_ALT) / _ORB_Z_SPREAD).toFixed(3));
       el.style.transform = `translate3d(${(win.x - 32).toFixed(1)}px, ${(win.y - 32).toFixed(1)}px, 0) scale(${scale.toFixed(3)})`;
-      el.style.opacity = '1';
+      el.style.opacity = dofOpacity.toFixed(3);
     } else {
       el.style.opacity = '0';
     }
@@ -7642,6 +7711,30 @@ function _applyVolume(v) {
   const s = document.getElementById('vol-slider'); if (!s) return setTimeout(wireVolume, 100);
   s.value = String(window._astranovVolume);
   s.addEventListener('input', e => _applyVolume(parseFloat(e.target.value)));
+})();
+
+// DEPTH SLIDER — moves the focal plane through the orb cloud. The
+// projection loop reads window._focalAlt every frame and applies depth-
+// of-field blur + opacity + scale falloff per orb. Persists across
+// reloads. Shift+wheel also nudges focal in steps of 50 km.
+function _applyDepth(v) {
+  v = Math.max(600_000, Math.min(2_400_000, Number(v) || _ORB_ALT));
+  window._focalAlt = v;
+  try { localStorage.setItem('astranov_focal_alt', String(v)); } catch (_) {}
+  const el = document.getElementById('depth-slider');
+  if (el && Number(el.value) !== v) el.value = String(v);
+}
+(function wireDepth() {
+  const s = document.getElementById('depth-slider'); if (!s) return setTimeout(wireDepth, 100);
+  const stored = parseFloat(localStorage.getItem('astranov_focal_alt') || '0');
+  if (stored) { window._focalAlt = stored; s.value = String(stored); }
+  s.addEventListener('input', e => _applyDepth(parseFloat(e.target.value)));
+  // Shift+wheel anywhere on the globe shifts focal in 50 km steps.
+  window.addEventListener('wheel', (e) => {
+    if (!e.shiftKey) return;
+    e.preventDefault();
+    _applyDepth((window._focalAlt || _ORB_ALT) + Math.sign(e.deltaY) * -50_000);
+  }, { passive: false });
 })();
 
 window._developerSend = async function(ctx) {
