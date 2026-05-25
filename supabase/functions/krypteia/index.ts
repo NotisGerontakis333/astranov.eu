@@ -135,7 +135,7 @@ SEVERITY=<clear|low|medium|high|critical>; OWNER_APPROVAL=<yes|no>`,
         await sb.from('security_events').insert({
           severity: severity === 'clear' ? 'info' : (severity === 'critical' ? 'critical' : 'warning'),
           kind: 'krypteia_run',
-          status: ownerApprovalRequired ? 'open' : 'closed',
+          status: ownerApprovalRequired ? 'open' : 'resolved',
           details: { severity, owner_approval_required: ownerApprovalRequired, summary: verdict.summary },
         })
       } catch { /* table may have RLS quirks; non-fatal */ }
