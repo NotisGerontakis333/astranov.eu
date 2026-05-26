@@ -363,23 +363,22 @@ This block strives to get shorter, more inclusive, more precise with every edit.
 
 10d. KRYPTEIA — PERPETUAL OWNER AUTHORIZATION & SILENT BOOT (binding)
     The owner, Notis Astranov, grants Krypteia PERPETUAL AUTHORIZATION
-    to act autonomously in defence of the system. Krypteia does not
-    surface a panel for every check — it surfaces ONLY when severity
-    demands the owner's eyes. Otherwise it acts silently and logs.
-    THE KRYPTEIA ORB IS ONE TAP, NO SUBMENU. Tap = /krypteia Edge Fn:
-      • audit + watchtower + threat-log fire in parallel server-side.
-      • The combined findings are handed to /developer (Claude opus-4-7)
-        for triage. Claude returns DIAGNOSIS / DIFF / COMMAND / RISK
-        plus a final line: SEVERITY=<…>; OWNER_APPROVAL=<yes|no>.
-      • If owner approval is required OR severity ≥ medium, a verdict
-        panel opens with the Claude text and a one-tap "Hand to Claude
-        (apply now)" action.
-      • Otherwise Krypteia closes silent and writes a security_events
-        row tagged kind='krypteia_run'.
-    Krypteia ALSO runs ONCE on every owner sign-in (silent boot mode,
-    4-second delay so it doesn't block boot). It NEVER pops a panel
-    during silent boot unless severity demands it. The owner can re-run
-    at any time by tapping the Krypteia orb.
+    to act autonomously. Krypteia NEVER pops a panel by itself — orbs
+    speak, panels are owner-initiated.
+    Krypteia runs ONCE on every owner sign-in (silent boot, 4 s after
+    profile load). Behaviour on the verdict:
+      • silent_ok = true (all clear) → no UI, no sound. Logged silently.
+      • severity ≥ medium OR owner_approval_required → the Krypteia
+        orb enters .alert mode (intensified pulse, full-strength glow)
+        AND speaks a one-sentence summary via Astranov's voice.
+        STILL NO PANEL. The orb itself is the notification.
+      • The owner TAPS the orb to drill into the cached verdict —
+        only then does the multimedia dashboard open (with the same
+        verdict object, no re-scan needed).
+    Foreground (owner-tapped) Krypteia calls behave as before: status
+    panel during scan, then full dashboard.
+    GENERAL RULE (§5g extension): orbs glow and speak when they have
+    something to say. They do NOT open panels by themselves.
 
 10c. KRYPTEIA — CODE HYGIENE & ARCHITECT CHANNEL (binding)
     The Krypteia subsystems that the one-tap composite (§10d) combines:
@@ -1090,6 +1089,17 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   .informant.krypteia .orb-glyph {
     color: #ffd0c8; font-size: 26px; font-weight: 700;
     text-shadow: 0 0 10px rgba(255,80,80,0.95), 0 0 4px rgba(0,0,0,0.95);
+  }
+  /* ALERT mode — Krypteia has something to say. Pulse doubles + the
+     border + glow stay at peak so the orb visibly demands attention
+     without ever opening a panel. The orb's voice (TTS) is the message. */
+  .informant.krypteia.alert .orb {
+    animation: krypteia-pulse 1.0s ease-in-out infinite;
+    border-color: rgba(255,120,100,1);
+    box-shadow:
+      0 0 50px rgba(255,90,80,1),
+      0 0 140px rgba(255,80,60,0.75),
+      inset 0 0 24px rgba(0,0,0,0.95);
   }
   @keyframes krypteia-pulse {
     0%,100% { box-shadow:
@@ -8062,9 +8072,42 @@ window.openKrypteia = async (runSilently) => {
     return;
   }
   if (v.silent_ok && runSilently) return; // truly silent boot path
-  // Surface as the multimedia dashboard.
+  // SILENT-BOOT verdict with severity ≥ medium: don't pop a panel.
+  // Instead the Krypteia orb GLOWS in alert mode and SPEAKS a one-line
+  // verdict via Astranov's voice. The owner taps the orb to drill in;
+  // _krypteiaState.lastVerdict is cached so the tap shows this exact
+  // verdict without re-running the scan.
+  if (runSilently) {
+    window._krypteiaState.lastVerdict = v;
+    _krypteiaOrbAlert(v);
+    return;
+  }
+  // Foreground call (owner tapped the orb): full multimedia dashboard.
   _krypteiaShowDash(v);
 };
+
+// Make the Krypteia orb pulse in alert mode and speak a one-sentence
+// summary aloud. The orb itself becomes the notification — no panel.
+function _krypteiaOrbAlert(v) {
+  // Add a CSS class so the orb's glow intensifies + pulse rate doubles.
+  const orb = document.querySelector('.informant.krypteia');
+  if (orb) {
+    orb.classList.add('alert');
+    // Drop the alert after 60 s of inattention; owner can re-trigger.
+    clearTimeout(window._krypteiaAlertTimer);
+    window._krypteiaAlertTimer = setTimeout(() => orb.classList.remove('alert'), 60_000);
+  }
+  // Speak a short verdict — the audio is the notification.
+  try {
+    const counts = (v.audit && v.audit.counts) || {};
+    const watchN = (v.watch && v.watch.hits_count) || 0;
+    let msg = `Krypteia ${v.severity}.`;
+    if (counts.critical) msg += ` ${counts.critical} critical code findings.`;
+    if (counts.warn)     msg += ` ${counts.warn} warnings.`;
+    if (watchN)          msg += ` ${watchN} watchtower hits.`;
+    if (typeof speakAstranov === 'function') speakAstranov(msg);
+  } catch (_) {}
+}
 
 // Multimedia Krypteia dashboard — text + thumbnails + chat + voice.
 // Three cards (Audit / Watchtower / Threats) + Claude verdict + a
@@ -8373,7 +8416,17 @@ function _ambientApplyGain() {
   const a = window._ambient;
   if (!a.gain || !a.ctx) return;
   const target = a.muted ? 0 : (window._astranovVolume * 0.12); // very quiet
-  a.gain.gain.linearRampToValueAtTime(target, a.ctx.currentTime + 0.4);
+  const now = a.ctx.currentTime;
+  // A linearRampToValueAtTime with no preceding setValueAtTime is a
+  // silent no-op on Firefox / Safari. Anchor the curve at the current
+  // value first, then ramp. This is what was killing the hum.
+  try {
+    a.gain.gain.cancelScheduledValues(now);
+    a.gain.gain.setValueAtTime(a.gain.gain.value, now);
+    a.gain.gain.linearRampToValueAtTime(target, now + 0.4);
+  } catch (_) {
+    a.gain.gain.value = target;
+  }
 }
 function _ambientStart() {
   if (window._ambient.started) return;
