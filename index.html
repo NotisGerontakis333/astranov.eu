@@ -685,6 +685,22 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     under GDPR Articles 15–22. Linked from openBuyAVC() and the
     Anonymous Service panel.
 
+19. AUDIO LAYER — vacuum hum + agent ping (binding)
+    Two procedural Web-Audio voices, no external MP3, no extra bytes:
+      • VACUUM HUM — three slightly-detuned low sines (55 / 82.5 / 110 Hz)
+        fed through a low-pass filter whose frequency is modulated by a
+        slow 0.07 Hz LFO. Master gain = window._astranovVolume × 0.12
+        so the drone NEVER competes with speech. Tells the user the app
+        is alive without intruding.
+      • AGENT PING — two-partial sine (fundamental + fifth) with a fast
+        attack and exponential decay over 450–550 ms. Tones: soft
+        (660 Hz), normal (880 Hz), urgent (980 Hz). Used by every
+        toast() and on every new informant finding from the feed poll.
+    Both layers honour the volume slider (drag to 0 = total silence).
+    Ambient starts on the FIRST user gesture (autoplay-policy compliant)
+    and drops to 0 when the tab is hidden, restores on return.
+    window._ambientToggleMute() exists for a future mute affordance.
+
 ================================================================================
 -->
 <html lang="en">
@@ -2732,6 +2748,13 @@ function toast(msg, type = '') {
   el.className = 'show' + (type ? ' ' + type : '');
   clearTimeout(_toastTimer);
   _toastTimer = setTimeout(() => { el.className = ''; }, 3200);
+  // Agent-notification ping. 'err' toasts get the urgent tone, the rest
+  // get the soft tone. Silent if speech-volume is 0 (full mute).
+  try {
+    if (typeof _pingAgent === 'function') {
+      _pingAgent({ tone: type === 'err' ? 'urgent' : 'soft' });
+    }
+  } catch (_) {}
 }
 
 // Arm-confirm: first tap arms the engage element, second tap fires the action.
@@ -4033,11 +4056,19 @@ async function pollInformantFeeds() {
   try {
     const { data, error } = await sb.functions.invoke('informant-feed', { body: { informants } });
     if (!error && data && data.findings) {
-      let any = false;
+      let any = false, newSignals = false;
       for (const id of Object.keys(data.findings)) {
         const arr = data.findings[id];
-        if (Array.isArray(arr) && arr.length) { _externalFindings.set(id, arr); any = true; }
+        if (Array.isArray(arr) && arr.length) {
+          const prev = _externalFindings.get(id) || [];
+          const prevTop = prev[0] && prev[0].id;
+          if (arr[0] && arr[0].id !== prevTop) newSignals = true;
+          _externalFindings.set(id, arr); any = true;
+        }
       }
+      // Ping the user — soft tone — when at least one informant got
+      // genuinely new news since the last poll. Not on every poll.
+      if (newSignals) { try { _pingAgent({ tone: 'soft' }); } catch (_) {} }
       if (any && typeof renderInformants === 'function') renderInformants();
     }
   } catch (_) { /* network blip */ }
@@ -8230,12 +8261,117 @@ function _applyVolume(v) {
   try { localStorage.setItem('astranov_voice_volume', String(v)); } catch (_) {}
   // Cancel current playback so the change is audible immediately.
   try { if (window.speechSynthesis && speechSynthesis.speaking) speechSynthesis.cancel(); } catch (_) {}
+  // Re-tune the ambient hum if it's running.
+  try { _ambientApplyGain(); } catch (_) {}
 }
 (function wireVolume() {
   const s = document.getElementById('vol-slider'); if (!s) return setTimeout(wireVolume, 100);
   s.value = String(window._astranovVolume);
   s.addEventListener('input', e => _applyVolume(parseFloat(e.target.value)));
 })();
+
+// ── AMBIENT VACUUM HUM + AGENT PING ─────────────────────────────────────
+// Procedural Web Audio. Two layers:
+//   • A continuous low cosmic-vacuum drone — three slightly detuned sines
+//     with a slow LFO opening a low-pass filter. Master gain stays at
+//     ~12% of the user's voice volume so it never competes with speech.
+//   • A short, non-annoying agent-notification PING — bell-like decay,
+//     two stacked sine partials, fires when a new event lands.
+// Both honour window._astranovVolume. Setting the volume slider to 0
+// mutes the whole audio layer.
+window._ambient = { ctx: null, gain: null, started: false, muted: false };
+function _ambientCtx() {
+  if (window._ambient.ctx) return window._ambient.ctx;
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    window._ambient.ctx = ctx;
+    return ctx;
+  } catch (_) { return null; }
+}
+function _ambientApplyGain() {
+  const a = window._ambient;
+  if (!a.gain || !a.ctx) return;
+  const target = a.muted ? 0 : (window._astranovVolume * 0.12); // very quiet
+  a.gain.gain.linearRampToValueAtTime(target, a.ctx.currentTime + 0.4);
+}
+function _ambientStart() {
+  if (window._ambient.started) return;
+  const ctx = _ambientCtx(); if (!ctx) return;
+  // Browser autoplay rules: a fresh AudioContext starts suspended; resume
+  // is allowed inside a user-gesture handler.
+  if (ctx.state === 'suspended') { try { ctx.resume(); } catch (_) {} }
+  const master = ctx.createGain(); master.gain.value = 0;
+  master.connect(ctx.destination);
+  // Low-pass filter swept by a slow LFO — gives the drone subtle motion
+  // so it doesn't sit perfectly flat (which is what makes drones annoying).
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'lowpass'; filter.frequency.value = 320; filter.Q.value = 0.7;
+  filter.connect(master);
+  const lfo = ctx.createOscillator(); lfo.frequency.value = 0.07;
+  const lfoGain = ctx.createGain(); lfoGain.gain.value = 80;
+  lfo.connect(lfoGain); lfoGain.connect(filter.frequency); lfo.start();
+  // Three sines: fundamental + a fifth + a low octave. Slight detune for chorus.
+  const partials = [
+    { freq: 55,  detune:  -6 },
+    { freq: 82.5, detune:  +4 },
+    { freq: 110, detune:  -2 },
+  ];
+  for (const p of partials) {
+    const o = ctx.createOscillator();
+    o.type = 'sine'; o.frequency.value = p.freq; o.detune.value = p.detune;
+    const g = ctx.createGain(); g.gain.value = 0.45;
+    o.connect(g); g.connect(filter); o.start();
+  }
+  window._ambient.gain = master;
+  window._ambient.started = true;
+  _ambientApplyGain();
+}
+// One-shot, soft, bell-like ping. Two stacked partials, exp decay.
+// Used by agent notifications, never longer than 700 ms.
+function _pingAgent(opts) {
+  const ctx = _ambientCtx(); if (!ctx) return;
+  if (ctx.state === 'suspended') { try { ctx.resume(); } catch (_) {} }
+  const now = ctx.currentTime;
+  const baseVol = Math.max(0, Math.min(1, (window._astranovVolume || 1) * 0.25));
+  if (baseVol <= 0) return;
+  const out = ctx.createGain(); out.gain.value = 0; out.connect(ctx.destination);
+  const f0 = (opts && opts.tone === 'urgent') ? 980 : (opts && opts.tone === 'soft') ? 660 : 880;
+  for (const [f, vol, dur] of [[f0, baseVol, 0.55], [f0 * 1.5, baseVol * 0.5, 0.45]]) {
+    const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = f;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, now);
+    g.gain.linearRampToValueAtTime(vol, now + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+    o.connect(g); g.connect(out); o.start(now); o.stop(now + dur + 0.05);
+  }
+  out.gain.value = 1;
+}
+window._pingAgent = _pingAgent;
+window._ambientToggleMute = function() {
+  window._ambient.muted = !window._ambient.muted;
+  _ambientApplyGain();
+  return window._ambient.muted;
+};
+// Start the hum on the FIRST user gesture (autoplay policy compliance).
+// One-time listener, removes itself after the ctx resumes.
+(function _ambientAutoStart() {
+  const kick = () => {
+    _ambientStart();
+    window.removeEventListener('pointerdown', kick, true);
+    window.removeEventListener('keydown', kick, true);
+    window.removeEventListener('touchstart', kick, true);
+  };
+  window.addEventListener('pointerdown', kick, true);
+  window.addEventListener('keydown', kick, true);
+  window.addEventListener('touchstart', kick, true);
+})();
+// Also drop master gain to 0 when the tab is hidden, restore on return.
+document.addEventListener('visibilitychange', () => {
+  const a = window._ambient;
+  if (!a || !a.gain || !a.ctx) return;
+  if (document.hidden) a.gain.gain.linearRampToValueAtTime(0, a.ctx.currentTime + 0.2);
+  else _ambientApplyGain();
+});
 
 // DEPTH SLIDER — moves the focal plane through the orb cloud. The
 // projection loop reads window._focalAlt every frame and applies depth-
