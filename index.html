@@ -6858,20 +6858,33 @@ function formatDistance(m) {
 
 function openWalletPanel() {
   if (!session) return openYouPanel();
+  const bal = profile?.avc_balance ?? 0;
+  const dash = Math.min(bal/100*113, 113).toFixed(1);
   openPanel(`
     <h2>Wallet</h2>
-    <div class="subtitle">AVC balance &amp; delivery marketplace</div>
-    <div style="display:flex;align-items:center;gap:14px;margin:16px 0;padding:14px 16px;background:rgba(255,212,126,0.06);border-radius:12px;border:1px solid rgba(255,212,126,0.15)">
-      <svg width="44" height="44" viewBox="0 0 44 44" style="flex-shrink:0">
-        <circle cx="22" cy="22" r="18" fill="none" stroke="rgba(255,212,126,0.15)" stroke-width="3"/>
-        <circle cx="22" cy="22" r="18" fill="none" stroke="rgba(255,212,126,0.8)" stroke-width="3"
-          stroke-dasharray="${Math.min((profile?.avc_balance??0)/100*113,113).toFixed(1)} 113"
-          stroke-linecap="round" transform="rotate(-90 22 22)"/>
-        <text x="22" y="26" text-anchor="middle" fill="#ffd47e" font-size="10" font-weight="600">${profile?.avc_balance ?? 0}</text>
+    <div class="subtitle">AVC balance · delivery marketplace</div>
+
+    <div style="display:flex;align-items:center;gap:14px;margin:14px 0 6px;padding:16px 18px;border-radius:14px;
+                background:linear-gradient(135deg, rgba(255,212,126,0.10) 0%, rgba(255,212,126,0.04) 100%);
+                border:1px solid rgba(255,212,126,0.22)">
+      <svg width="56" height="56" viewBox="0 0 56 56" style="flex-shrink:0">
+        <circle cx="28" cy="28" r="22" fill="none" stroke="rgba(255,212,126,0.15)" stroke-width="3"/>
+        <circle cx="28" cy="28" r="22" fill="none" stroke="rgba(255,212,126,0.95)" stroke-width="3"
+          stroke-dasharray="${(Math.min(bal/100*138,138)).toFixed(1)} 138"
+          stroke-linecap="round" transform="rotate(-90 28 28)"/>
       </svg>
-      <div>
-        <div style="font-size:22px;font-weight:300;color:#ffd47e">${profile?.avc_balance ?? 0} <span style="font-size:11px;color:#a88c50;letter-spacing:0.2em">AVC</span></div>
-        <div style="font-size:10px;color:#6a8aaf;letter-spacing:0.15em;text-transform:uppercase;margin-top:2px">Available balance</div>
+      <div style="flex:1">
+        <div style="font-size:30px;font-weight:300;color:#ffd47e;line-height:1">${bal}<span style="font-size:12px;color:#a88c50;letter-spacing:0.2em;margin-left:6px">AVC</span></div>
+        <div style="font-size:10px;color:#6a8aaf;letter-spacing:0.2em;text-transform:uppercase;margin-top:6px">Available balance · 1 AVC = €1</div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:14px 0">
+      <div class="gadget-engage" onclick="openBuyAVC()" style="border-color:rgba(126,235,180,0.55);color:#d6f7e6;background:rgba(126,235,180,0.06)">
+        <span class="verb-glyph" style="background:#7eebb4"></span><span>Add money</span>
+      </div>
+      <div class="gadget-engage" onclick="openRequestDeliveryStep1()" style="border-color:rgba(255,212,126,0.55);color:#ffe1a8;background:rgba(255,212,126,0.06)">
+        <span class="verb-glyph" style="background:#ffd47e"></span><span>Request delivery</span>
       </div>
     </div>
 
@@ -6883,8 +6896,6 @@ function openWalletPanel() {
       <div class="seg"        data-tab="history"     onclick="switchDeliveryTab('history',this)">AVC log</div>
     </div>
     <div id="delivery-list" style="min-height:80px;color:#6a8aaf;font-size:13px">Loading…</div>
-
-    <div class="gadget-engage" onclick="openRequestDeliveryStep1()" style="margin-top:14px"><span class="verb-glyph">⊕</span><span>Request delivery</span></div>
   `);
   _currentDeliveryTab = 'orders';
   loadDeliveryTab('orders');
