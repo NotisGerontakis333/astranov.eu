@@ -449,9 +449,14 @@ This block strives to get shorter, more inclusive, more precise with every edit.
 12. MARKETPLACE
     Users transact in EUROS (eur_balance). AVC is the owner-only reserve
     and is NEVER shown to or charged from users here.
-    a. Deliveries — peer logistics. Requester posts pickup+dropoff+reward;
-       runners claim via accept_delivery RPC; requested → accepted →
-       in_transit → delivered (cancellable). Discovery via nearby_deliveries.
+    a. Deliveries — peer logistics, a real EURO bounty. Requester posts
+       pickup+dropoff+reward; the reward is ESCROWED from their eur_balance
+       on post (trg_delivery_escrow, rejects insufficient_funds). Runners
+       claim via accept_delivery RPC; requested → accepted → in_transit →
+       delivered → runner credited the euro reward; cancellable before
+       delivery → requester refunded (update_delivery_status settles each
+       once, server-side). reward_avc column holds the euro amount (1:1).
+       Discovery via nearby_deliveries.
     b. Orders — vendor commerce. Tap any vendor pin → ORDER opens cart.
        vendor-menu Edge Function has Astranov COMPOSE a menu (dishes +
        euro prices, 1 AVC = 1 EUR so numbers carry over) for OSM vendors
@@ -7465,7 +7470,7 @@ function renderDeliveryRow(d, tab) {
     <div class="delivery-row" onclick="openDeliveryPanel('${d.id}')">
       <div class="head">
         <span class="desc">${escapeHtml(d.description)}</span>
-        <span class="reward">${d.reward_avc ?? 0} AVC</span>
+        <span class="reward">€${d.reward_avc ?? 0}</span>
       </div>
       <div class="meta">
         ${status ? `<span class="status status-${status}">${status.replace('_',' ')}</span>` : ''}
@@ -7510,7 +7515,7 @@ window.openDeliveryPanel = async (id) => {
     <h2>Delivery</h2>
     <div class="subtitle"><span class="status status-${d.status}">${d.status.replace('_',' ')}</span></div>
     <div style="font-size:15px;margin:12px 0">${escapeHtml(d.description)}</div>
-    <div class="row"><span>Reward</span><span style="color:#ffd47e">${d.reward_avc} AVC</span></div>
+    <div class="row"><span>Reward</span><span style="color:#ffd47e">€${d.reward_avc}</span></div>
     <div class="row" onclick="flyToCoords(${d.pickup_lng},${d.pickup_lat})" style="cursor:pointer">
       <span>Pickup</span><span style="color:#7eb4ff">${escapeHtml(d.pickup_address || `${d.pickup_lat?.toFixed(3)}, ${d.pickup_lng?.toFixed(3)}`)} →</span>
     </div>
@@ -7546,7 +7551,7 @@ window.updateDeliveryStatus = async (id, newStatus) => {
   const { error } = await sb.rpc('update_delivery_status', { delivery_id: id, new_status: newStatus });
   if (error) return toast(error.message, 'err');
   const terminal = newStatus === 'delivered' || newStatus === 'cancelled';
-  if (terminal) clearActiveDelivery();
+  if (terminal) { clearActiveDelivery(); try { await loadProfile(); } catch (_) {} }  // euro reward settled
   else {
     const { data: d } = await sb.from('deliveries').select('*').eq('id', id).single();
     if (d) saveActiveDelivery(d);
@@ -7676,7 +7681,8 @@ window.captureDeliveryPoint = (kind) => {
       <div class="subtitle">Step 3 of 3 — details</div>
       <input id="del-desc" type="text" placeholder="What needs delivering?" maxlength="500" />
       <textarea id="del-notes" placeholder="Notes (optional)" maxlength="500"></textarea>
-      <input id="del-reward" type="number" min="0" step="1" placeholder="Reward (AVC)" value="10" />
+      <input id="del-reward" type="number" min="0" step="1" placeholder="Reward in euros (€)" value="10" />
+      <div class="subtitle" style="margin-top:4px;color:#7a98c0">The reward is held from your euro balance when you post, paid to the runner on delivery, refunded if cancelled.</div>
       <div class="subtitle" style="margin-top:8px">
         Pickup: ${deliveryDraft.pickup.lat.toFixed(3)}, ${deliveryDraft.pickup.lng.toFixed(3)} →
         Dropoff: ${deliveryDraft.dropoff.lat.toFixed(3)}, ${deliveryDraft.dropoff.lng.toFixed(3)}
@@ -7701,9 +7707,19 @@ window.submitDelivery = async () => {
     reward_avc: reward,
     notes,
   });
-  if (error) return toast(error.message, 'err');
+  if (error) {
+    const msg = String(error.message || error);
+    if (msg.includes('insufficient_funds')) {
+      toast('Not enough euros to escrow the reward — top up first', 'err');
+      try { await loadProfile(); } catch (_) {}
+      setTimeout(() => { try { openBuyAVC(); } catch (_) {} }, 400);
+      return;
+    }
+    return toast(msg, 'err');
+  }
   deliveryDraft = null;
-  toast('Delivery broadcast — runners notified', 'ok');
+  try { await loadProfile(); } catch (_) {}   // reward was escrowed
+  toast('Delivery posted · €' + reward + ' held in escrow', 'ok');
   openWalletPanel();
 };
 
