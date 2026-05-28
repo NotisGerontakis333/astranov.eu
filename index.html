@@ -219,8 +219,11 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     engineLabel + model + latencyMs and logs the real engine to
     cic_logs.provider. The SPOKEN voice stays ONE — Astranov; the
     component reveals the organ for transparency, never renames the
-    voice. Adding a new engine = set its API key in Supabase secrets +
-    add one fallback branch in /aicycle.
+    voice. Adding an OpenAI-compatible engine = JUST set its API key in
+    Supabase secrets; DeepSeek, Mistral, xAI Grok, Together and Perplexity
+    are pre-wired in /aicycle (COMPAT_ENGINES) and light up the moment
+    their key exists. Non-compatible engines (e.g. Cohere) also need a
+    small code branch.
 
 5h. VOLUME SLIDER — mirrors the brightness slider (binding)
     The voice volume of Astranov is controlled by a vertical input
@@ -9373,7 +9376,8 @@ const aicycleHistory = [];
 // Talking to Astranov is the apex ◈ orb's job, not the ring's.
 $('aicycle-float').addEventListener('click', () => { openAICycleConsole(); });
 
-const ENGINE_SHORT = { anthropic: 'ANT', openrouter: 'OR', groq: 'GRQ', gemini: 'GEM' };
+const ENGINE_SHORT = { anthropic: 'ANT', openrouter: 'OR', groq: 'GRQ', gemini: 'GEM',
+  deepseek: 'DS', mistral: 'MST', xai: 'XAI', together: 'TGT', perplexity: 'PPX' };
 function _setEngineIndicator(engine) {
   const el = $('aicycle-provider');
   if (!el) return;
