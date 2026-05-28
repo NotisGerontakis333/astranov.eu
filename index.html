@@ -791,6 +791,22 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     human input as the training signal, keep the server thin. Prefer
     designs that get stronger as more humans + devices join.
 
+25. CIRCLES + CALLS — the social mesh (binding)
+    The first concrete step of §24b's peer mesh. People gather in
+    CIRCLES (named groups, owner-managed roster); from a circle they
+    start a GROUP VIDEO CALL — a full WebRTC peer mesh, not a server
+    SFU (every member connects to every other member directly). 1:1
+    calls remain the existing direct-call path. Signalling rides
+    Supabase Realtime broadcast channels (astranov:circle-call:<id>,
+    events gc-join/offer/answer/ice/leave) — the server only brokers
+    SDP/ICE, the media never touches it (server stays thin, §24b).
+    Glare avoidance: the NEWCOMER answers; existing members offer.
+    Tables: circles, circle_members (RLS: member-read, owner-write,
+    self join/leave). Reality Law: Circles is one action per surface
+    (a circle → "Start group call"); the stage is full-screen video,
+    a single LEAVE control, auto-tiled grid. Entry lives in the
+    Identity (Me) surface — "your people" — never a permanent menu.
+
 ================================================================================
 -->
 <html lang="en">
@@ -1919,6 +1935,45 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     font-size: 10px; letter-spacing: 0.2em; color: #fff;
     background: rgba(0,0,0,0.5); padding: 4px 8px; border-radius: 6px;
     text-transform: uppercase;
+  }
+
+  /* Group-call stage — full-screen mesh grid (§25 Circles + Calls) */
+  #gc-stage {
+    position: fixed; inset: 0; z-index: 120;
+    background: radial-gradient(ellipse at center, #050b18 0%, #01030a 100%);
+    display: flex; flex-direction: column;
+  }
+  #gc-stage .gc-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px; flex: 0 0 auto;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.6), transparent);
+  }
+  #gc-stage .gc-title {
+    font-size: 13px; letter-spacing: 0.14em; color: #cfe1ff;
+    text-transform: uppercase; overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; max-width: 70vw;
+  }
+  #gc-stage .gc-end {
+    border: 0; cursor: pointer; color: #fff; font-size: 12px;
+    letter-spacing: 0.1em; padding: 8px 16px; border-radius: 999px;
+    background: rgba(255,77,77,0.9); box-shadow: 0 0 16px rgba(255,77,77,0.4);
+  }
+  #gc-stage .gc-end:active { transform: scale(0.92); }
+  #gc-stage .gc-grid {
+    flex: 1 1 auto; display: grid; gap: 6px; padding: 6px;
+    grid-auto-rows: 1fr; align-content: stretch; overflow: hidden;
+  }
+  #gc-stage .gc-cell {
+    position: relative; background: #0a1322; border-radius: 14px;
+    overflow: hidden; border: 1px solid rgba(120,180,255,0.18);
+  }
+  #gc-stage .gc-cell video {
+    width: 100%; height: 100%; object-fit: cover; background: #0a1322;
+  }
+  #gc-stage .gc-label {
+    position: absolute; bottom: 6px; left: 6px;
+    font-size: 10px; letter-spacing: 0.08em; color: #e6f1ff;
+    background: rgba(0,0,0,0.55); padding: 3px 8px; border-radius: 6px;
   }
 
   /* ============================================================
@@ -6763,6 +6818,7 @@ function openMePanel() {
     { label: 'Save changes',         primary: true, onclick: 'saveMePanel()' },
     { label: 'Top up euros',         primary: true, onclick: 'openBuyAVC()' },
     { label: 'Messages',                            onclick: 'openMessagesPanel()' },
+    { label: 'Circles — group video',               onclick: 'openCirclesPanel()' },
     { label: 'AVC & Deliveries',                    onclick: 'openWalletPanel()' },
     { label: 'Drones — pair & control',             onclick: 'openDronePanel()' },
     profile?.is_owner ? { label: 'Krypteia — Brain & security', primary: true, onclick: 'openKrypteia()' } : null,
@@ -9382,6 +9438,213 @@ const STUN_SERVERS = [
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
 ];
+
+/* ==============================================================
+   8d. SOCIAL CIRCLES + GROUP VIDEO (full WebRTC mesh)
+   Each participant holds one RTCPeerConnection per OTHER participant.
+   Signalling rides a Supabase Realtime channel per circle. Glare is
+   avoided by the "newcomer answers" rule: when X joins, existing peers
+   send X an offer; X only answers.
+   ============================================================== */
+const _gc = {
+  circleId: null, channel: null, localStream: null,
+  peers: new Map(),   // peerId -> { pc, stream }
+  open: false,
+};
+
+async function _loadCircles() {
+  if (!sb || !session) return [];
+  try {
+    const { data } = await sb.from('circles')
+      .select('id, name, emoji, owner_id, circle_members(profile_id)')
+      .order('created_at', { ascending: false });
+    return data || [];
+  } catch (_) { return []; }
+}
+
+// CIRCLES surface — Reality-Law minimal: a short list + create + each
+// circle has one action (group call). Panel only because creating needs
+// a typed name and the roster is multi-line.
+window.openCirclesPanel = async function() {
+  if (!session) return openYouPanel();
+  const circles = await _loadCircles();
+  const rows = circles.length ? circles.map(c => {
+    const n = (c.circle_members || []).length;
+    return `<div class="delivery-row" onclick="openCircle(${JSON.stringify(c.id)})">
+      <div class="head"><span class="desc">${escapeHtml(c.emoji || '◍')} ${escapeHtml(c.name)}</span>
+        <span class="reward">${n} ${n === 1 ? 'member' : 'members'}</span></div>
+      <div class="meta">tap to open · group call</div>
+    </div>`;
+  }).join('') : '<div style="color:#6a8aaf;font-size:13px;padding:10px 0">No circles yet. Make one below.</div>';
+  openPanel(agentCard({
+    emoji: '◍', name: 'Circles', role: 'Your people · group video',
+    color: '#7eb4ff',
+    status: `${circles.length} circle${circles.length === 1 ? '' : 's'}`,
+    body: `
+      ${rows}
+      <div style="display:flex;gap:6px;margin-top:12px">
+        <input id="circle-name" class="me-inp" type="text" placeholder="New circle name…" maxlength="60" style="flex:1">
+        <button class="kd-btn kd-btn-send" onclick="_createCircle()">Create</button>
+      </div>`,
+    actions: [],
+  }));
+};
+window._createCircle = async function() {
+  const name = (document.getElementById('circle-name')?.value || '').trim();
+  if (!name) return toast('Name the circle first', 'err');
+  try {
+    const { error } = await sb.from('circles').insert({ name, owner_id: session.user.id });
+    if (error) throw error;
+    toast('Circle created', 'ok');
+    openCirclesPanel();
+  } catch (e) { toast('Failed: ' + e.message, 'err'); }
+};
+window.openCircle = async function(circleId) {
+  const { data: c } = await sb.from('circles').select('id, name, emoji, owner_id').eq('id', circleId).single();
+  if (!c) return;
+  const { data: members } = await sb.from('circle_members')
+    .select('profile_id, role, profiles(display_name, avatar_url)').eq('circle_id', circleId);
+  const roster = (members || []).map(m => {
+    const nm = (m.profiles && m.profiles.display_name) || m.profile_id.slice(0, 8);
+    return `<div class="delivery-row" style="cursor:default">
+      <div class="head"><span class="desc">${escapeHtml(nm)}</span>
+        <span style="font-size:10px;color:#7a98c0">${m.role}</span></div></div>`;
+  }).join('');
+  const isOwner = c.owner_id === session.user.id;
+  openPanel(agentCard({
+    emoji: c.emoji || '◍', name: escapeHtml(c.name), role: 'Circle · group video',
+    color: '#7eb4ff',
+    status: `${(members || []).length} members`,
+    body: `
+      ${roster}
+      ${isOwner ? `<div style="display:flex;gap:6px;margin-top:10px">
+        <input id="circle-add" class="me-inp" type="text" placeholder="add member by email…" style="flex:1">
+        <button class="kd-btn" onclick="_circleAdd(${JSON.stringify(circleId)})">Add</button>
+      </div>` : ''}`,
+    actions: [
+      { label: 'Start group call', primary: true, onclick: `startGroupCall(${JSON.stringify(circleId)}, ${JSON.stringify(c.name)})` },
+    ],
+  }));
+};
+window._circleAdd = async function(circleId) {
+  const email = (document.getElementById('circle-add')?.value || '').trim();
+  if (!email) return;
+  try {
+    const { data: p } = await sb.from('profiles').select('id').eq('email', email).single();
+    if (!p?.id) return toast('No user with that email', 'err');
+    const { error } = await sb.from('circle_members').insert({ circle_id: circleId, profile_id: p.id });
+    if (error) throw error;
+    toast('Added', 'ok'); openCircle(circleId);
+  } catch (e) { toast('Failed: ' + e.message, 'err'); }
+};
+
+async function _gcMakePeer(peerId, polite) {
+  const pc = new RTCPeerConnection({ iceServers: STUN_SERVERS });
+  if (_gc.localStream) _gc.localStream.getTracks().forEach(t => pc.addTrack(t, _gc.localStream));
+  pc.onicecandidate = (e) => {
+    if (e.candidate) _gc.channel.send({ type: 'broadcast', event: 'gc-ice', payload: { to: peerId, from: session.user.id, candidate: e.candidate } });
+  };
+  pc.ontrack = (e) => {
+    const entry = _gc.peers.get(peerId) || {};
+    entry.stream = e.streams[0];
+    _gc.peers.set(peerId, { ...entry, pc, stream: e.streams[0] });
+    _gcRenderGrid();
+  };
+  _gc.peers.set(peerId, { pc, stream: null });
+  return pc;
+}
+window.startGroupCall = async function(circleId, circleName) {
+  if (_gc.open) return toast('Already in a group call');
+  try {
+    _gc.localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+  } catch (e) { return toast('Camera/mic blocked: ' + e.message, 'err'); }
+  _gc.circleId = circleId; _gc.open = true;
+  closePanel();
+  _gcOpenStage(circleName);
+  _gc.channel = sb.channel('astranov:circle-call:' + circleId);
+  _gc.channel
+    .on('broadcast', { event: 'gc-join' }, async ({ payload }) => {
+      if (payload.from === session.user.id) return;
+      // Existing member offers to the newcomer.
+      const pc = await _gcMakePeer(payload.from, false);
+      const offer = await pc.createOffer(); await pc.setLocalDescription(offer);
+      _gc.channel.send({ type: 'broadcast', event: 'gc-offer', payload: { to: payload.from, from: session.user.id, sdp: offer } });
+    })
+    .on('broadcast', { event: 'gc-offer' }, async ({ payload }) => {
+      if (payload.to !== session.user.id) return;
+      const pc = await _gcMakePeer(payload.from, true);
+      await pc.setRemoteDescription(payload.sdp);
+      const answer = await pc.createAnswer(); await pc.setLocalDescription(answer);
+      _gc.channel.send({ type: 'broadcast', event: 'gc-answer', payload: { to: payload.from, from: session.user.id, sdp: answer } });
+    })
+    .on('broadcast', { event: 'gc-answer' }, async ({ payload }) => {
+      if (payload.to !== session.user.id) return;
+      const entry = _gc.peers.get(payload.from);
+      if (entry && entry.pc) await entry.pc.setRemoteDescription(payload.sdp).catch(() => {});
+    })
+    .on('broadcast', { event: 'gc-ice' }, async ({ payload }) => {
+      if (payload.to !== session.user.id) return;
+      const entry = _gc.peers.get(payload.from);
+      if (entry && entry.pc && payload.candidate) await entry.pc.addIceCandidate(payload.candidate).catch(() => {});
+    })
+    .on('broadcast', { event: 'gc-leave' }, ({ payload }) => {
+      const entry = _gc.peers.get(payload.from);
+      if (entry && entry.pc) { try { entry.pc.close(); } catch (_) {} }
+      _gc.peers.delete(payload.from);
+      _gcRenderGrid();
+    })
+    .subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        // Announce arrival → existing members will offer to me.
+        _gc.channel.send({ type: 'broadcast', event: 'gc-join', payload: { from: session.user.id } });
+      }
+    });
+  _gcRenderGrid();
+};
+function _gcOpenStage(circleName) {
+  let stage = document.getElementById('gc-stage');
+  if (stage) stage.remove();
+  stage = document.createElement('div');
+  stage.id = 'gc-stage';
+  stage.innerHTML = `
+    <div class="gc-bar">
+      <span class="gc-title">◍ ${escapeHtml(circleName || 'Group call')}</span>
+      <button class="gc-end" onclick="endGroupCall()">Leave</button>
+    </div>
+    <div class="gc-grid" id="gc-grid"></div>`;
+  document.body.appendChild(stage);
+}
+function _gcRenderGrid() {
+  const grid = document.getElementById('gc-grid'); if (!grid) return;
+  const tiles = [];
+  // Self tile first.
+  tiles.push({ id: 'self', stream: _gc.localStream, label: 'You', muted: true });
+  for (const [pid, entry] of _gc.peers) tiles.push({ id: pid, stream: entry.stream, label: pid.slice(0, 8), muted: false });
+  grid.innerHTML = '';
+  for (const t of tiles) {
+    const cell = document.createElement('div'); cell.className = 'gc-cell';
+    const v = document.createElement('video'); v.autoplay = true; v.playsInline = true; v.muted = t.muted;
+    if (t.stream) v.srcObject = t.stream;
+    const lbl = document.createElement('div'); lbl.className = 'gc-label'; lbl.textContent = t.label;
+    cell.appendChild(v); cell.appendChild(lbl); grid.appendChild(cell);
+    v.play().catch(() => {});
+  }
+  // Responsive columns.
+  const n = tiles.length;
+  grid.style.gridTemplateColumns = `repeat(${n <= 1 ? 1 : n <= 4 ? 2 : 3}, 1fr)`;
+}
+window.endGroupCall = function() {
+  if (_gc.channel) {
+    try { _gc.channel.send({ type: 'broadcast', event: 'gc-leave', payload: { from: session.user.id } }); } catch (_) {}
+    try { _gc.channel.unsubscribe(); } catch (_) {}
+  }
+  for (const [, entry] of _gc.peers) { try { entry.pc.close(); } catch (_) {} }
+  _gc.peers.clear();
+  if (_gc.localStream) { _gc.localStream.getTracks().forEach(t => t.stop()); _gc.localStream = null; }
+  _gc.open = false; _gc.circleId = null; _gc.channel = null;
+  const stage = document.getElementById('gc-stage'); if (stage) stage.remove();
+};
+
 
 let inboxChannel = null;             // user's personal channel for incoming invites
 let callChannel  = null;             // per-call signaling channel
