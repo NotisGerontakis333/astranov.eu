@@ -1,26 +1,34 @@
 {
-  "name": "AstranoV",
+  "name": "AstranoV — Agentic Orbital Operating System",
   "short_name": "AstranoV",
-  "description": "Agentic Orbital Operating System — research + social + delivery on the living globe.",
-  "start_url": "/",
+  "description": "The Internet Operating System on a living globe. Research, social, and a delivery marketplace — one OS, one currency, every device.",
+  "id": "/",
+  "start_url": "/?source=pwa",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "fullscreen", "minimal-ui"],
   "orientation": "any",
   "theme_color": "#02060d",
   "background_color": "#02060d",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": ["navigation", "social", "shopping", "productivity", "travel"],
+  "launch_handler": { "client_mode": "focus-existing" },
   "icons": [
-    {
-      "src": "/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    }
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
-  "categories": ["navigation", "social", "shopping"]
+  "shortcuts": [
+    { "name": "Wallet", "short_name": "Wallet", "url": "/?go=wallet", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Discover", "short_name": "Discover", "url": "/?go=discover", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Talk to Astranov", "short_name": "Astranov", "url": "/?go=astranov", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] }
+  ],
+  "share_target": {
+    "action": "/?share=1",
+    "method": "GET",
+    "params": { "title": "title", "text": "text", "url": "url" }
+  },
+  "prefer_related_applications": false
 }

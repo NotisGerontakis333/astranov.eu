@@ -15,7 +15,15 @@ const TILE_HOSTS = [
 const TILE_RX = /\.(png|jpe?g|webp|avif)(\?|$)/i;
 
 self.addEventListener('install', e => {
-  self.skipWaiting();
+  // Precache the app shell + icons so a first visit makes AstranoV
+  // installable and offline-instant (§24 PLATFORM).
+  e.waitUntil((async () => {
+    try {
+      const cache = await caches.open(SHELL_CACHE);
+      await cache.addAll(['/', '/manifest.json', '/icon-192.png', '/icon-512.png', '/icon-180.png']);
+    } catch (_) { /* network may be flaky; SW still installs */ }
+    self.skipWaiting();
+  })());
 });
 
 self.addEventListener('activate', e => {

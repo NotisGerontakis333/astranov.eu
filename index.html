@@ -741,6 +741,27 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     against this law BEFORE it lands. Violations are §10b Krypteia
     findings — flagged, surfaced, fixed.
 
+24. PLATFORM — installable OS on every device (binding, phased)
+    AstranoV is an Operating System, not a web page. It must install
+    and run as a first-class app on phone, desktop, and wearable.
+    The ladder, each rung shipping before the next:
+      TIER 1 — PWA (LIVE): manifest.json declares standalone display,
+        window-controls-overlay, maskable icons (192/512 real PNGs),
+        app shortcuts (Wallet / Discover / Astranov), share_target,
+        launch_handler focus-existing. sw.js precaches the shell +
+        icons on install so a first visit is installable + offline-
+        instant. iOS gets apple-mobile-web-app-capable + apple-touch
+        180px icon. → Add to Home Screen on Android/iOS, Install on
+        desktop Chrome/Edge.
+      TIER 2 — STORE WRAPPERS (next): Android TWA → Play Store APK;
+        Capacitor → App Store; Tauri → .exe/.dmg/.AppImage. Same web
+        core, native shell. Requires owner's developer accounts.
+      TIER 3 — SHELL/LAUNCHER: Android home-screen-replacement APK;
+        Linux distro shell. The OS feel without a kernel.
+      TIER 4 — TRUE KERNEL OS: gated on funding + hardware partner.
+    The single index.html + Supabase backend remains the one source;
+    every wrapper loads it. Never fork the frontend per platform.
+
 ================================================================================
 -->
 <html lang="en">
@@ -749,7 +770,12 @@ This block strives to get shorter, more inclusive, more precise with every edit.
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
 <meta name="theme-color" content="#02060d" />
 <link rel="manifest" href="/manifest.json" />
-<link rel="apple-touch-icon" href="/icon-192.png" />
+<link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+<link rel="apple-touch-icon" href="/icon-180.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="AstranoV" />
+<meta name="mobile-web-app-capable" content="yes" />
 <title>ASTRANOV</title>
 <link rel="stylesheet" href="https://cesium.com/downloads/cesiumjs/releases/1.119/Build/Cesium/Widgets/widgets.css" />
 <style>
@@ -4419,8 +4445,18 @@ function bootSupabase() {
   // Returning from a checkout? Pop the Buy AVC panel with the success/cancel
   // banner so the user gets confirmation instead of staring at the globe.
   try {
-    const paid = new URL(location.href).searchParams.get('paid');
+    const sp = new URL(location.href).searchParams;
+    const paid = sp.get('paid');
     if (paid === '1' || paid === '0') setTimeout(() => { try { openBuyAVC(); } catch (_) {} }, 800);
+    // PWA manifest shortcuts (§24): ?go=wallet|discover|astranov.
+    const go = sp.get('go');
+    if (go) setTimeout(() => {
+      try {
+        if (go === 'wallet')   openWalletPanel();
+        else if (go === 'discover') openFeedPanel();
+        else if (go === 'astranov') openAstranov();
+      } catch (_) {}
+    }, 900);
   } catch (_) {}
   // KRYPTEIA — silent boot for EVERY visitor (§10d). 3 seconds after
   // boot we wire tamper listeners and ping a heartbeat. Owner sessions
