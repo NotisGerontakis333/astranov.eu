@@ -491,7 +491,8 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     1:1 WebRTC. Signaling over Supabase Realtime channels:
       astranov:user:<uid>   inbox for invites
       astranov:call:<id>    per-call SDP + ICE
-    STUN: Google public. No TURN yet.
+    ICE: Google STUN + Open Relay public TURN (relays media across strict
+    NATs / cross-cellular). window._TURN injects dedicated TURN creds.
 
 13b. ROUTING — real OSRM driving routes (binding)
     astranovNavigate(toLat,toLng,label) routes from the user's live
@@ -9911,10 +9912,20 @@ function toggleVoice() { if (sessionOn) stopVoiceSession(); else startVoiceSessi
 /* ==============================================================
    8c. Video calling — 1:1 WebRTC over Supabase Realtime signaling
    ============================================================== */
+// ICE servers for WebRTC (1:1 + circle mesh). STUN finds your public
+// address; TURN relays media when both peers are behind strict NATs
+// (e.g. two different cellular networks — the road-test case). The Open
+// Relay TURN below is a free public relay; swap in dedicated TURN creds
+// (window._TURN) for production scale + reliability.
 const STUN_SERVERS = [
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
+  { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+  { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+  { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
 ];
+// Owner can inject dedicated TURN at runtime: window._TURN = [{urls,username,credential}]
+if (Array.isArray(window._TURN)) STUN_SERVERS.push(...window._TURN);
 
 /* ==============================================================
    8d. SOCIAL CIRCLES + GROUP VIDEO (full WebRTC mesh)
