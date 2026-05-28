@@ -369,6 +369,16 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     Secrets live ONLY in Edge Function env. Public client tokens (Supabase
     anon, allowlisted Cesium Ion) may live here. is_owner has client UPDATE
     revoked. RLS on every public table.
+    MONEY FUNCTIONS ARE SERVICE-ROLE ONLY (binding): credit_eur, credit_avc
+    grant EXECUTE only to service_role (webhooks); EXECUTE is revoked from
+    public/anon/authenticated. A user must NEVER be able to credit a balance
+    directly — value enters only via a verified payment webhook or an
+    owner-gated transfer (admin_transfer_avc_to_eur, which checks is_owner
+    server-side). Balance-moving RPCs (order_debit_eur/order_refund_eur,
+    delivery escrow/settlement) are SECURITY DEFINER + service-role/trigger
+    only. anon may not call any mutating RPC. orders/invoices accept inserts
+    only from service-role edge functions (no permissive client INSERT).
+    Run get_advisors(security) after every DDL change.
 
 10. KRYPTEIA + COUNCIL OF THIRTEEN — supervision & supreme court
     Astranov is the LEADER of Krypteia, the ultimate police and intelligence
