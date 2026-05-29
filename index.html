@@ -192,17 +192,11 @@ This block strives to get shorter, more inclusive, more precise with every edit.
       DISCOVER  10,000 km · ambient feed preview.
       Informants + Krypteia  1,500 km · the working ring (§5b).
 
-    APEX DOCK (binding, supersedes the projected-orb scatter): the system
-    agents are PINNED to a fixed dock on the right edge — Me at the very
-    top-right (owner's anchor), then Wallet, Pilot, Astranov, Discover, and
-    the guardian (Krypteia for owner / Anonymous for others). They are
-    always on-screen and always tappable. The earlier 3D-projected apex
-    orbs scattered off the viewport on phones and could not be tapped —
-    reliability wins. renderApexDock() builds the dock; the informant CLOUD
-    orbs still float in 3D. The Me orb keeps its meaning via (a) the 3D
-    beam pillar at the user's location and (b) a screen-space SPOTLIGHT
-    line (#me-spotlight) drawn from the Me orb to the user's projected
-    position on the globe. Altitudes/labels above are legacy intent.
+    Apex orbs are anchored to the camera's current longitude (with a
+    latitude offset per tier), so they always sit in front of the user
+    on the visible side of Earth. They are non-occludable except Me,
+    which honestly fades behind Earth when the user's body is on the
+    other side of the camera — the beam still tells you where you are.
 
     The legacy corner gadgets (#g-discover, #g-me, #locate-orb) are
     RETIRED — never visible at any tier. At non-global tiers only a
@@ -1025,7 +1019,7 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   }
   #pilot-mini:hover { transform: scale(1.08); }
   #pilot-mini:active { transform: scale(0.94); }
-  #pilot-mini { display: none !important; }  /* superseded by the apex dock */
+  body.at-global #pilot-mini { display: none; }
   .informant.system .orb {
     border-width: 2px;
     box-shadow:
@@ -1513,49 +1507,6 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     font-size: 9px; letter-spacing: 0.15em; color: rgba(200, 220, 255, 0.7);
     text-transform: uppercase; white-space: nowrap; pointer-events: none;
   }
-
-  /* APEX DOCK — pinned system agents, always visible & tappable. Me sits
-     at the top-right (owner's anchor); the rest stack below it. This is
-     deliberate, reliable OS chrome — the floating-projected orbs scattered
-     off-screen on phones and could not be tapped. */
-  #apex-dock {
-    position: fixed; top: max(14px, env(safe-area-inset-top)); right: 8px;
-    display: flex; flex-direction: column; align-items: flex-end; gap: 12px;
-    z-index: 56; pointer-events: none;
-  }
-  #apex-dock .apex-orb {
-    pointer-events: auto; width: 46px; height: 46px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center; cursor: pointer;
-    position: relative;
-    background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--ic) 60%, transparent), rgba(6,12,24,0.82) 70%);
-    border: 1.5px solid color-mix(in srgb, var(--ic) 75%, transparent);
-    box-shadow: 0 0 14px color-mix(in srgb, var(--ic) 45%, transparent);
-    transition: transform 0.14s, box-shadow 0.3s;
-    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
-  }
-  #apex-dock .apex-orb:active { transform: scale(0.9); }
-  #apex-dock .apex-orb.apex-me { width: 58px; height: 58px; }
-  #apex-dock .ao-glyph { font-size: 20px; line-height: 1; }
-  #apex-dock .apex-orb.apex-me .ao-glyph { font-size: 26px; }
-  #apex-dock .ao-lbl {
-    position: absolute; right: 52px; white-space: nowrap; font-size: 8px;
-    letter-spacing: 0.14em; text-transform: uppercase; color: rgba(200,220,255,0.6);
-    pointer-events: none;
-  }
-  #apex-dock .apex-orb.apex-me .ao-lbl { right: 64px; }
-  #apex-dock .apex-krypteia { animation: apexkryp 2.4s ease-in-out infinite; }
-  #apex-dock .apex-krypteia.alert { animation: apexkryp 0.9s ease-in-out infinite; }
-  @keyframes apexkryp {
-    0%,100% { box-shadow: 0 0 12px rgba(255,90,74,0.4); }
-    50%     { box-shadow: 0 0 22px rgba(255,90,74,0.9); }
-  }
-  /* Spotlight line — Me orb → user's projected location on the globe. */
-  #me-spotlight { position: fixed; inset: 0; z-index: 41; pointer-events: none; width: 100%; height: 100%; }
-  #me-spotlight line {
-    stroke: #7eebb4; stroke-width: 1.5; stroke-dasharray: 3 6; opacity: 0;
-    filter: drop-shadow(0 0 4px rgba(126,235,180,0.8));
-  }
-  #me-spotlight.on line { opacity: 0.75; }
 
   /* ============================================================
      Level badge — top, auto-fades.
@@ -2856,11 +2807,6 @@ This block strives to get shorter, more inclusive, more precise with every edit.
   <div class="provider" id="aicycle-provider">AI</div>
 </div>
 
-<!-- Apex dock — the system agents, pinned & always tappable (Me at top-right). -->
-<div id="apex-dock"></div>
-<!-- Me spotlight — a line from the Me orb to the user's location on the globe. -->
-<svg id="me-spotlight"><line id="me-spot-line" x1="0" y1="0" x2="0" y2="0"></line></svg>
-
 <!-- Transient UI -->
 <div id="imagery-source"></div>
 <div id="tray-trigger"></div>
@@ -4160,9 +4106,14 @@ function _refreshOrbAnchors(items) {
     }
     _orbState.push({ kind: 'informant', infId, cart, beam, isEvent, color, lat, lon, alt: orbAlt, eventTitle });
   }
-  // System/apex agents are no longer projected — they live in the fixed
-  // apex dock (renderApexDock). The Me beam (3D pillar at the user's
-  // location) plus the screen-space spotlight line still mark "you".
+  // Append the apex tier. Their cart is recomputed each frame from the
+  // camera's longitude — they're camera-anchored so they never go behind
+  // Earth and the user always sees them where they expect.
+  for (const tier of _SYSTEM_ORB_TIERS) {
+    _orbState.push({ kind: 'system', sysId: tier.id, cart: null, beam: null, isEvent: false, color: tier.color, lat: 0, lon: 0, alt: tier.alt, orbDef: tier });
+  }
+  // The Me beam is its own entity — refreshed when the level becomes
+  // global and whenever setUserLocation is called.
   _refreshMeBeam();
 }
 
@@ -4263,33 +4214,9 @@ function _projectOrbs() {
     }
   }
 }
-// Draw the spotlight line from the Me orb (fixed, top-right) to the user's
-// actual location on the globe — the owner's "connect the orb to the map".
-function _updateMeSpotlight() {
-  const svg = document.getElementById('me-spotlight');
-  const line = document.getElementById('me-spot-line');
-  const meOrb = document.querySelector('#apex-dock .apex-me');
-  if (!svg || !line || !meOrb || !viewer || !viewer.scene) { if (svg) svg.classList.remove('on'); return; }
-  if (_userLat == null || _userLng == null) { svg.classList.remove('on'); return; }
-  try {
-    const cart = Cesium.Cartesian3.fromDegrees(_userLng, _userLat, 0);
-    if (!_orbOccluder) _orbOccluder = new Cesium.EllipsoidalOccluder(viewer.scene.globe.ellipsoid, viewer.scene.camera.positionWC);
-    else _orbOccluder.cameraPosition = viewer.scene.camera.positionWC;
-    if (!_orbOccluder.isPointVisible(cart)) { svg.classList.remove('on'); return; }
-    const win = viewer.scene.cartesianToCanvasCoordinates(cart);
-    if (!win) { svg.classList.remove('on'); return; }
-    const r = meOrb.getBoundingClientRect();
-    line.setAttribute('x1', (r.left + r.width / 2).toFixed(1));
-    line.setAttribute('y1', (r.top + r.height / 2).toFixed(1));
-    line.setAttribute('x2', win.x.toFixed(1));
-    line.setAttribute('y2', win.y.toFixed(1));
-    svg.classList.add('on');
-  } catch (_) { svg.classList.remove('on'); }
-}
 function _attachOrbProjLoop() {
   if (_orbProjAttached || !viewer) return;
   viewer.scene.postRender.addEventListener(_projectOrbs);
-  viewer.scene.postRender.addEventListener(_updateMeSpotlight);
   _orbProjAttached = true;
   if (viewer.scene.requestRenderMode) viewer.scene.requestRender();
 }
@@ -4418,35 +4345,19 @@ function _startInformantFeedPolling() {
   // Kick a first poll immediately (but defer slightly so sb client is ready).
   setTimeout(() => { pollInformantFeeds().catch(() => {}); }, 1500);
 }
-// APEX DOCK — the system agents + the guardian (Krypteia for the owner,
-// Anonymous Service for everyone else), pinned as always-tappable chrome.
-// Reliability over spectacle: these never scatter off-screen.
-function renderApexDock() {
-  const dock = $('apex-dock'); if (!dock) return;
-  const isOwner = !!(typeof profile !== 'undefined' && profile && profile.is_owner);
-  const sys = _SYSTEM_ORB_TIERS.map(t => {
-    const meCls = t.id === 'sys-me' ? ' apex-me' : '';
-    return `<div class="apex-orb${meCls}" style="--ic:${t.color}" onclick="${t.onclick}" title="${escapeHtml(t.name)}">
-      <span class="ao-glyph">${t.emoji}</span><span class="ao-lbl">${escapeHtml(t.name)}</span>
-    </div>`;
-  }).join('');
-  const guardian = isOwner
-    ? `<div class="apex-orb apex-krypteia" style="--ic:#ff5a4a" onclick="openKrypteia()" title="Krypteia">
-         <span class="ao-glyph">⬡</span><span class="ao-lbl">Krypteia</span></div>`
-    : `<div class="apex-orb" style="--ic:#6dd0ff" onclick="openAnonymousService()" title="Anonymous Service">
-         <span class="ao-glyph">⊘</span><span class="ao-lbl">Privacy</span></div>`;
-  dock.innerHTML = sys + guardian;
-}
-
 function renderInformants() {
-  renderApexDock();   // pinned system agents — always, every tier
   const el = $('tile-strip'); if (!el) return;
   if (currentLevel !== 'global') { el.classList.add('hide-orbit'); el.innerHTML = ''; return; }
   el.classList.remove('hide-orbit');
   const list = _loadInformants();
-  // The informant cloud orbs still float in 3D; the system + guardian
-  // agents now live in the fixed apex dock (see renderApexDock).
+  // KRYPTEIA — owner-only sovereign orb.
+  // ANONYMOUS — privacy/anonymity orb shown to everyone EXCEPT the owner.
+  // (The owner gets Krypteia, which is the deeper version; users see
+  // the Anonymous Service face instead, which never advertises Krypteia's
+  // existence.)
+  const isOwner = !!(typeof profile !== 'undefined' && profile && profile.is_owner);
   const items = [
+    ...(isOwner ? [{ _krypteia: true }] : [{ _anonymous: true }]),
     ...list,
     { _new: true },
   ];
@@ -4480,7 +4391,15 @@ function renderInformants() {
       <div class="orb">${videoOrbHTML(inf.emoji || '◈', color, seed, vurl, previewImg)}${has ? `<div class="count">${found.length}</div>` : '<div class="count"></div>'}</div>
     </div>`;
   }).join('');
-  el.innerHTML = orbs;
+  // Append the four apex-tier system orbs after the informants. Order
+  // matters: _orbState is appended in the SAME order in _refreshOrbAnchors.
+  const sysOrbs = _SYSTEM_ORB_TIERS.map(tier => {
+    const glyphHtml = `<span class="orb-glyph">${tier.emoji}</span>`;
+    return `<div class="informant ${tier.classes}" style="--ic:${tier.color};opacity:0" onclick="${tier.onclick}" title="${escapeHtml(tier.name)}">
+      <div class="orb">${livingOrbHTML('', tier.color, _hashSeed(tier.id))}${glyphHtml}</div>
+    </div>`;
+  }).join('');
+  el.innerHTML = orbs + sysOrbs;
   _attachOrbProjLoop();
   if (viewer) viewer.scene.requestRender();
 }
@@ -4829,15 +4748,9 @@ async function _krypteiaCameraVerify() {
     // Send the snapshot via /tamper (kept under sample). Truncated to fit.
     _tamperReport('camera-verify-snapshot', dataUrl.slice(0, 400));
     // Upload the full JPEG to Supabase storage if profile is signed in.
-    // NB: fetch() on a data: URL is blocked by our CSP connect-src, so we
-    // decode the base64 to a Blob directly instead.
     try {
       if (sb && session && session.user) {
-        const b64 = dataUrl.split(',')[1] || '';
-        const bin = atob(b64);
-        const bytes = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-        const blob = new Blob([bytes], { type: 'image/jpeg' });
+        const blob = await (await fetch(dataUrl)).blob();
         const path = `${session.user.id}/${Date.now()}.jpg`;
         await sb.storage.from('tamper-snapshots').upload(path, blob, { contentType: 'image/jpeg', upsert: false }).catch(() => {});
       }
@@ -8563,7 +8476,7 @@ window.openKrypteia = async (runSilently) => {
   // engaged with the orb.
   const cached = window._krypteiaState && window._krypteiaState.lastVerdict;
   const cachedFresh = cached && cached.at && (Date.now() - new Date(cached.at).valueOf() < 5 * 60_000);
-  const orb = document.querySelector('#apex-dock .apex-krypteia');
+  const orb = document.querySelector('.informant.krypteia');
   if (orb) orb.classList.remove('alert');
   if (!runSilently && cachedFresh) {
     _krypteiaShowDash(cached);
@@ -8628,15 +8541,24 @@ window.openKrypteia = async (runSilently) => {
 // Make the Krypteia orb pulse in alert mode and speak a one-sentence
 // summary aloud. The orb itself becomes the notification — no panel.
 function _krypteiaOrbAlert(v) {
-  // Silent boot: the orb GLOWS to signal it has something — it does NOT
-  // speak unprompted (that startled the owner). The owner taps the docked
-  // Krypteia orb to open the full verdict (cached, instant).
-  const orb = document.querySelector('#apex-dock .apex-krypteia');
+  // Add a CSS class so the orb's glow intensifies + pulse rate doubles.
+  const orb = document.querySelector('.informant.krypteia');
   if (orb) {
     orb.classList.add('alert');
+    // Drop the alert after 60 s of inattention; owner can re-trigger.
     clearTimeout(window._krypteiaAlertTimer);
-    window._krypteiaAlertTimer = setTimeout(() => orb.classList.remove('alert'), 120_000);
+    window._krypteiaAlertTimer = setTimeout(() => orb.classList.remove('alert'), 60_000);
   }
+  // Speak a short verdict — the audio is the notification.
+  try {
+    const counts = (v.audit && v.audit.counts) || {};
+    const watchN = (v.watch && v.watch.hits_count) || 0;
+    let msg = `Krypteia ${v.severity}.`;
+    if (counts.critical) msg += ` ${counts.critical} critical code findings.`;
+    if (counts.warn)     msg += ` ${counts.warn} warnings.`;
+    if (watchN)          msg += ` ${watchN} watchtower hits.`;
+    if (typeof speakAstranov === 'function') speakAstranov(msg);
+  } catch (_) {}
 }
 
 // Multimedia Krypteia dashboard — text + thumbnails + chat + voice.
