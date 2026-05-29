@@ -197,9 +197,27 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     One Cesium camera, three altitude bands:  GLOBAL >5,000 km · NATIONAL
     500–5,000 km · PERSONAL <500 km. Tap empty globe = descend one level
     toward the tapped point (global→national→city→street). Glowing blue
-    major-city beacons show at GLOBAL+NATIONAL; tap one to dive to that
-    city. Globe lighting (day/night terminator) is GLOBAL-only — it is
+    major-city beacons + NAME labels show at NATIONAL; tap one to dive to
+    that city. Globe lighting (day/night terminator) is GLOBAL-only — it is
     switched OFF below global so the street map renders at full brightness.
+    COSMIC ZOOM-OUT: max zoom is 2,000,000 km — pull back past Earth into the
+    star skybox (solar-system / galaxy feel); there is always more to explore
+    (POROS §0h). UNDERWATER CITIES: seeded explorable settlements in the deep
+    ocean (teal beacons) — the globe is alive below the waterline too.
+    ORB/SCREEN INTELLIGENCE (binding): orbs are CLAMPED inside the viewport
+    (never drift off-screen), SHRINK when the screen is crowded, and an orb
+    flung off the bottom is dismissed for now. The Me-orb spotlight is a
+    screen-space line (never an off-screen 3D beam).
+
+5k. CITY CATEGORY ORBS — groupings → options → filter (binding)
+    At the PERSONAL tier the city groups into a few GENERAL category orbs
+    (#city-cats: Dining, Fast food, Cafés, Bars, Hotels, Rentals, Shops,
+    Pharmacy, Nightlife). Tap one → openCategoryPanel() unfolds the REAL
+    nearby options (live Overpass search via _agentFindPlaces) in a panel
+    with a text FILTER; tap an option → openPlacePanel (route / order).
+    Groupings on the globe, options + filter in the bottom panel — never a
+    wall of pins. The crawler (/crawl) seeds signals globally and rotates
+    Overpass mirrors with retry so rate-limiting can't empty the globe.
 
 5b. INFORMANT AGENTS — they ORBIT the Earth, user-owned
     The showcase layer is a HALO of agent-orbs orbiting Earth-in-space
