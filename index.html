@@ -1025,6 +1025,10 @@ Single-file by design. Any AI/human can continue from this comment + the law.
      builder → roadmap. brain = memory helpers. contribute = compute cycles.
    payments + stripe/revolut/paypal (+ -webhook) = 3 rails, credit eur_balance
      + 3% royalty. tamper = anti-theft log. push-notify = web push.
+   seed-bots = dev tool: 3 persona users (Athena/Spartan/Myrmidon, profiles
+     .is_bot=true) generate FREE sample data (signals, a circle, follows,
+     messages, a euro delivery bounty); no paid AI; capped+idempotent; POST
+     {purge:true} removes them. Filter bots via profiles.is_bot.
 
   DATABASE (Postgres + RLS): profiles (eur_balance+avc_balance+is_owner are
    COLUMN-LOCKED; own private row via my_profile() RPC) · signals (globe feed) ·
