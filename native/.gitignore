@@ -1,0 +1,41 @@
+# Unity generated
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+[Mm]emoryCaptures/
+[Rr]ecordings/
+
+# MemoryCaptures from the Profiler
+*.MemoryCapture
+*.MemoryCapture.meta
+
+# Asset meta data should only be ignored when the corresponding asset is also ignored
+!/[Aa]ssets/**/*.meta
+
+# Builds
+*.apk
+*.aab
+*.ipa
+*.unitypackage
+
+# Crashlytics
+crashlytics-build.properties
+
+# Visual Studio / Rider / VS Code
+.vs/
+.idea/
+.vscode/
+*.csproj
+*.sln
+*.user
+*.suo
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.opendb
+*.VC.db

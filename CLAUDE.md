@@ -163,8 +163,15 @@ Current active branch: `claude/complete-astranov-marketplace-hDSTR`.
 When the owner changes branches, update this line and continue.
 
 ## Project
-Single-file Internet Operating System: `index.html` only.
-All changes go into this one file. No new files unless explicitly requested.
+Single-file web Internet OS: `index.html` only — every web change goes
+into that one file, no new web files unless explicitly requested.
+
+Native track (game-engine smoothness): `native/` — Unity 2022.3 LTS +
+Cesium for Unity 1.13. C# scripts under `native/Assets/Astranov/`,
+namespace `Astranov`, sealed by `Astranov.asmdef`. The MASTER LAW
+governs both surfaces equally — Slumber Law, Dive-to-Me, Zero UI, the
+wordmark chrome ban. Same Supabase brain, same Edge functions, no
+server forks. Web and native evolve in parallel (panta rhei).
 
 ## Stack
 - CesiumJS — globe / map rendering (only renderer; Leaflet/globe.gl banned)
