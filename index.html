@@ -5654,15 +5654,29 @@ function locateUser() {
 }
 
 /* ==============================================================
-   Drive mode — continuous motion-aware camera.
-   Drone view at rest (pitch -90°, altitude ~600 m). When sustained
-   speed > 5 m/s for >3 s → driving view (pitch -25°, altitude ~120 m,
-   heading locks to GPS course). When speed < 1 m/s for >5 s → drone.
+   Slumber / wake — motion-aware camera that knows when you start
+   moving and when you stop.
+
+   Three states, by the law (GLOBAL → NATIONAL → PERSONAL):
+   - DRIVING  → personal tier, pitch -25°, ~150 m, heading locks
+                to GPS course. Triggered by sustained > 2.5 m/s
+                (~9 km/h) for 1.5 s.
+   - SETTLED  → drone, pitch -90°, ~500 m. The moment we slow below
+                0.6 m/s for 6 s.
+   - SLUMBER  → the architecture's home tier (GLOBAL). After 90 s
+                stationary at SETTLED, lift back to the world view.
+
+   Speed: pos.coords.speed is unreliable on most phones (often null
+   or 0). We compute it from haversine deltas between fixes when the
+   browser doesn't give us one.
    ============================================================== */
 let _driveWatchId = null;
 let _driveMode    = 'drone';      // 'drone' | 'driving'
-let _driveBufSpeed = [];          // last speeds, m/s
+let _driveBufSpeed = [];          // last speeds, m/s (smoothed)
 let _driveLastSwitchAt = 0;
+let _driveLastFix = null;         // { lat, lng, t }
+let _settledSince  = 0;           // ms timestamp the user went still
+let _slumberedAt   = 0;           // last time we lifted to global
 function startDriveWatch() {
   if (_driveWatchId || !navigator.geolocation || !navigator.geolocation.watchPosition) return;
   _driveWatchId = navigator.geolocation.watchPosition(
@@ -5675,31 +5689,71 @@ function stopDriveWatch() {
   if (_driveWatchId) navigator.geolocation.clearWatch(_driveWatchId);
   _driveWatchId = null;
 }
+function _haversineMeters(aLat, aLng, bLat, bLng) {
+  const R = 6371000, toR = Math.PI / 180;
+  const dLat = (bLat - aLat) * toR, dLng = (bLng - aLng) * toR;
+  const s = Math.sin(dLat/2)**2 + Math.cos(aLat*toR)*Math.cos(bLat*toR)*Math.sin(dLng/2)**2;
+  return 2 * R * Math.asin(Math.sqrt(s));
+}
 function _driveTick(pos) {
-  const { latitude: lat, longitude: lng, speed, heading } = pos.coords;
-  window._userLat = lat; window._userLng = lng; setUserLocation(lat, lng);
-  setUserBeacon(lat, lng);
-  const sp = (typeof speed === 'number' && isFinite(speed) && speed >= 0) ? speed : 0;
+  const { latitude: lat, longitude: lng, speed, heading, accuracy } = pos.coords;
+  window._userLat = lat; window._userLng = lng;
+  try { setUserLocation(lat, lng); setUserBeacon(lat, lng); } catch (_) {}
+  const now = Date.now();
+  // Real speed: trust the browser if it gives us a sane number; else
+  // compute from the delta. (Ignore deltas with poor accuracy so a
+  // bouncy GPS fix doesn't fake motion while we sit still.)
+  let sp = (typeof speed === 'number' && isFinite(speed) && speed >= 0) ? speed : NaN;
+  if (!isFinite(sp) && _driveLastFix) {
+    const dt = (now - _driveLastFix.t) / 1000;
+    if (dt > 0 && dt < 30 && (accuracy == null || accuracy < 50)) {
+      sp = _haversineMeters(_driveLastFix.lat, _driveLastFix.lng, lat, lng) / dt;
+      // GPS jitter inflation: sub-1 m/s readings while idle = noise.
+      if (sp < 0.4) sp = 0;
+    }
+  }
+  if (!isFinite(sp)) sp = 0;
+  _driveLastFix = { lat, lng, t: now };
   _driveBufSpeed.push(sp);
-  if (_driveBufSpeed.length > 6) _driveBufSpeed.shift();
+  if (_driveBufSpeed.length > 5) _driveBufSpeed.shift();
   const avg = _driveBufSpeed.reduce((a, b) => a + b, 0) / _driveBufSpeed.length;
   const hud = $('drive-hud'), sps = $('dh-sp');
   if (sps) sps.textContent = Math.round(avg * 3.6) + ' km/h';
   if (hud) hud.classList.toggle('visible', _driveMode === 'driving');
 
-  const now = Date.now();
   const dwell = now - _driveLastSwitchAt;
-  // Hysteresis: 5 m/s = 18 km/h to enter, 1 m/s = 3.6 km/h to leave
-  if (_driveMode === 'drone' && avg > 5 && dwell > 3000) {
+  if (_driveMode === 'drone' && avg > 2.5 && dwell > 1500) {
     _driveMode = 'driving'; _driveLastSwitchAt = now;
+    _settledSince = 0;
     _enterDriving(lat, lng, heading);
   } else if (_driveMode === 'driving') {
-    if (avg < 1 && dwell > 5000) {
-      _driveMode = 'drone'; _driveLastSwitchAt = now;
-      _enterDrone(lat, lng);
+    if (avg < 0.6) {
+      // Start a settled-since clock; only switch back after 6 s still.
+      if (!_settledSince) _settledSince = now;
+      if (now - _settledSince > 6000 && dwell > 2000) {
+        _driveMode = 'drone'; _driveLastSwitchAt = now;
+        _settledSince = now;
+        _enterDrone(lat, lng);
+      } else {
+        _followDriving(lat, lng, heading);
+      }
     } else {
-      // Continuously follow while driving
+      _settledSince = 0;
       _followDriving(lat, lng, heading);
+    }
+  } else if (_driveMode === 'drone') {
+    // Slumber: still for 90 s → lift to the world tier. The user keeps
+    // a clear pin on themselves but reclaims the bigger view.
+    if (avg < 0.6) {
+      if (!_settledSince) _settledSince = now;
+      const stillFor = now - _settledSince;
+      const sinceLift = now - _slumberedAt;
+      if (stillFor > 90_000 && sinceLift > 60_000 && (typeof currentLevel === 'undefined' || currentLevel !== 'global')) {
+        _slumberedAt = now;
+        _enterSlumber();
+      }
+    } else {
+      _settledSince = 0;
     }
   }
 }
@@ -5707,31 +5761,52 @@ function _enterDriving(lat, lng, heading) {
   if (!viewer) return;
   const h = (typeof heading === 'number' && !isNaN(heading)) ? heading : 0;
   viewer.camera.flyTo({
-    destination: Cesium.Cartesian3.fromDegrees(lng, lat, 120),
-    duration: 1.6,
+    destination: Cesium.Cartesian3.fromDegrees(lng, lat, 150),
+    duration: 1.4,
     orientation: { heading: Cesium.Math.toRadians(h), pitch: Cesium.Math.toRadians(-25), roll: 0 },
   });
-  toast('Driving view engaged', 'ok');
 }
 function _enterDrone(lat, lng) {
   if (!viewer) return;
   viewer.camera.flyTo({
-    destination: Cesium.Cartesian3.fromDegrees(lng, lat, 600),
-    duration: 1.8,
+    destination: Cesium.Cartesian3.fromDegrees(lng, lat, 500),
+    duration: 1.6,
     orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 },
   });
-  toast('Drone view restored', '');
+}
+function _enterSlumber() {
+  if (!viewer) return;
+  // Lift back to the home tier — GLOBAL — over the user's last fix so
+  // the pin stays directly below the camera.
+  const lat = window._userLat ?? 20, lng = window._userLng ?? 0;
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(lng, lat, 12_000_000),
+    duration: 2.4,
+    orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 },
+  });
 }
 function _followDriving(lat, lng, heading) {
   if (!viewer) return;
   const h = (typeof heading === 'number' && !isNaN(heading)) ? heading : null;
-  // Snap camera; cheap each tick, avoids dueling flyTo
   viewer.camera.setView({
-    destination: Cesium.Cartesian3.fromDegrees(lng, lat, 120),
+    destination: Cesium.Cartesian3.fromDegrees(lng, lat, 150),
     orientation: { heading: h != null ? Cesium.Math.toRadians(h) : viewer.camera.heading,
                    pitch: Cesium.Math.toRadians(-25), roll: 0 },
   });
 }
+// Auto-arm the slumber/wake watch on boot if geolocation permission was
+// already granted in a previous session. The user shouldn't have to tap
+// "Locate" before the camera starts paying attention.
+(function _armDriveWatchOnBoot() {
+  try {
+    if (!navigator.geolocation || !navigator.permissions || !navigator.permissions.query) return;
+    navigator.permissions.query({ name: 'geolocation' }).then(p => {
+      if (p && p.state === 'granted') {
+        setTimeout(() => { try { startDriveWatch(); } catch (_) {} }, 1200);
+      }
+    }).catch(() => {});
+  } catch (_) {}
+})();
 
 /* ==============================================================
    ROUTING (§13b) — real OSRM driving routes, drawn on the globe.
@@ -10676,14 +10751,14 @@ function _pickVoice(lang) {
   if (!_ttsVoices.length) _loadVoices();
   lang = (lang || (navigator.language || 'en-US')).slice(0, 2);
   const inLang = _ttsVoices.filter(v => v.lang.toLowerCase().startsWith(lang));
-  if (lang === 'en') {
-    const deep = ['Google UK English Male','Microsoft Guy','Microsoft Davis','Daniel','Arthur','Rishi','Microsoft Mark','Alex','Fred','Oliver','Aaron'];
-    for (const w of deep) { const v = _ttsVoices.find(v => v.name.includes(w)); if (v) return v; }
-  }
-  // Prefer a male/neutral voice in the target language; avoid clearly female names.
-  const female = /(female|samantha|victoria|karen|moira|tessa|fiona|serena|zira|susan|catherine|hazel|amelie|anna|melina)/i;
-  return inLang.find(v => !female.test(v.name)) || inLang[0] ||
-         _ttsVoices.find(v => v.lang.startsWith('en')) || null;
+  // Prefer premium / natural voices in the target language. Apple "Enhanced"
+  // and "Premium", Google neural, and Microsoft Natural voices all sound
+  // dramatically cleaner than the default robotic eSpeak fallback.
+  const premium = inLang.filter(v => /(Premium|Enhanced|Neural|Natural|Google)/i.test(v.name));
+  if (premium.length) return premium[0];
+  // System default for the language, then any English voice.
+  return inLang.find(v => v.default) || inLang[0] ||
+         _ttsVoices.find(v => v.lang.toLowerCase().startsWith('en')) || null;
 }
 function speakAstranov(text) {
   try {
@@ -10694,8 +10769,11 @@ function speakAstranov(text) {
     const u = new SpeechSynthesisUtterance(clean);
     const v = _pickVoice(lang); if (v) u.voice = v;
     u.lang = (v && v.lang) || (lang === 'el' ? 'el-GR' : (navigator.language || 'en-US'));
-    u.rate = 0.9; u.pitch = 0.6;
-    u.volume = (typeof window._astranovVolume === 'number') ? window._astranovVolume : 1.0;   // slow + low = deep & calm
+    // Natural pitch + rate. The earlier 0.6 pitch made the voice sound
+    // strangled and warped — using the voice's own intended pitch and
+    // a slightly-quick rate sounds clean.
+    u.rate = 1.0; u.pitch = 1.0;
+    u.volume = (typeof window._astranovVolume === 'number') ? window._astranovVolume : 1.0;
     u.onstart = () => { _speaking = true; $('aicycle-float')?.classList.add('speaking'); };
     u.onend = () => {
       _speaking = false;
