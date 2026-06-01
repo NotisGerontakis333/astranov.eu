@@ -1292,19 +1292,20 @@ Single-file by design. Any AI/human can continue from this comment + the law.
     animation: pilot-spin 14s linear infinite;
   }
   @keyframes pilot-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-  /* Me orb identity glow — always the warmest, always the user's anchor.
-     Wears the user's initials and glows continuously so it's findable. */
+  /* Me orb identity glow — chrysos (mosaic gold). The user is the heart of
+     the constellation; gold is the AstranoV signature. Initials in marble. */
   .informant.sys-me .orb {
-    border-color: rgba(126,235,180,0.95);
+    border-color: rgba(240,200,117,0.95);
     animation: me-glow 3s ease-in-out infinite;
   }
   .informant.sys-me .orb-glyph {
-    font-size: 22px; font-weight: 800; letter-spacing: 0.02em; color: #eafff4;
-    text-shadow: 0 0 8px rgba(126,235,180,0.95), 0 0 18px rgba(126,235,180,0.6);
+    font-family: var(--font-display); font-size: 22px; font-weight: 800;
+    letter-spacing: 0.04em; color: var(--marble);
+    text-shadow: 0 0 8px rgba(240,200,117,0.95), 0 0 18px rgba(212,160,71,0.6);
   }
   @keyframes me-glow {
-    0%,100% { box-shadow: 0 0 16px rgba(126,235,180,0.6), inset 0 0 12px rgba(0,0,0,0.5); }
-    50%     { box-shadow: 0 0 30px rgba(126,235,180,1), 0 0 60px rgba(126,235,180,0.5), inset 0 0 14px rgba(0,0,0,0.55); }
+    0%,100% { box-shadow: 0 0 16px rgba(240,200,117,0.55), inset 0 0 12px rgba(0,0,0,0.5); }
+    50%     { box-shadow: 0 0 30px rgba(240,200,117,1), 0 0 60px rgba(212,160,71,0.45), inset 0 0 14px rgba(0,0,0,0.55); }
   }
   /* Me orb in alert mode — speaking to the user right now. */
   .informant.sys-me.alert .orb {
@@ -1660,8 +1661,10 @@ Single-file by design. Any AI/human can continue from this comment + the law.
   }
   .agent-card-meta { flex: 1; min-width: 0; }
   .agent-card-name {
-    font-size: 16px; font-weight: 500; color: #e6f1ff;
+    font-family: var(--font-display); font-size: 17px; font-weight: 600;
+    letter-spacing: 0.04em; color: var(--marble);
     line-height: 1.2; word-break: break-word;
+    text-shadow: 0 0 8px rgba(212,160,71,0.18);
   }
   .agent-card-role {
     display: inline-block; margin-top: 4px;
@@ -1743,8 +1746,9 @@ Single-file by design. Any AI/human can continue from this comment + the law.
     50%      { box-shadow: 0 0 0 12px rgba(120, 180, 255, 0); }
   }
   #aicycle-float .node { position: relative; z-index: 2; width: 12px; height: 12px; border-radius: 50%;
-                     background: #7eb4ff; box-shadow: 0 0 16px rgba(120, 180, 255, 1);
-                     transition: background 0.2s; }
+                     background: radial-gradient(circle, var(--chrysos-hi) 0%, var(--chrysos) 60%, transparent 100%);
+                     box-shadow: 0 0 18px rgba(240,200,117,0.95), 0 0 32px rgba(93,178,255,0.25);
+                     transition: background 0.2s, box-shadow var(--t-mid) var(--ease); }
   #aicycle-float .provider {
     position: absolute; z-index: 2; bottom: -18px; left: 50%; transform: translateX(-50%);
     font-size: 9px; letter-spacing: 0.15em; color: rgba(200, 220, 255, 0.7);
@@ -2922,8 +2926,10 @@ Single-file by design. Any AI/human can continue from this comment + the law.
   }
   /* ME panel components */
   .me-sec {
-    font-size: 9px; letter-spacing: 0.2em; color: #3a5a7a;
-    text-transform: uppercase; margin: 18px 0 7px;
+    font-family: var(--font-display); font-size: 10px; font-weight: 600;
+    letter-spacing: 0.28em; text-indent: 0.28em; color: var(--chrysos);
+    text-transform: uppercase; margin: 22px 0 8px;
+    border-bottom: 1px solid rgba(212,160,71,0.18); padding-bottom: 4px;
   }
   .me-chips {
     display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px;
@@ -3490,6 +3496,15 @@ async function bootCesium() {
       // Skybox + atmosphere look
       skyAtmosphere: new Cesium.SkyAtmosphere(),
     });
+
+    // HELLENIC-COSMIC atmosphere — tilt the limb toward Aegean blue with a
+    // hint of warm so the planet feels like it sits in a wine-dark sea, not
+    // a clinical Cesium-default blue.
+    try {
+      const a = viewer.scene.skyAtmosphere;
+      if (a) { a.hueShift = -0.02; a.saturationShift = 0.10; a.brightnessShift = -0.04; }
+      if (viewer.scene.globe) { viewer.scene.globe.showGroundAtmosphere = true; }
+    } catch (_) {}
 
     // Hide credit overlay (Ion's required attribution still serves via tile metadata)
     if (viewer.cesiumWidget?.creditContainer) {
@@ -4413,7 +4428,7 @@ const _orbState = []; // [{ kind, infId|sysId, cart, beam, isEvent, color, lat, 
 // always sees them clustered on the near side of Earth.
 // Me also carries an event-bound beam down to the user's actual lat/lng.
 const _SYSTEM_ORB_TIERS = [
-  { id: 'sys-me',       name: 'Me',        emoji: '◉',  color: '#7eebb4', alt: 26_000_000, latOff:   0, boost: 1.25, classes: 'system sys-me',       onclick: 'expandMeOrb()' },
+  { id: 'sys-me',       name: 'Me',        emoji: '◉',  color: '#f0c875', alt: 26_000_000, latOff:   0, boost: 1.25, classes: 'system sys-me',       onclick: 'expandMeOrb()' },
   { id: 'sys-eur',      name: 'Wallet',    emoji: '€',  color: '#ffd47e', alt: 14_000_000, latOff:  50, boost: 1.00, classes: 'system sys-eur',      onclick: 'openWalletPanel()' },
   { id: 'sys-pilot',    name: 'Pilot',     emoji: '🌍', color: '#6dd0ff', alt: 22_000_000, latOff:  28, boost: 0.95, classes: 'system sys-pilot',    onclick: 'pilotHome()' },
   { id: 'sys-astranov', name: 'Astranov',  emoji: '◈',  color: '#a8c8ee', alt: 16_000_000, latOff: -28, boost: 0.85, classes: 'system sys-astranov', onclick: 'openAstranov()' },
@@ -4459,7 +4474,7 @@ function _refreshMeBeam() {
         width: 3,
         arcType: Cesium.ArcType.NONE,
         material: new Cesium.PolylineGlowMaterialProperty({
-          color: Cesium.Color.fromCssColorString('#7eebb4').withAlpha(0.9),
+          color: Cesium.Color.fromCssColorString('#f0c875').withAlpha(0.9),  /* chrysos pillar */
           glowPower: 0.4, taperPower: 0.5,
         }),
       },
