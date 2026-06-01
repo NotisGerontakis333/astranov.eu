@@ -2087,8 +2087,11 @@ Single-file by design. Any AI/human can continue from this comment + the law.
                    max-width: 85%; font-size: 14px; line-height: 1.4; }
   #aicycle-chat .msg.user { background: rgba(120, 180, 255, 0.12); margin-left: auto; }
   #aicycle-chat .msg.ai   { background: rgba(255, 255, 255, 0.04); }
-  #aicycle-chat .msg .via { font-size: 9px; letter-spacing: 0.15em;
-                        color: #6a8aaf; text-transform: uppercase; margin-bottom: 4px; }
+  #aicycle-chat .msg .via { font-family: var(--font-display); font-size: 10px; letter-spacing: 0.22em;
+                        color: var(--chrysos); text-transform: uppercase; margin-bottom: 4px; }
+  #aicycle-chat .msg .routed { margin-top: 6px; font-size: 9px; letter-spacing: 0.1em;
+                        color: var(--dim); font-style: italic; opacity: 0.85;
+                        border-top: 1px dashed rgba(212,160,71,0.18); padding-top: 4px; }
   #aicycle-chat form { display: flex; gap: 10px; padding: 12px; align-items: center;
                    border-top: 1px solid rgba(120, 180, 255, 0.1); }
   #aicycle-chat input { flex: 1; }
@@ -10142,14 +10145,36 @@ const aicycleHistory = [];
 })();
 
 const ENGINE_SHORT = { anthropic: 'ANT', openrouter: 'OR', groq: 'GRQ', gemini: 'GEM',
-  deepseek: 'DS', mistral: 'MST', xai: 'XAI', together: 'TGT', perplexity: 'PPX', astranov: 'AV' };
+  deepseek: 'DS', mistral: 'MST', xai: 'XAI', together: 'TGT', perplexity: 'PPX', cohere: 'CHR', astranov: 'AV' };
+const ENGINE_NAME = { anthropic: 'Anthropic', openrouter: 'OpenRouter', groq: 'Groq',
+  gemini: 'Gemini', deepseek: 'DeepSeek', mistral: 'Mistral', xai: 'xAI Grok',
+  together: 'Together', perplexity: 'Perplexity', cohere: 'Cohere', astranov: 'Astranov' };
 function _setEngineIndicator(engine) {
   const el = $('aicycle-provider');
   if (!el) return;
   const code = ENGINE_SHORT[engine] || (engine ? engine.slice(0, 3).toUpperCase() : 'AV');
   el.textContent = code;
   const ring = $('aicycle-float');
-  if (ring) ring.title = engine ? ('Astranov via ' + engine + ' — tap for AI cycle') : 'AI cycle';
+  if (ring) ring.title = engine ? ('Astranov via ' + (ENGINE_NAME[engine] || engine) + ' — tap to talk, long-press for the dial') : 'AI cycle';
+}
+
+// Ring SWEEP animation — during a turn the provider label cycles through the
+// engine short-codes, then lands on whichever organ actually answered. The
+// owner asked: "everything that happens has to be visible so the users know."
+let _sweepTimer = 0;
+const _SWEEP_KEYS = ['anthropic','openrouter','groq','gemini','deepseek','mistral','xai','together','perplexity','cohere'];
+function _startEngineSweep() {
+  const el = $('aicycle-provider'); if (!el) return;
+  clearInterval(_sweepTimer);
+  let i = 0;
+  _sweepTimer = setInterval(() => {
+    el.textContent = ENGINE_SHORT[_SWEEP_KEYS[i % _SWEEP_KEYS.length]] || 'AI';
+    i++;
+  }, 110);
+}
+function _stopEngineSweep(engine) {
+  clearInterval(_sweepTimer); _sweepTimer = 0;
+  try { _setEngineIndicator(engine); } catch (_) {}
 }
 
 async function openAICycleConsole() {
@@ -10485,18 +10510,20 @@ async function runAstranovAgent(userText) {
     for (let step = 0; step < 6; step++) {
       const prompt = convo[convo.length - 1].content;
       const history = convo.slice(0, -1);
+      _startEngineSweep();
       const { data, error } = await sb.functions.invoke('aicycle', {
         body: { agent: true, prompt, history, mode: window._astranovMode || '', engine: window._aiEngine || 'astranov' },
       });
+      _stopEngineSweep(data && data.engine);
       if (error) throw error;
-      try { _setEngineIndicator(data.engine); } catch (_) {}
+      const info = { engine: data.engine, routedBy: data.routedBy, participants: data.participants };
       const parsed = _parseAgentJSON(data.response);
       if (!parsed) {            // model spoke plainly — treat as final answer
-        appendAICycleMessage('ai', data.response, 'astranov', '');
+        appendAICycleMessage('ai', data.response, 'astranov', '', info);
         speakAstranov(data.response);
         break;
       }
-      if (parsed.say) { appendAICycleMessage('ai', parsed.say, 'astranov', ''); speakAstranov(parsed.say); }
+      if (parsed.say) { appendAICycleMessage('ai', parsed.say, 'astranov', '', info); speakAstranov(parsed.say); }
       convo.push({ role: 'assistant', content: JSON.stringify(parsed) });
       const act = parsed.action;
       if (!act || parsed.done) break;
@@ -10504,6 +10531,7 @@ async function runAstranovAgent(userText) {
       convo.push({ role: 'user', content: 'OBSERVATION (tool=' + act.tool + '): ' + JSON.stringify(obs).slice(0, 1600) });
     }
   } catch (e) {
+    _stopEngineSweep();
     appendAICycleMessage('ai', '(Astranov could not complete that: ' + (e.message || e) + ')', 'offline', 'fallback');
   } finally {
     $('aicycle-float').classList.remove('thinking'); window._gfxThinking = false;
@@ -10516,7 +10544,7 @@ function _setAILabel() { /* no-op: there is only Astranov */ }
 function renderACIModels() { const c = $('aci-models'); if (c) c.innerHTML = ''; }
 function updateACIModels() { /* no-op */ }
 
-function appendAICycleMessage(role, text, provider, via) {
+function appendAICycleMessage(role, text, provider, via, info) {
   const div = document.createElement('div');
   div.className = 'msg ' + role;
   if (role === 'ai') {
@@ -10528,6 +10556,22 @@ function appendAICycleMessage(role, text, provider, via) {
   const t = document.createElement('div');
   t.textContent = text;
   div.appendChild(t);
+  // Provenance caption — which organ answered, by what reason. Visible by law:
+  // "everything that happens has to be visible so the users know."
+  if (role === 'ai' && info && (info.engine || info.routedBy)) {
+    const r = document.createElement('div');
+    r.className = 'routed';
+    const parts = info.participants || [];
+    let body;
+    if (info.engine === 'astranov' && parts.length > 1) {
+      body = 'judgment of ' + parts.length + ' minds (' + parts.map(p => ENGINE_NAME[p] || p).join(' + ') + ')';
+    } else if (info.engine) {
+      body = 'via ' + (ENGINE_NAME[info.engine] || info.engine);
+    } else { body = ''; }
+    if (info.routedBy) body += (body ? ' · ' : '') + info.routedBy;
+    r.textContent = body;
+    if (body) div.appendChild(r);
+  }
   aicycleMessages.appendChild(div);
   aicycleMessages.scrollTop = aicycleMessages.scrollHeight;
 }
