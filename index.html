@@ -10345,7 +10345,9 @@ function openAstranov() {
   aicycleChat.classList.add('visible');
   aicycleChat.style.height = ''; aicycleChat.style.maxHeight = '';
   window._manualToldUser = null;
-  setTimeout(() => { try { $('aicycle-input')?.focus({ preventScroll: true }); } catch (_) {} }, 200);
+  // Do NOT auto-focus the input. Auto-focus pops the mobile keyboard
+  // and floods the screen. The user taps the input field explicitly
+  // when they want to type.
 }
 function closeAstranov() {
   aicycleChat.classList.remove('visible');
@@ -10790,7 +10792,8 @@ function _manualMode(msg) {
     speakAstranov(msg);
     window._manualToldUser = msg;
   }
-  $('aicycle-input')?.focus();
+  // No auto-focus — auto-popping the mobile keyboard floods the screen.
+  // The user taps the input when they want to type.
 }
 
 async function startVoiceSession() {
