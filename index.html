@@ -3545,15 +3545,24 @@ async function bootCesium() {
       timeline: false,
       navigationHelpButton: false,
       navigationInstructionsInitiallyVisible: false,
-      // Render continuously — requestRenderMode:true was leaving a frozen,
-      // half-painted frame on boot (the "blurry beige" globe-that-never-draws).
-      requestRenderMode: false,
+      // ON-DEMAND rendering — only redraw when something actually
+      // changes. With requestRender wired on every interaction (camera
+      // moveStart, orb refresh, panel open, tile load), this drops
+      // idle GPU work to zero while keeping interactions fluid. The
+      // old half-painted-on-boot issue is solved by calling
+      // requestRender() right after every imagery / camera setup
+      // step below.
+      requestRenderMode: true,
+      maximumRenderTimeChange: Infinity,
       // No default imagery — the imagery cycle manages this
       baseLayer: false,
       // Allow both 3D and 2D
       scene3DOnly: false,
       // Skybox + atmosphere look
       skyAtmosphere: new Cesium.SkyAtmosphere(),
+      // FXAA on mobile is expensive for what it gives us; let the
+      // OS compositor handle anti-aliasing.
+      msaaSamples: 1,
     });
 
     // HELLENIC-COSMIC atmosphere — tilt the limb toward Aegean blue with a
@@ -3582,10 +3591,31 @@ async function bootCesium() {
     cc.minimumZoomDistance = 5;            // 5 m above ground
     cc.maximumZoomDistance = 2_000_000_000; // 2 M km — pull back into the stars (cosmic tier)
     cc.enableTilt = true; cc.enableRotate = true;
-    viewer.scene.globe.maximumScreenSpaceError = 1.66; // sharper than default
-    viewer.scene.globe.preloadSiblings = true;
-    viewer.scene.globe.tileCacheSize = 1500;            // keep more tiles in RAM
-    viewer.resolutionScale = Math.min(2, window.devicePixelRatio || 1);
+    // LOD: default Cesium uses 2.0. We back off to 2.0 (was 1.66) to
+    // cut tile volume roughly in half — barely visible on phone, big
+    // win for tile fetch + GPU upload, which were the "stuck while
+    // zooming" cost.
+    viewer.scene.globe.maximumScreenSpaceError = 2.0;
+    viewer.scene.globe.preloadSiblings = false;          // was true; killed boot-time tile flood
+    viewer.scene.globe.tileCacheSize = 1000;             // a touch lower, gentler on phone RAM
+    // Cap render resolution at 1.25× — on a 3× DPR phone we'd otherwise
+    // render 9× the pixels of a 1× canvas. 1.25 keeps text crisp without
+    // murdering the GPU.
+    viewer.resolutionScale = Math.min(1.25, window.devicePixelRatio || 1);
+    // Atmosphere lighting is a pretty shader. Keep the static ground
+    // atmosphere (cheap) but disable the dynamic per-frame variant
+    // (expensive on mobile).
+    try { viewer.scene.globe.dynamicAtmosphereLighting = false; } catch (_) {}
+    // FXAA off — it adds a full-screen post-pass for diminishing
+    // returns; the device's compositor smooths the canvas for us.
+    try { if (viewer.scene.postProcessStages && viewer.scene.postProcessStages.fxaa)
+            viewer.scene.postProcessStages.fxaa.enabled = false; } catch (_) {}
+    // Fog is dense and only meaningful at NATIONAL+ tiers; turn it
+    // off at GLOBAL where it just wastes shader cycles on rim haze.
+    try { viewer.scene.fog.enabled = false; } catch (_) {}
+    // Force the first paint right now so requestRenderMode doesn't
+    // leave a half-drawn boot frame.
+    viewer.scene.requestRender();
 
     // Glowing blue major-city beacons — click to dive into a city
     buildCityBeacons();
@@ -3609,6 +3639,10 @@ async function bootCesium() {
       try {
         const strip = document.getElementById('tile-strip');
         if (strip) strip.classList.add('hide-orbit');
+        // Pause all in-orb <video> elements so the decoder doesn't burn
+        // frames during the flight. They resume in renderInformants
+        // after the camera settles (the new <video> tags re-autoplay).
+        document.querySelectorAll('.orb-video').forEach(v => { try { v.pause(); } catch (_) {} });
       } catch (_) {}
     });
     onCameraSettled();
