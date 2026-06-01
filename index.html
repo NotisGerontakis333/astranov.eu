@@ -10177,6 +10177,88 @@ function _stopEngineSweep(engine) {
   try { _setEngineIndicator(engine); } catch (_) {}
 }
 
+/* ==============================================================
+   CO-PILOT MODE — ambient awareness while you move. The brain watches
+   your GPS, scans nearby places, and surfaces ONE useful tip aloud.
+   Spartan, on-demand, never spammy. The owner asked to ride together;
+   this is the riding. (Visible by law: every suggestion appears in
+   the chat with its provenance.)
+   ============================================================== */
+window._copilot = { on: false, intervalId: 0, lastScanAt: 0, lastLat: null, lastLng: null, seen: new Set() };
+function startCopilot() {
+  window._copilot.on = true;
+  try { localStorage.setItem('astranov_copilot', '1'); } catch (_) {}
+  toast('◉ Co-pilot on · scanning around you', 'ok');
+  clearInterval(window._copilot.intervalId);
+  window._copilot.intervalId = setInterval(_copilotTick, 30_000);
+  setTimeout(_copilotTick, 2500);
+}
+function stopCopilot() {
+  window._copilot.on = false;
+  try { localStorage.removeItem('astranov_copilot'); } catch (_) {}
+  clearInterval(window._copilot.intervalId);
+  window._copilot.intervalId = 0;
+  toast('Co-pilot off', '');
+}
+function _coDist(aLat, aLng, bLat, bLng) {
+  const R = 6371000, toR = Math.PI / 180;
+  const dLat = (bLat - aLat) * toR, dLng = (bLng - aLng) * toR;
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(aLat * toR) * Math.cos(bLat * toR) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(s));
+}
+async function _copilotTick() {
+  if (!window._copilot.on) return;
+  if (window._userLat == null || window._userLng == null) return;
+  const now = Date.now();
+  const since = now - window._copilot.lastScanAt;
+  const moved = (window._copilot.lastLat == null) ? Infinity :
+    _coDist(window._copilot.lastLat, window._copilot.lastLng, window._userLat, window._userLng);
+  if (since < 90_000 && moved < 300) return;
+  await _copilotScan();
+}
+async function _copilotScan() {
+  if (!sb) return;
+  window._copilot.lastScanAt = Date.now();
+  window._copilot.lastLat = window._userLat;
+  window._copilot.lastLng = window._userLng;
+  let places = [];
+  try {
+    const speed = (_driveBufSpeed && _driveBufSpeed.length)
+      ? _driveBufSpeed.reduce((a, b) => a + b, 0) / _driveBufSpeed.length : 0;
+    const radius = speed > 5 ? 3000 : (speed > 1 ? 1200 : 700);
+    places = await _agentFindPlaces('', radius);
+  } catch (_) { return; }
+  const fresh = places.filter(p => p.raw && !window._copilot.seen.has(p.raw.id)).slice(0, 12);
+  if (!fresh.length) return;
+  const summary = fresh.map((p, i) => `${i + 1}. ${p.name} — ${p.category || 'place'} · ${p.dist}m`).join('\n');
+  const prompt = `I'm near (${window._userLat.toFixed(4)}, ${window._userLng.toFixed(4)}). Nearby right now:\n${summary}\n\nIs ANY of these worth a one-line aside? Pick AT MOST one, write it for the ear (≤22 words, no headers). If nothing's interesting, reply exactly: silent.`;
+  _startEngineSweep();
+  let data;
+  try {
+    const r = await sb.functions.invoke('aicycle', {
+      body: { copilot: true, prompt, mode: 'spartan', engine: window._aiEngine || 'astranov' },
+    });
+    data = r.data;
+  } catch (_) { _stopEngineSweep(); return; }
+  _stopEngineSweep(data && data.engine);
+  if (!data || !data.response) return;
+  const say = data.response.trim();
+  if (/^silent\b/i.test(say) || say.length < 4) {
+    // Even silence is logged so we know the loop ran.
+    fresh.forEach(p => window._copilot.seen.add(p.raw.id));
+    return;
+  }
+  fresh.forEach(p => window._copilot.seen.add(p.raw.id));
+  if (window._copilot.seen.size > 200) window._copilot.seen = new Set([...window._copilot.seen].slice(-100));
+  const info = { engine: data.engine, routedBy: data.routedBy || 'co-pilot', participants: data.participants };
+  // Open the chat so the suggestion is visible, append, speak.
+  try { if (!aicycleChat.classList.contains('visible')) aicycleChat.classList.add('visible'); } catch (_) {}
+  appendAICycleMessage('ai', '◉ co-pilot · ' + say, 'astranov', '', info);
+  try { speakAstranov(say); } catch (_) {}
+}
+// Restore co-pilot if the user had it on last session.
+try { if (localStorage.getItem('astranov_copilot') === '1') setTimeout(startCopilot, 4500); } catch (_) {}
+
 async function openAICycleConsole() {
   openPanel(`<h2>AI Cycle</h2><div class="subtitle">the brain's living connections</div>
     <div id="aicycle-console" style="color:#7eb4ff;font-size:12px;padding:14px 0">Reading the cycle…</div>`);
@@ -10215,7 +10297,17 @@ async function openAICycleConsole() {
       <span>${escapeHtml(label)}</span><span style="font-size:8px;opacity:0.65">${escapeHtml(sub)}</span></div>`;
   const lockChips = d.engines.filter(e => e.connected).map(e => dialChip(e.key, e.label, 'lock')).join('');
 
+  const copilotOn = !!(window._copilot && window._copilot.on);
   host.innerHTML = `
+    <div class="me-sec">Co-pilot — ambient awareness while you move</div>
+    <div class="me-chips">
+      <div class="me-chip${copilotOn ? ' on' : ''}" onclick="${copilotOn ? 'stopCopilot()' : 'startCopilot()'};setTimeout(openAICycleConsole, 50)" style="display:flex;flex-direction:column;align-items:flex-start;gap:1px">
+        <span>${copilotOn ? '◉ Co-pilot ON' : 'Co-pilot OFF'}</span>
+        <span style="font-size:8px;opacity:0.7">${copilotOn ? 'scanning the city around you' : 'tap to ride together'}</span>
+      </div>
+    </div>
+    <div style="font-size:10px;color:#6a8aaf;margin:4px 0 8px">When ON, the brain watches your GPS, scans nearby places every ~90s or when you've moved 300m, and surfaces ONE useful tip aloud — an offer, a place to stop, a smarter route, a nearby news flash. Silent if nothing's worth interrupting.</div>
+
     <div class="me-sec">The dial — how the brain spends the cycle</div>
     <div class="me-chips">
       ${dialChip('astranov', 'AstranoV', 'auto · brain decides depth')}
