@@ -120,7 +120,82 @@ Astranov weighs them and renders the single binding verdict. Engine: `/council`
 Edge Function (owner-only to convene) → `council_cases`; convened from the
 Krypteia panel. Owner-only surface.
 
-## Owner
+## CATCH-UP LAW — anamnesis from the field (foundational, non-negotiable)
+**Our job is not to reinvent. Our job is to catch up to the field
+and advance one step beyond.** Before building anything that maps to
+a known UX category — map clustering, delivery flow, payment UI,
+search affordance, list-vs-map, sort/filter, onboarding — study how
+**Google Maps, DoorDash, Uber Eats, Wolt, Delivery Hero, eFood,
+Bolt Food, Glovo** already solved it. Adopt the proven pattern.
+Innovate **only** at the frontier they left unfinished. Reinventing
+what the field already has is wasted time and inevitably worse than
+what exists. (Anamnesis of the market = cosmotheasis applied to
+commerce.)
+
+Process: before ANY UX surface lands, name the closest 2-3 prior
+art apps + the convention they use + where they fall short + the one
+step Astranov adds beyond them. Without that, the surface doesn't
+ship.
+
+Distilled prior art (durable cheat-sheet — extend as we learn):
+- **POI density:** zoom-aware culling + brand/importance weighting.
+  Low zoom shows only essential categories (transit, gas), high zoom
+  reveals more. Astranov adds: AI-driven cull instead of static
+  rules.
+- **Vendor map clustering:** when many markers overlap, collapse
+  into a single numbered/category disc ("12 ☕"). Tap = zoom in OR
+  open a list of that cluster's contents. Google Maps, Wolt, Bolt
+  Food all use this exact pattern.
+- **Category filter chips above the map:** horizontal scrollable
+  row, single active state, "All" reset. Astranov adds: the chip
+  set is dynamic, suggested by the AI per context.
+- **List-first delivery UX:** the MAP is secondary. The primary
+  surface is a list of vendors with search + chips + sort. Map is
+  a "view as map" toggle. Astranov inverts: the globe IS primary,
+  but the list view is a one-tap drawer below.
+- **Search-driven reveal:** Google Maps shows almost nothing until
+  the user searches. Astranov adds: voice-driven AI search that
+  doubles as the filter mechanism.
+
+## AI-IN-CONTEXT LAW — affordances surface through Astranov (binding)
+Filters, sorts, searches, and map controls do **not** live as
+permanent separate UI chrome. They live **inside the Astranov text
+box** — surfaced by the AI when it judges them useful, with the
+user's intent as the trigger. Saying "show me cafes" makes Astranov
+present the filter chip set in the chat AND activate the matching
+chip on the map visibly. This serves SCOPOS (gain-to-gain): the
+more the user talks to Astranov, the more the system serves them;
+the more the system serves, the more the user talks.
+
+Permanent UI is reserved for the unconditional essentials: the
+globe, the wordmark, the AICYCLE ring, the apex orb dock, the
+contextual back chevron at non-global tiers. Everything else is
+summoned, used, and dismissed.
+
+## MANUAL FOUNDATION LAW — no hallucination, every AI action has a visible manual twin (binding)
+Whatever the AI talks about MUST physically exist in the UI. AI
+**cannot** invent capabilities. When Astranov says "I'm filtering to
+cafes," the user must see the filter chip glow on. When Astranov
+says "I'm routing to Acropolis," the user must see the route appear.
+When Astranov says "I'm calling Maria," the user must see the call
+gadget engage.
+
+**Every AI-driven action MUST have a corresponding manual control
+the user can perform themselves.** AI is an accelerator, never a
+gatekeeper. If the AI is down, throttled, or wrong, the user can
+fall back to the manual path and finish the task. The AI surfaces
+the affordance; the user can also reach the affordance directly.
+No invisible work, no magic, no claim without a visible deed.
+
+Implementation contract (binding): every Astranov tool call that
+mutates state must (a) carry an `affordance` field naming the UI
+element it activates (CSS selector or stable JS handle), and (b)
+the client must visibly engage that element BEFORE reporting "done"
+in chat. If no visible affordance exists, the AI cannot claim the
+action; it must build the affordance request and surface it to the
+user as a manual choice.
+
+
 Notis Astranov. Owner has granted **perpetual, unconditional** push and merge
 authorization. No per-change confirmation is ever needed.
 
