@@ -160,6 +160,28 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     Permanent UI is reserved for the unconditional essentials: globe,
     wordmark, AICYCLE ring, apex orb dock, contextual back chevron.
 
+0n. MOTHER-SHIP LAW — one orb to hold them all (binding, never regress)
+    The user always sees ONE orb: the MOTHER ORB. She holds Earth at
+    her centre and contains every other little orb inside her. The
+    rest of the chrome is summoned out of her, used, and thrown back in.
+    Gestures:
+    - TAP the mother → her disc expands; every small orb (Me, Wallet,
+      Pilot, Astranov, Discover, Volume, Mic, Bright, AI Cycle) fans
+      around her body. Tap a STOWED orb to release it onto the screen;
+      tap a RELEASED orb to stow it back.
+    - TAP the Earth at her centre → pilotHome (warp camera to GLOBAL).
+    - DRAG the mother → trackball-throwable like every other orb.
+    - FLING a free orb at the mother (released orb settles within her
+      capture radius after a fling) → absorbed, returns to inventory.
+    Visible deed per §0k Manual Foundation Law.
+    Persistence: released vs stowed + each released orb's position.
+    First-run default: AI Cycle and Me are released; the rest stowed.
+    Permanent UI is now exactly: globe, wordmark, mother orb. The
+    apex dock, control orbs, AICYCLE ring all live INSIDE the mother
+    by default. Prior art (Catch-up Law): Apple Dynamic Island, Jarvis
+    radial HUD, gaming radial inventories — Astranov adds physics-
+    based toss between inventory and workspace.
+
 0m. ORBITAL DIAL LAW — every control orb is a throwable trackball with
     a radial dial (binding, never regress)
     Every interactive orb obeys the same two-gesture grammar:
@@ -1956,6 +1978,110 @@ Single-file by design. Any AI/human can continue from this comment + the law.
   }
   .cfc-all { font-weight: 700; }
 
+  /* MOTHER ORB (§0n) — the mothership orb. One element holds every
+     small orb inside her by default; tap her to fan them out around
+     her body. Earth lives at her centre. Throwable like every orb. */
+  #mother-orb {
+    position: fixed; z-index: 220; width: 88px; height: 88px;
+    cursor: grab; -webkit-tap-highlight-color: transparent;
+    user-select: none; touch-action: none;
+    border-radius: 50%;
+    /* Default location: bottom-right corner, just clear of the
+       safe area + AICYCLE ring. The user can throw her anywhere. */
+    right: 18px; bottom: max(94px, calc(env(safe-area-inset-bottom) + 94px));
+    transition: transform 0.18s var(--ease), box-shadow 0.22s var(--ease);
+    will-change: transform;
+  }
+  #mother-orb.dragging, #mother-orb.flinging { cursor: grabbing; transition: none; }
+  #mother-orb:active { transform: scale(0.95); }
+  #mother-orb .mo-earth {
+    position: absolute; inset: 6px; border-radius: 50%;
+    background:
+      radial-gradient(circle at 36% 32%, rgba(255,255,255,0.18) 0%, transparent 36%),
+      radial-gradient(circle at 65% 70%, rgba(126,235,180,0.55) 0%, transparent 38%),
+      radial-gradient(circle at 30% 75%, rgba(126,235,180,0.45) 0%, transparent 32%),
+      linear-gradient(165deg, #0a3a64 0%, #06224a 55%, #021024 100%);
+    border: 1px solid rgba(207,226,255,0.55);
+    box-shadow:
+      inset 0 0 18px rgba(0,0,0,0.7),
+      inset 0 6px 14px rgba(207,226,255,0.18);
+  }
+  #mother-orb .mo-halo {
+    position: absolute; inset: -4px; border-radius: 50%; pointer-events: none;
+    box-shadow:
+      0 0 18px rgba(45,108,196,0.65),
+      0 0 40px rgba(20,52,120,0.55),
+      0 0 70px rgba(8,22,60,0.55);
+  }
+  #mother-orb.open .mo-halo {
+    box-shadow:
+      0 0 26px rgba(93,178,255,0.95),
+      0 0 60px rgba(45,108,196,0.7),
+      0 0 110px rgba(20,52,120,0.55);
+  }
+  /* MOTHER DISC — the inventory ring that fans out when the mother
+     is tapped. Each child token represents one stowable orb; tap to
+     toggle released/stowed. The disc is positioned by JS over the
+     mother's current coordinates. */
+  #mother-disc {
+    position: fixed; z-index: 219;
+    width: 0; height: 0;             /* anchored by left/top */
+    pointer-events: none; display: none;
+  }
+  #mother-disc.open { display: block; }
+  #mother-disc .md-veil {
+    position: fixed; inset: 0;
+    background: radial-gradient(circle at var(--md-cx, 50%) var(--md-cy, 50%),
+      rgba(2,6,18,0.05), rgba(2,6,18,0.55) 60%);
+    backdrop-filter: blur(1px); -webkit-backdrop-filter: blur(1px);
+    pointer-events: auto;
+  }
+  #mother-disc .md-ring {
+    position: absolute; left: 0; top: 0;
+    width: 0; height: 0;
+  }
+  #mother-disc .md-tok {
+    position: absolute; left: 0; top: 0;
+    width: 40px; height: 40px; margin: -20px 0 0 -20px;
+    border-radius: 50%; cursor: pointer; pointer-events: auto;
+    -webkit-tap-highlight-color: transparent;
+    background: radial-gradient(circle at 32% 32%,
+      color-mix(in srgb, var(--mt-c, #7eb4ff) 92%, white 18%),
+      var(--mt-c, #7eb4ff) 55%, #04101f 100%);
+    border: 1px solid color-mix(in srgb, var(--mt-c, #7eb4ff) 85%, transparent);
+    box-shadow:
+      inset 0 0 8px rgba(0,0,0,0.55),
+      0 0 14px color-mix(in srgb, var(--mt-c, #7eb4ff) 55%, transparent);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-display, 'Cinzel', serif);
+    font-size: 16px; font-weight: 700; color: #f4ede0;
+    text-shadow: 0 0 6px color-mix(in srgb, var(--mt-c, #7eb4ff) 70%, transparent);
+    transition: transform 0.22s var(--ease), box-shadow 0.18s var(--ease), opacity 0.22s var(--ease);
+    opacity: 0; transform: translate(0, 0) scale(0.6);
+  }
+  #mother-disc.open .md-tok {
+    opacity: 1;
+    transform: translate(var(--mtx, 0px), var(--mty, 0px)) scale(1);
+  }
+  #mother-disc .md-tok.released {
+    /* Released orbs glow brighter to show "I'm out, tap to stow me back." */
+    box-shadow:
+      inset 0 0 8px rgba(0,0,0,0.55),
+      0 0 22px color-mix(in srgb, var(--mt-c, #7eb4ff) 95%, transparent),
+      0 0 42px color-mix(in srgb, var(--mt-c, #7eb4ff) 45%, transparent);
+  }
+  #mother-disc .md-tok.stowed { opacity: 0.55; }
+  #mother-disc .md-tok:active { transform: translate(var(--mtx, 0px), var(--mty, 0px)) scale(0.92); }
+  #mother-disc .md-tok .md-name {
+    position: absolute; left: 50%; top: 44px; transform: translateX(-50%);
+    font-family: var(--font-body, system-ui, sans-serif);
+    font-size: 8px; font-weight: 600; letter-spacing: 0.18em;
+    color: rgba(244,237,224,0.85); text-transform: uppercase;
+    white-space: nowrap; pointer-events: none;
+    text-shadow: 0 0 4px color-mix(in srgb, var(--mt-c, #7eb4ff) 70%, transparent),
+                 0 1px 2px rgba(0,0,0,0.85);
+  }
+
   /* ORBITAL DIAL — radial control around an orb (§0m). One layer for
      the whole app; only one dial is ever open at a time. */
   #orbital-dial {
@@ -3513,6 +3639,16 @@ Single-file by design. Any AI/human can continue from this comment + the law.
 <!-- ORBITAL DIAL overlay — anchored to whichever orb is currently
      showing its dial. Single canonical layer (§0m ORBITAL DIAL LAW). -->
 <div id="orbital-dial" aria-hidden="true"></div>
+
+<!-- MOTHER ORB (§0n) — the OS centerpiece. Holds every small orb
+     inside her; tap to expand the disc; tap Earth (center) to warp
+     home. Throwable. Single always-visible chrome element along with
+     the wordmark and the globe itself. -->
+<div id="mother-orb" title="Astranov mothership · tap to open">
+  <div class="mo-earth" aria-hidden="true"></div>
+  <div class="mo-halo"  aria-hidden="true"></div>
+</div>
+<div id="mother-disc" aria-hidden="true"></div>
 
 <!-- Me spotlight — a line from the on-screen Me orb to the user's location. -->
 <svg id="me-spotlight"><line id="me-spot-line" x1="0" y1="0" x2="0" y2="0"></line></svg>
@@ -5483,6 +5619,204 @@ function _startMicMeter() {
       });
     },
   });
+})();
+
+/* ==============================================================
+   MOTHER ORB (§0n MOTHER-SHIP LAW) — the OS centerpiece. Holds
+   every small orb inside her; tap her body to fan a disc of them
+   around her; tap a token to release/stow; fling a released orb at
+   her to absorb it back.
+   ============================================================== */
+const MOTHER_INVENTORY = [
+  { id: 'sys-me',        label: 'Me',       color: '#f0c875', glyph: () => _meInitials() },
+  { id: 'sys-eur',       label: 'Wallet',   color: '#ffd47e', glyph: '€'  },
+  { id: 'sys-pilot',     label: 'Pilot',    color: '#6dd0ff', glyph: '🌍' },
+  { id: 'sys-astranov',  label: 'Astranov', color: '#a8c8ee', glyph: '◈'  },
+  { id: 'sys-discover',  label: 'Discover', color: '#ffb464', glyph: '⬢'  },
+  { id: 'aicycle-float', label: 'AI Cycle', color: '#a8c8ee', glyph: '◉'  },
+  { id: 'ctrl-mic',      label: 'Mic',      color: '#7eebb4', glyph: '🎙' },
+  { id: 'ctrl-vol',      label: 'Volume',   color: '#7eebb4', glyph: '🔊' },
+  { id: 'ctrl-bright',   label: 'Bright',   color: '#ffd47e', glyph: '☀'  },
+];
+window._mother = (function () {
+  let released;
+  try {
+    const r = localStorage.getItem('astranov_mother_released_v1');
+    released = r ? new Set(JSON.parse(r)) : null;
+  } catch (_) { released = null; }
+  if (!released) released = new Set(['aicycle-float', 'sys-me']);   // first-run defaults
+  return {
+    released,
+    save() {
+      try { localStorage.setItem('astranov_mother_released_v1', JSON.stringify([...this.released])); } catch (_) {}
+    },
+  };
+})();
+function _orbElementById(id) {
+  if (id.startsWith('sys-')) return document.querySelector(`#sys-orbs .so[data-orb="${id}"]`);
+  return document.getElementById(id);
+}
+function _applyMotherVisibility() {
+  // Each catalogued orb is shown only if "released."
+  for (const m of MOTHER_INVENTORY) {
+    const el = _orbElementById(m.id);
+    if (!el) continue;
+    el.style.display = window._mother.released.has(m.id) ? '' : 'none';
+  }
+}
+function _motherCentre() {
+  const m = document.getElementById('mother-orb');
+  if (!m) return { x: innerWidth - 60, y: innerHeight - 140 };
+  const r = m.getBoundingClientRect();
+  return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+}
+function _releaseOrb(id) {
+  window._mother.released.add(id);
+  window._mother.save();
+  _applyMotherVisibility();
+  // Place the orb near the mother, on the side away from the screen
+  // edge, so the user can see it appear.
+  const el = _orbElementById(id);
+  if (!el) return;
+  const c = _motherCentre();
+  const W = innerWidth, H = innerHeight;
+  const offX = (c.x < W / 2) ? 70 : -70;
+  const offY = -10;
+  const x = Math.max(8, Math.min(W - 56, c.x + offX - 22));
+  const y = Math.max(8, Math.min(H - 56, c.y + offY - 22));
+  el.style.left = x + 'px'; el.style.top = y + 'px';
+  el.style.right = 'auto'; el.style.bottom = 'auto';
+}
+function _stowOrb(id) {
+  window._mother.released.delete(id);
+  window._mother.save();
+  _applyMotherVisibility();
+}
+function _renderMotherDisc() {
+  const disc = document.getElementById('mother-disc');
+  if (!disc) return;
+  const c = _motherCentre();
+  disc.style.setProperty('--md-cx', c.x + 'px');
+  disc.style.setProperty('--md-cy', c.y + 'px');
+  // Inner HTML: a veil that captures taps outside the tokens, and the
+  // ring of token elements positioned via JS transforms.
+  disc.innerHTML = `<div class="md-veil"></div><div class="md-ring"></div>`;
+  const ring = disc.querySelector('.md-ring');
+  ring.style.left = c.x + 'px'; ring.style.top = c.y + 'px';
+  const veil = disc.querySelector('.md-veil');
+  veil.addEventListener('pointerdown', (e) => { if (e.target === veil) closeMotherDisc(); });
+  // Lay tokens on a circle around the mother. Radius scales with the
+  // count so a fuller inventory still fits.
+  const n = MOTHER_INVENTORY.length;
+  const W = innerWidth, H = innerHeight;
+  const radius = Math.min(132, Math.min(W, H) * 0.36);
+  MOTHER_INVENTORY.forEach((m, i) => {
+    const angle = (i / n) * Math.PI * 2 - Math.PI / 2;
+    const dx = Math.cos(angle) * radius;
+    const dy = Math.sin(angle) * radius;
+    const tok = document.createElement('div');
+    const isReleased = window._mother.released.has(m.id);
+    tok.className = 'md-tok ' + (isReleased ? 'released' : 'stowed');
+    tok.style.setProperty('--mt-c', m.color);
+    tok.style.setProperty('--mtx', dx + 'px');
+    tok.style.setProperty('--mty', dy + 'px');
+    tok.title = m.label + (isReleased ? ' — tap to stow' : ' — tap to release');
+    tok.dataset.id = m.id;
+    const glyph = typeof m.glyph === 'function' ? m.glyph() : m.glyph;
+    tok.innerHTML = `${escapeHtml(glyph)}<span class="md-name">${escapeHtml(m.label)}</span>`;
+    tok.addEventListener('pointerup', (e) => {
+      e.stopPropagation();
+      if (window._mother.released.has(m.id)) _stowOrb(m.id);
+      else                                   _releaseOrb(m.id);
+      _renderMotherDisc();   // refresh styles
+    });
+    ring.appendChild(tok);
+  });
+}
+function openMotherDisc() {
+  const disc = document.getElementById('mother-disc');
+  const m    = document.getElementById('mother-orb');
+  if (!disc || !m) return;
+  _renderMotherDisc();
+  disc.classList.add('open');
+  m.classList.add('open');
+  disc.setAttribute('aria-hidden', 'false');
+}
+function closeMotherDisc() {
+  const disc = document.getElementById('mother-orb') && document.getElementById('mother-disc');
+  if (!disc) return;
+  disc.classList.remove('open');
+  const m = document.getElementById('mother-orb');
+  if (m) m.classList.remove('open');
+  disc.setAttribute('aria-hidden', 'true');
+}
+window.openMotherDisc  = openMotherDisc;
+window.closeMotherDisc = closeMotherDisc;
+
+(function wireMotherOrb() {
+  const mo = document.getElementById('mother-orb');
+  if (!mo) return;
+  // Restore persisted position.
+  try {
+    const p = JSON.parse(localStorage.getItem('astranov_mother_pos') || 'null');
+    if (p && typeof p.x === 'number') {
+      mo.style.left = p.x + 'px'; mo.style.top = p.y + 'px';
+      mo.style.right = 'auto'; mo.style.bottom = 'auto';
+    }
+  } catch (_) {}
+  makeThrowableOrb(mo, {
+    size: 88, persistKey: 'astranov_mother_pos',
+    onTap: () => {
+      if (document.getElementById('mother-disc').classList.contains('open')) closeMotherDisc();
+      else openMotherDisc();
+    },
+  });
+  // Apply initial released/stowed state once the orbs exist in DOM.
+  setTimeout(_applyMotherVisibility, 80);
+  setTimeout(_applyMotherVisibility, 400);
+  setTimeout(_applyMotherVisibility, 1500);
+
+  // FLING-TO-ABSORB: every makeThrowableOrb fling fires settle via
+  // localStorage save. We hook a global pointerup that checks if a
+  // freshly-flung orb landed inside the mother's capture radius, and
+  // stow it if so. The check runs on next animation frame so the
+  // fling has settled.
+  document.addEventListener('pointerup', (e) => {
+    // Determine if pointer originated on a catalogued orb.
+    const path = e.target && e.target.closest ? e.target.closest('.so, .ctrl-orb, #aicycle-float') : null;
+    if (!path) return;
+    requestAnimationFrame(() => {
+      // After settle: poll for ~1.5 s in case a fling is still in flight.
+      let tries = 0;
+      const check = () => {
+        tries++;
+        const rect = path.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top  + rect.height / 2;
+        const m  = _motherCentre();
+        const d  = Math.hypot(cx - m.x, cy - m.y);
+        if (d < 70) {
+          // Absorbed.
+          const id = path.id || path.dataset.orb;
+          if (id && window._mother.released.has(id)) {
+            _stowOrb(id);
+            const disc = document.getElementById('mother-disc');
+            if (disc && disc.classList.contains('open')) _renderMotherDisc();
+          }
+          return;
+        }
+        if (path.classList.contains('flinging') && tries < 90) {
+          requestAnimationFrame(check);
+        }
+      };
+      requestAnimationFrame(check);
+    });
+  }, { passive: true });
+
+  // Re-render the disc if the mother moves while it's open.
+  window.addEventListener('resize', () => {
+    if (document.getElementById('mother-disc').classList.contains('open')) _renderMotherDisc();
+  }, { passive: true });
 })();
 
 /* ==============================================================
