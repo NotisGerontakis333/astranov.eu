@@ -3659,11 +3659,21 @@ async function bootCesium() {
     viewer.scene.canvas.addEventListener('pointerdown', stopSpin);
     viewer.scene.canvas.addEventListener('wheel',       stopSpin);
     viewer.scene.canvas.addEventListener('touchstart',  stopSpin);
+    // Auto-spin: gentle planetary rotation. THROTTLED to ~10 fps —
+    // before this gate, every clock tick rotated the camera, which
+    // forced a Cesium render every tick (60 fps continuous) and
+    // completely defeated requestRenderMode. Now we step ~10×/sec
+    // with a larger per-step delta, so the rotation looks the same
+    // and the GPU sleeps in between.
+    let _spinLastAt = 0;
     viewer.clock.onTick.addEventListener(() => {
       if (!window._autoSpin) return;
       if (currentLevel !== 'global') return;
       if (viewer.scene.mode !== Cesium.SceneMode.SCENE3D) return;
-      try { viewer.scene.camera.rotate(Cesium.Cartesian3.UNIT_Z, -0.0008); } catch (_) {}
+      const now = performance.now();
+      if (now - _spinLastAt < 100) return;          // ~10 fps gate
+      _spinLastAt = now;
+      try { viewer.scene.camera.rotate(Cesium.Cartesian3.UNIT_Z, -0.0048); } catch (_) {}
     });
     // Any programmatic camera motion (flyTo / setView, called by locate, click-
     // to-descend, fly-to-city, etc.) must kill the auto-spin so they don't fight.
@@ -5101,9 +5111,13 @@ function _orbPhysTick() {
 }
 
 // Re-scan the DOM after any panel/orbit render to wire up new orbs.
+// We DELIBERATELY do NOT install a global MutationObserver on
+// document.body subtree:true here. That observer was firing on every
+// node mutation anywhere in the document — keystrokes, hovers, the
+// whole panel system — and re-scanning the entire DOM each time.
+// Catastrophic. Callers (openPanel, expandOrb, renderInformants) call
+// _scanLivingOrbs() themselves on the surfaces they touch.
 function _scanLivingOrbs() { document.querySelectorAll('canvas.living-orb').forEach(_initLivingOrb); }
-// Also auto-scan when nodes are added — covers panels mounted asynchronously.
-new MutationObserver(() => _scanLivingOrbs()).observe(document.body, { childList: true, subtree: true });
 
 // ── AGENT SDK ───────────────────────────────────────────────────────────
 // Every panel in AstranoV is an agent's home. agentCard renders the unified
@@ -5221,8 +5235,11 @@ async function pollInformantFeeds() {
 function _startInformantFeedPolling() {
   if (_feedPollTimer) clearInterval(_feedPollTimer);
   _feedPollTimer = setInterval(() => { pollInformantFeeds().catch(() => {}); }, 240000);
-  // Kick a first poll immediately (but defer slightly so sb client is ready).
-  setTimeout(() => { pollInformantFeeds().catch(() => {}); }, 1500);
+  // First poll is deferred behind a long idle gate so it doesn't fight
+  // the boot for the main thread. Cesium has the floor for the first
+  // ~6 seconds; the news feed can wait.
+  const _idleKick = (fn, t) => (window.requestIdleCallback ? requestIdleCallback(fn, { timeout: t }) : setTimeout(fn, t));
+  _idleKick(() => { pollInformantFeeds().catch(() => {}); }, 6000);
 }
 function renderInformants() {
   const el = $('tile-strip'); if (!el) return;
@@ -6877,15 +6894,12 @@ function setUserBeacon(lat, lng) {
   // Tag so onCanvasClick can recognise the beacon and dive-to-me on tap.
   try { userBillboard.__userBeacon = true; } catch (_) {}
 
-  let t = 0;
-  (function animateBeacon() {
-    if (!userBillboard) return;
-    t += 0.038;
-    userBillboard.scale = 1 + 0.2 * Math.abs(Math.sin(t * 0.75));
-    userBillboard.pixelOffset = new Cesium.Cartesian2(0, Math.sin(t) * 5 - 3);
-    viewer.scene.requestRender();
-    _userBeaconRaf = requestAnimationFrame(animateBeacon);
-  })();
+  // The user beacon is a Cesium billboard — no per-frame JS pulse,
+  // no scene.requestRender each frame. The pulse runs as a slow CSS-
+  // like Cesium property animation via two NearFarScalar curves which
+  // Cesium evaluates on its own render passes. Cost per frame: zero
+  // JS, zero forced render.
+  userBillboard.scale = 1.0;
 }
 
 /* ==============================================================
@@ -7018,16 +7032,11 @@ function buildCityBeacons() {
       disableDepthTestDistance: Number.POSITIVE_INFINITY, show: false,
     });
   });
-  // Gentle shared pulse
-  let t = 0;
-  (function pulse() {
-    if (!cityBillboards) return;
-    t += 0.05;
-    const sc = 1 + 0.18 * Math.abs(Math.sin(t));
-    cityDotIndex.forEach(e => { if (e.primitive.show) e.primitive.scale = sc; });
-    viewer.scene.requestRender();
-    requestAnimationFrame(pulse);
-  })();
+  // No per-frame pulse. The city dots are visible only at NATIONAL
+  // tier; the requestAnimationFrame loop that ran here was firing
+  // viewer.scene.requestRender() every frame, defeating
+  // requestRenderMode and forcing 60 fps continuous rendering even
+  // when the dots weren't on screen. The static glow is enough.
 }
 
 /* ==============================================================
@@ -8038,7 +8047,11 @@ async function boostSignal(signalId) {
    7. Panel — generic slide-up
    ============================================================== */
 const panel = $('panel');
-function openPanel(html) { panel.innerHTML = html; panel.classList.add('visible'); }
+function openPanel(html) {
+  panel.innerHTML = html; panel.classList.add('visible');
+  // Wire up any living-orb canvases the new HTML brought in.
+  try { _scanLivingOrbs(); } catch (_) {}
+}
 function closePanel()    { panel.classList.remove('visible'); window.dispatchEvent(new Event('panel:close')); }
 
 // Tap outside panel → close
@@ -11889,17 +11902,31 @@ const GFX = (function() {
     const ctx = canvas.getContext('2d', { willReadFrequently: false });
     const W = canvas.width, H = canvas.height;
     const img = ctx.createImageData(W, H);
-    shaders.push({ ctx, W, H, fn, img });
+    shaders.push({ canvas, ctx, W, H, fn, img });
   }
 
+  // Throttle the GFX shaders hard. They paint corner gadgets that
+  // are HIDDEN at GLOBAL (the apex orbital system replaces them).
+  // We skip any shader whose canvas isn't currently rendered (zero
+  // bounding rect = display:none or detached). Cap to ~12 fps for
+  // the visible ones — corner gadgets are decorative.
+  let _gfxLast = 0;
   function frame(ts) {
+    rafId = requestAnimationFrame(frame);
+    if (document.hidden) return;
+    if (ts - _gfxLast < 83) return;        // ~12 fps
+    _gfxLast = ts;
     const t = ts * 0.001;
     for (let s = 0; s < shaders.length; s++) {
       const sh = shaders[s];
+      // Skip when the canvas isn't on screen — corner gadgets are
+      // hidden at GLOBAL via .at-global, which collapses them.
+      const r = sh.canvas.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0) continue;
+      if (r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth) continue;
       sh.fn(sh.img.data, sh.W, sh.H, t);
       sh.ctx.putImageData(sh.img, 0, 0);
     }
-    rafId = requestAnimationFrame(frame);
   }
 
   function start() {
@@ -12074,21 +12101,33 @@ const GFX = (function() {
    11. Boot
    ============================================================== */
 window.addEventListener('load', () => {
-  bootCesium();          // async, fires-and-forgets; sets viewer when ready
-  bootSupabase();        // safe to call before viewer ready
-  bootServiceWorker();   // register SW for push + offline shell
-  checkGuestCallURL();   // auto-join if opened via ?gcall= invite link
+  // Critical path first — Cesium needs to start streaming tiles ASAP.
+  bootCesium();
 
-  // Boot canvas shaders
-  try {
-    GFX.register('gfx-discover', GFX.shaderDiscover);
-    GFX.register('gfx-me',       GFX.shaderMe);
-    GFX.register('gfx-locate',   GFX.shaderLocate);
-    GFX.register('gfx-ai',       GFX.shaderAI);
-    GFX.start();
-  } catch (e) {
-    console.warn('[GFX] shader boot failed:', e);
-  }
+  // Defer everything that isn't on the critical path of the first
+  // paint. requestIdleCallback waits for the main thread to be quiet
+  // (or 500 ms max) before running each block — keeps the boot frame
+  // breathing.
+  const defer = (fn, timeout = 500) => {
+    if (window.requestIdleCallback) requestIdleCallback(fn, { timeout });
+    else setTimeout(fn, 80);
+  };
+  defer(() => { try { bootSupabase();      } catch (_) {} });
+  defer(() => { try { bootServiceWorker(); } catch (_) {} }, 1500);
+  defer(() => { try { checkGuestCallURL(); } catch (_) {} }, 2000);
+  defer(() => {
+    try {
+      // Corner-gadget shaders. They're hidden at GLOBAL (the apex
+      // orbital system replaces them) and now skip themselves when
+      // their canvas isn't visible — but registering at boot is
+      // cheap and they wake when the user descends.
+      GFX.register('gfx-discover', GFX.shaderDiscover);
+      GFX.register('gfx-me',       GFX.shaderMe);
+      GFX.register('gfx-locate',   GFX.shaderLocate);
+      GFX.register('gfx-ai',       GFX.shaderAI);
+      GFX.start();
+    } catch (e) { console.warn('[GFX] shader boot failed:', e); }
+  }, 2500);
 });
 
 /* ==============================================================
