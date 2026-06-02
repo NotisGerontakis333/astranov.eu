@@ -1846,6 +1846,83 @@ Single-file by design. Any AI/human can continue from this comment + the law.
       0 0 16px rgba(126,235,180,0.95),
       0 0 30px rgba(54,150,108,0.85); }
 
+  /* CATEGORY FILTER BAR — small chip row under the wordmark.
+     Hidden by default; appears at NATIONAL+PERSONAL where the user
+     has a city around them. AI-readable via #cat-filter-bar dataset. */
+  #cat-filter-bar {
+    position: fixed; top: max(46px, calc(env(safe-area-inset-top) + 46px));
+    left: 50%; transform: translateX(-50%);
+    z-index: 199; display: none; gap: 6px;
+    padding: 4px 6px; max-width: min(92vw, 720px);
+    overflow-x: auto; scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  #cat-filter-bar::-webkit-scrollbar { display: none; }
+  body.at-personal #cat-filter-bar,
+  body.at-national #cat-filter-bar { display: flex; }
+  #cat-filter-bar .cfc {
+    flex: 0 0 auto; min-width: 0;
+    font-family: var(--font-body, system-ui, sans-serif);
+    font-size: 10px; font-weight: 600; letter-spacing: 0.06em;
+    text-transform: uppercase; color: rgba(220,235,255,0.78);
+    padding: 5px 10px; border-radius: 12px;
+    background: rgba(8, 18, 38, 0.55);
+    border: 1px solid rgba(45,108,196,0.42);
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+    user-select: none; white-space: nowrap;
+  }
+  #cat-filter-bar .cfc:active { transform: scale(0.95); }
+  #cat-filter-bar .cfc.on {
+    color: #cfe2ff;
+    background: rgba(20, 52, 120, 0.72);
+    border-color: rgba(93,178,255,0.85);
+    box-shadow: 0 0 14px rgba(45,108,196,0.55);
+  }
+  #cat-filter-bar .cfc-all { font-weight: 700; }
+
+  /* APEX SYSTEM ORB DOCK — five small DRAGGABLE circles. The user
+     places them wherever; positions persist. Defaults sit along the
+     left edge of the screen so the globe is unobscured. */
+  #sys-orbs {
+    position: fixed; inset: 0; z-index: 198; pointer-events: none;
+  }
+  #sys-orbs .so {
+    position: absolute; width: 44px; height: 44px;
+    border-radius: 50%; pointer-events: auto; cursor: grab;
+    -webkit-tap-highlight-color: transparent; user-select: none;
+    touch-action: none;
+    transition: transform 0.18s var(--ease), box-shadow 0.2s var(--ease);
+    will-change: transform;
+  }
+  #sys-orbs .so.dragging { cursor: grabbing; transition: none; }
+  #sys-orbs .so:active { transform: scale(0.94); }
+  #sys-orbs .so .so-body {
+    width: 100%; height: 100%; border-radius: 50%;
+    background:
+      radial-gradient(circle at 32% 32%, color-mix(in srgb, var(--so-c, #7eb4ff) 92%, white 18%),
+                                          var(--so-c, #7eb4ff) 55%,
+                                          #04101f 100%);
+    box-shadow:
+      inset 0 0 10px rgba(0,0,0,0.55),
+      0 0 14px color-mix(in srgb, var(--so-c, #7eb4ff) 60%, transparent),
+      0 0 28px color-mix(in srgb, var(--so-c, #7eb4ff) 28%, transparent);
+    border: 1px solid color-mix(in srgb, var(--so-c, #7eb4ff) 85%, transparent);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-display, 'Cinzel', serif);
+    font-size: 18px; font-weight: 700;
+    color: #f4ede0; text-shadow: 0 0 6px color-mix(in srgb, var(--so-c, #7eb4ff) 70%, transparent);
+  }
+  #sys-orbs .so .so-name {
+    position: absolute; left: 50%; transform: translateX(-50%); top: 46px;
+    font-family: var(--font-display, 'Cinzel', serif);
+    font-size: 8px; font-weight: 600; letter-spacing: 0.18em;
+    color: rgba(244,237,224,0.86); text-transform: uppercase;
+    white-space: nowrap; pointer-events: none;
+    text-shadow: 0 0 4px color-mix(in srgb, var(--so-c, #7eb4ff) 70%, transparent),
+                 0 1px 2px rgba(0,0,0,0.85);
+  }
+
   /* City-level CATEGORY orbs — a floating cluster at the PERSONAL tier. */
   #city-cats {
     position: fixed; left: 0; right: 0; bottom: max(80px, calc(env(safe-area-inset-bottom) + 80px));
@@ -3164,6 +3241,17 @@ Single-file by design. Any AI/human can continue from this comment + the law.
 <!-- APP NAME — always-present anchor (§1b). Tap = diagnostic + hard refresh. -->
 <div id="app-name" onclick="appNameReload()" title="AstranoV — The Global Operating System · tap to heal & reload">ASTRANOV<span class="app-tag">GLOBAL OPERATING SYSTEM</span></div>
 
+<!-- CATEGORY FILTER — chip bar under the wordmark. Appears at
+     PERSONAL tier so the user can filter the vendor pins flooding
+     the city view. Programmable via window.setCategoryFilter so
+     Astranov can drive it (e.g. "show me only restaurants"). -->
+<div id="cat-filter-bar" aria-label="Category filter"></div>
+
+<!-- APEX SYSTEM ORBS — five draggable DOM gadgets (Me / Wallet /
+     Pilot / Astranov / Discover). Positions persist in localStorage
+     and the user can drag any orb to anywhere on screen. -->
+<div id="sys-orbs" aria-label="System agents"></div>
+
 <!-- Me spotlight — a line from the on-screen Me orb to the user's location. -->
 <svg id="me-spotlight"><line id="me-spot-line" x1="0" y1="0" x2="0" y2="0"></line></svg>
 
@@ -3641,10 +3729,12 @@ async function bootCesium() {
     });
     onCameraSettled();
     // The orbital cloud is deferred behind requestIdleCallback so the
-    // first paint shows the globe ALONE — no orbs, no labels, no
-    // sprite bake. The cloud renders ~1 s later when the main thread
-    // is quiet. The user can interact with the globe immediately;
-    // orbs catch up.
+    // first paint shows the globe ALONE. The DOM apex dock + the
+    // category filter bar render right away — they're cheap HTML
+    // and the user needs them to be available the moment the globe
+    // appears.
+    try { renderSystemOrbDock(); } catch (_) {}
+    try { renderCatFilterBar();  } catch (_) {}
     const _lazyOrbs = (fn, t) => (window.requestIdleCallback ? requestIdleCallback(fn, { timeout: t }) : setTimeout(fn, t));
     _lazyOrbs(() => { try { renderTileStrip(); } catch (_) {} }, 1200);
 
@@ -4484,6 +4574,151 @@ function _gfxTick() {
   }
   requestAnimationFrame(_gfxTick);
 }
+
+/* ==============================================================
+   APEX SYSTEM ORB DOCK — 5 small draggable circles.
+   The user can drag any orb anywhere on screen. Positions persist
+   in localStorage. Tap fires the orb's primary action (per Agent
+   Intent Law: act first, ask later).
+   ============================================================== */
+function _loadOrbPositions() {
+  try {
+    const raw = localStorage.getItem('astranov_sys_orbs_v1');
+    if (!raw) return {};
+    return JSON.parse(raw) || {};
+  } catch (_) { return {}; }
+}
+function _saveOrbPositions(map) {
+  try { localStorage.setItem('astranov_sys_orbs_v1', JSON.stringify(map)); } catch (_) {}
+}
+function renderSystemOrbDock() {
+  const host = document.getElementById('sys-orbs');
+  if (!host) return;
+  // Default positions along the LEFT edge so the globe is unobscured.
+  // The user can drag them anywhere — saved coords win.
+  const saved = _loadOrbPositions();
+  const W = window.innerWidth, H = window.innerHeight;
+  const topPad = 90, gap = 64;
+  host.innerHTML = '';
+  _SYSTEM_ORB_TIERS.forEach((tier, i) => {
+    const glyph = (tier.id === 'sys-me') ? _meInitials() : tier.emoji;
+    const el = document.createElement('div');
+    el.className = 'so'; el.dataset.orb = tier.id;
+    el.style.setProperty('--so-c', tier.color);
+    el.title = tier.name;
+    el.innerHTML = `<div class="so-body">${escapeHtml(glyph)}</div><span class="so-name">${escapeHtml(tier.name)}</span>`;
+    let pos = saved[tier.id];
+    if (!pos || typeof pos.x !== 'number') {
+      pos = { x: 14, y: topPad + i * gap };
+    }
+    pos.x = Math.max(4, Math.min(W - 48, pos.x));
+    pos.y = Math.max(4, Math.min(H - 48, pos.y));
+    el.style.left = pos.x + 'px';
+    el.style.top  = pos.y + 'px';
+    _wireDraggableOrb(el, tier);
+    host.appendChild(el);
+  });
+}
+function _wireDraggableOrb(el, tier) {
+  let startX = 0, startY = 0, origX = 0, origY = 0, moved = false, pid = 0;
+  const down = (e) => {
+    e.preventDefault();
+    pid = e.pointerId;
+    el.setPointerCapture(pid);
+    el.classList.add('dragging');
+    startX = e.clientX; startY = e.clientY;
+    origX = parseFloat(el.style.left) || 0;
+    origY = parseFloat(el.style.top)  || 0;
+    moved = false;
+  };
+  const move = (e) => {
+    if (e.pointerId !== pid) return;
+    const dx = e.clientX - startX, dy = e.clientY - startY;
+    if (!moved && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) moved = true;
+    if (moved) {
+      const nx = Math.max(4, Math.min(window.innerWidth - 48,  origX + dx));
+      const ny = Math.max(4, Math.min(window.innerHeight - 48, origY + dy));
+      el.style.left = nx + 'px';
+      el.style.top  = ny + 'px';
+    }
+  };
+  const up = (e) => {
+    if (e.pointerId !== pid) return;
+    el.releasePointerCapture(pid);
+    el.classList.remove('dragging');
+    if (!moved) {
+      try { (new Function(tier.onclick))(); } catch (_) {}
+    } else {
+      const map = _loadOrbPositions();
+      map[tier.id] = { x: parseFloat(el.style.left), y: parseFloat(el.style.top) };
+      _saveOrbPositions(map);
+    }
+    pid = 0;
+  };
+  el.addEventListener('pointerdown', down);
+  el.addEventListener('pointermove', move);
+  el.addEventListener('pointerup', up);
+  el.addEventListener('pointercancel', up);
+}
+window.renderSystemOrbDock = renderSystemOrbDock;
+// Clamp dock positions on resize so a rotated phone keeps orbs on screen.
+let _sysOrbResizeTimer = 0;
+window.addEventListener('resize', () => {
+  clearTimeout(_sysOrbResizeTimer);
+  _sysOrbResizeTimer = setTimeout(() => {
+    try { renderSystemOrbDock(); } catch (_) {}
+  }, 160);
+}, { passive: true });
+
+/* ==============================================================
+   CATEGORY FILTER BAR — chip row under the wordmark. Hidden at
+   GLOBAL, visible at NATIONAL + PERSONAL. Filters the city
+   vendor pins. AI can drive it via window.setCategoryFilter(cat).
+   ============================================================== */
+const _CAT_FILTER = {
+  active: 'all',
+  cats: [
+    { key: 'all',       label: 'All',        emoji: '◍' },
+    { key: 'food',      label: 'Food',       emoji: '🍴' },
+    { key: 'cafe',      label: 'Café',       emoji: '☕' },
+    { key: 'bar',       label: 'Bar',        emoji: '🍷' },
+    { key: 'fast_food', label: 'Fast Food',  emoji: '🍔' },
+    { key: 'shop',      label: 'Shops',      emoji: '🛍' },
+    { key: 'hotel',     label: 'Hotels',     emoji: '🏨' },
+    { key: 'pharmacy',  label: 'Pharmacy',   emoji: '➕' },
+    { key: 'tourism',   label: 'Sights',     emoji: '⛰' },
+  ],
+};
+function renderCatFilterBar() {
+  const bar = document.getElementById('cat-filter-bar');
+  if (!bar) return;
+  bar.innerHTML = _CAT_FILTER.cats.map(c =>
+    `<div class="cfc ${c.key === 'all' ? 'cfc-all' : ''}${_CAT_FILTER.active === c.key ? ' on' : ''}"
+          data-cat="${c.key}">${c.emoji} ${escapeHtml(c.label)}</div>`
+  ).join('');
+  bar.querySelectorAll('.cfc').forEach(el => {
+    el.addEventListener('click', () => setCategoryFilter(el.dataset.cat));
+  });
+}
+function setCategoryFilter(cat) {
+  _CAT_FILTER.active = cat || 'all';
+  renderCatFilterBar();
+  _applyCatFilterToPlaces();
+}
+function _applyCatFilterToPlaces() {
+  if (!placeIndex) return;
+  const want = _CAT_FILTER.active;
+  for (const [, entry] of placeIndex) {
+    const tags = entry.place && entry.place.tags;
+    const ck = (typeof _catKey === 'function' && tags) ? _catKey(tags) : 'default';
+    const show = (want === 'all') || (ck === want)
+                 || (want === 'food' && (ck === 'restaurant' || ck === 'cafe' || ck === 'fast_food' || ck === 'bar' || ck === 'pub'));
+    try { entry.primitive.show = show; } catch (_) {}
+  }
+  if (viewer) viewer.scene.requestRender();
+}
+window.setCategoryFilter = setCategoryFilter;
+window._catFilter = _CAT_FILTER;
 requestAnimationFrame(_gfxTick);
 // Helper to mint a living-orb HTML block with an emoji on top.
 function livingOrbHTML(emoji, color, seed) {
@@ -4776,60 +5011,17 @@ function renderNativeOrbCloud(items) {
     });
   }
 
-  // System orbs — anchored to camera longitude.
-  for (let i = 0; i < _SYSTEM_ORB_TIERS.length; i++) {
-    const tier = _SYSTEM_ORB_TIERS[i];
-    const glyph = (tier.id === 'sys-me') ? _meInitials() : tier.emoji;
-    const sprite = _makeOrbSpriteCanvas({ color: tier.color, glyph, kind: 'system' });
-    const lat = tier.latOff * 0.18;
-    const lng = camLng;
-    const cart = Cesium.Cartesian3.fromDegrees(lng, lat, tier.alt);
-    const bb = _orbCloudBillboards.add({
-      position: cart,
-      image: sprite,
-      width: 80, height: 80,
-      scaleByDistance: new Cesium.NearFarScalar(1e6, 1.5, 6e7, 0.9),
-      disableDepthTestDistance: Number.POSITIVE_INFINITY,
-    });
-    bb.__orbCloudHandler = (function (fnString) {
-      return () => { try { (new Function(fnString))(); } catch (_) {} };
-    })(tier.onclick);
-    bb.__orbName = tier.name;
-    bb.__isSystemOrb = true;
-    bb.__sysOrbDef = tier;
-    if (tier.id === 'sys-me') bb.__userBeacon = true;   // dive-to-me still works on the apex
-    const lbl = _orbCloudLabels.add({
-      position: cart,
-      text: tier.name.toUpperCase(),
-      font: '600 12px Cinzel, system-ui, sans-serif',
-      fillColor: Cesium.Color.fromCssColorString('#f4ede0'),
-      outlineColor: Cesium.Color.fromCssColorString('#02060d'),
-      outlineWidth: 3,
-      style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-      pixelOffset: new Cesium.Cartesian2(0, 46),
-      scaleByDistance: new Cesium.NearFarScalar(1e6, 1.0, 6e7, 0.7),
-      disableDepthTestDistance: Number.POSITIVE_INFINITY,
-    });
-    _orbCloudSysIndex.push({ tier, billboard: bb, label: lbl });
-  }
+  // System orbs are now small, DRAGGABLE DOM gadgets rendered in
+  // #sys-orbs (see renderSystemOrbDock). They were huge Cesium
+  // billboards anchored to camera longitude — fixed on screen and
+  // flooding the view. Lifting them out of the native cloud restores
+  // the globe and lets the user move them where they want.
   viewer.scene.requestRender();
 }
 
-// Re-anchor the apex system orbs to the camera's current longitude so
-// they always sit in front of the user. Called on camera moveEnd.
-function _retargetSystemOrbs() {
-  if (!viewer || !_orbCloudSysIndex.length) return;
-  let camLng;
-  try { camLng = Cesium.Math.toDegrees(viewer.camera.positionCartographic.longitude); }
-  catch (_) { return; }
-  for (const e of _orbCloudSysIndex) {
-    const lat = e.tier.latOff * 0.18;
-    const pos = Cesium.Cartesian3.fromDegrees(camLng, lat, e.tier.alt);
-    e.billboard.position = pos;
-    e.label.position = pos;
-  }
-  viewer.scene.requestRender();
-}
+// System orbs were moved off the globe into the draggable DOM dock —
+// this re-anchor is now a no-op kept for any stale moveEnd hook.
+function _retargetSystemOrbs() { /* moved to renderSystemOrbDock */ }
 
 // Build the per-orb 3D state from the informants list. If an informant has
 // a findings signal with lat/lng, the orb anchors over THAT event and we
@@ -5698,6 +5890,12 @@ function _updateMeBadge(n) {
 }
 
 function updateIdentityOrb() {
+  // The apex Me orb in the draggable dock wears the user's initials —
+  // refresh it whenever identity changes.
+  try {
+    const sysMe = document.querySelector('#sys-orbs .so[data-orb="sys-me"] .so-body');
+    if (sysMe) sysMe.textContent = _meInitials();
+  } catch (_) {}
   const orbEl = $('g-me');
   const glyphEl = $('g-me-glyph');
   if (!orbEl || !glyphEl) return;
@@ -7276,11 +7474,14 @@ function addPlacePoint(place) {
   const billboard = placeBillboards.add({
     position: Cesium.Cartesian3.fromDegrees(Number(place.lon), Number(place.lat)),
     image: icon,
-    width: 54,
-    height: 54,
+    // Tiny, per the owner: vendor pins flooded the city. 22 px max
+    // up close, shrinks further as you pull back. Clustering at
+    // NATIONAL is the next surface; for now these just fade.
+    width: 22,
+    height: 22,
     verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-    pixelOffset: new Cesium.Cartesian2(0, 6),
-    scaleByDistance: new Cesium.NearFarScalar(300, 1.1, 1.2e6, 0.12),
+    pixelOffset: new Cesium.Cartesian2(0, 4),
+    scaleByDistance: new Cesium.NearFarScalar(200, 1.0, 1.2e6, 0.18),
     translucencyByDistance: new Cesium.NearFarScalar(7e5, 1.0, 1.8e6, 0),
     eyeOffset: new Cesium.Cartesian3(0, 0, -10),
   });
