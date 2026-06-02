@@ -172,39 +172,41 @@ globe, the wordmark, the AICYCLE ring, the apex orb dock, the
 contextual back chevron at non-global tiers. Everything else is
 summoned, used, and dismissed.
 
-## MOTHERSHIP LAW — one orb to hold them all (binding)
-There is **ONE** orb the user always sees: the **MotherShip Orb**. She
-holds the planet Earth at her centre and contains every other little orb
-inside her. The rest of the chrome is summoned out of her, used, and
-thrown back in.
+## MOTHERSHIP LAW — Earth is the MotherShip, orbs ride her gravity (binding)
+**Earth IS the mother.** The Cesium globe at the centre of the screen
+is the OS centerpiece — there is no separate mother orb body. Every
+little orb orbits her in one of **three permanent concentric rings**
+that are always visible.
 
-Gesture grammar:
-- **Tap the MotherShip** → her disc expands. A ring of every available
-  small orb (Me, Wallet, Pilot, Astranov, Discover, Volume, Mic,
-  Brightness, AI Cycle) fans around her body. Tap a stowed orb in
-  the disc to **release** it onto the screen at a sensible position.
-  Tap a released orb in the disc to **stow** it back.
-- **Tap the Earth at her centre** → warp home (pilotHome — fly the
-  camera to the user's location at GLOBAL).
-- **Drag the MotherShip** → she's throwable like every other orb,
-  trackball physics.
-- **Fling a free orb at the MotherShip** (released orb lands within
-  her capture radius after a fling) → it is **absorbed**, returns to
-  the disc inventory. Visible deed per the Manual Foundation Law.
+Live arrangement by usefulness — the breakthrough beyond the
+fixed-tile / fixed-app screen:
+- Every orb has a **usefulness score** 0..1, recomputed live from the
+  user's context (current tier, recent actions, open orders, time of
+  day, mic mode, etc.). The score determines where the orb sits on
+  its ring.
+- **0° (top, 12 o'clock) = most useful right now.** The user
+  reads relevance by angular position without thinking.
+- **180°+ (bottom / past the equator) = useless.** Drift down out
+  of the user's attention.
+- Intensity follows position: useful orbs glow brighter; useless ones
+  fade. So the user reads relevance by both angle AND intensity.
 
-State persists: which orbs are released vs stowed, and where each
-released orb sits. On a fresh device, the AI Cycle ring and the
-Me orb are released by default; everything else starts stowed.
+Three orbit layers:
+- **Inner ring** (radius ~110 px) — personal + AI: Me, Astranov, AI Cycle.
+- **Middle ring** (~175 px) — navigation, economy, system controls:
+  Wallet, Pilot, Discover, Mic, Volume, Brightness.
+- **Outer ring** (~240 px) — CATEGORY-GROUP orbs that came out of
+  the planet: News, Work, Authors, Places. Tapping one opens its
+  list of contents.
 
-Permanent UI is now exactly: globe, wordmark, MotherShip orb. Everything
-else is contextual — released by the user, surfaced by the AI, or
-flowed through the bottom drawer.
+The system arranges; the user does not manually position. (This is
+the explicit replacement of the fixed-tile / app-grid paradigm from
+Apple iOS and successors. Catch-up Law §0i: we adopted ranked
+relevance and put it on a planetary orbit.)
 
-Prior art (Catch-up Law §0i): Apple Dynamic Island (centerpiece that
-expands to options), Iron Man's Jarvis HUD (radial agent fan-out),
-gaming radial inventories. Astranov adds: orbs are physical objects
-the user throws between the inventory and the workspace — the body
-of the OS is a physics simulation, not a menu.
+Permanent UI is now exactly: globe, wordmark, three orbit rings.
+Everything else flows through the bottom drawer or is summoned by
+the AI.
 
 ## ORBITAL DIAL LAW — every control orb is a throwable trackball with a radial dial (binding)
 **Every interactive orb in AstranoV obeys the same two-gesture grammar:**

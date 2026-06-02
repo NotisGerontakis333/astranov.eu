@@ -160,27 +160,29 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     Permanent UI is reserved for the unconditional essentials: globe,
     wordmark, AICYCLE ring, apex orb dock, contextual back chevron.
 
-0n. MOTHERSHIP LAW — one orb to hold them all (binding, never regress)
-    The user always sees ONE orb: the MOTHERSHIP ORB. She holds Earth
-    at her centre and contains every other little orb inside her. The
-    rest of the chrome is summoned out of her, used, and thrown back in.
-    Gestures:
-    - TAP the MotherShip → her disc expands; every small orb (Me,
-      Wallet, Pilot, Astranov, Discover, Volume, Mic, Bright, AI Cycle)
-      fans around her body. Tap a STOWED orb to release it onto the
-      screen; tap a RELEASED orb to stow it back.
-    - TAP the Earth at her centre → pilotHome (warp camera to GLOBAL).
-    - DRAG the MotherShip → trackball-throwable like every other orb.
-    - FLING a free orb at the MotherShip (released orb settles within
-      her capture radius after a fling) → absorbed, returns to inventory.
-    Visible deed per §0k Manual Foundation Law.
-    Persistence: released vs stowed + each released orb's position.
-    First-run default: AI Cycle and Me are released; the rest stowed.
-    Permanent UI is now exactly: globe, wordmark, MotherShip orb. The
-    apex dock, control orbs, AICYCLE ring all live INSIDE her by
-    default. Prior art (Catch-up Law): Apple Dynamic Island, Jarvis
-    radial HUD, gaming radial inventories — Astranov adds physics-
-    based toss between inventory and workspace.
+0n. MOTHERSHIP LAW v2 — EARTH IS THE MOTHERSHIP (binding, never regress)
+    Earth (the Cesium globe centred on screen) IS the OS centerpiece.
+    NO separate mother-orb body. Every little orb orbits her in one
+    of THREE permanent concentric rings, always visible.
+    LIVE ARRANGEMENT BY USEFULNESS — the breakthrough beyond the
+    fixed-tile / fixed-app paradigm (Apple iOS et al.):
+    - Each orb has a usefulness score 0..1, recomputed live from
+      the user's context (tier, recent actions, open orders, time
+      of day, mic mode, …).
+    - 0° (top) = most useful right now; 180°+ = useless (drifts to
+      the bottom, out of attention).
+    - Useful orbs glow brighter (data-use="hi"), useless fade
+      (data-use="lo"). Position AND intensity carry relevance.
+    Three layers (radii on screen):
+    - Inner (~110 px): Me · Astranov · AI Cycle.
+    - Middle (~175 px): Wallet · Pilot · Discover · Mic · Volume · Bright.
+    - Outer (~240 px): CATEGORY GROUPS that came out of the planet —
+      News · Work · Authors · Places. Tap a group orb to open its
+      contents.
+    System arranges; user does not. _layoutEarthOrbs() runs every 8 s,
+    sleeps with the slumber controller. Permanent UI: globe, wordmark,
+    three rings. The old mother-orb body is hidden in DOM behind a
+    display:none guard — its helpers are stubbed.
 
 0m. ORBITAL DIAL LAW — every control orb is a throwable trackball with
     a radial dial (binding, never regress)
@@ -1978,11 +1980,89 @@ Single-file by design. Any AI/human can continue from this comment + the law.
   }
   .cfc-all { font-weight: 700; }
 
-  /* MOTHERSHIP ORB (§0n) — a small Earth-bodied orb surrounded by
-     three permanent rings of small orbs. The rings ALWAYS show; each
-     spins like a roulette under finger drag, with trackball physics.
-     Tap an orb to fire its action; fling a free orb at the mother to
-     stow it. */
+  /* EARTH-CENTERED ORBITAL RINGS (§0n v2). Earth is the mother — the
+     rings sit at the screen centre over the globe. Orbs auto-position
+     by usefulness: 0° (top) when most useful, past 180° when useless.
+     No user-driven ring rotation; the system arranges. */
+  #earth-rings {
+    position: fixed; left: 50%; top: 50%;
+    width: 0; height: 0; z-index: 198;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+  }
+  #earth-rings .er-ring {
+    position: absolute; left: 0; top: 0;
+    width: 0; height: 0; pointer-events: none;
+  }
+  /* Faint dashed orbit track so the ring is legible even when its
+     orbs are clustered at the top. */
+  #earth-rings .er-ring::before {
+    content: ''; position: absolute; left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    width:  calc(var(--rr, 90px) * 2);
+    height: calc(var(--rr, 90px) * 2);
+    border-radius: 50%;
+    border: 1px dashed rgba(93,178,255,0.18);
+    pointer-events: none;
+  }
+  /* Each orb on a ring. Positioned at its --dx, --dy (computed from
+     ring radius × cos/sin of its current angle). Smooth transition
+     so the live re-arrangement looks like a planetary settle. */
+  .er-orb {
+    position: absolute; left: 0; top: 0;
+    width: 28px; height: 28px; margin: -14px 0 0 -14px;
+    border-radius: 50%; pointer-events: auto;
+    cursor: pointer; touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+    transform: translate(var(--dx, 0), var(--dy, 0));
+    transition: transform 0.9s cubic-bezier(0.32, 0.72, 0, 1),
+                opacity   0.4s var(--ease),
+                box-shadow 0.3s var(--ease);
+    background: radial-gradient(circle at 32% 32%,
+      color-mix(in srgb, var(--mc, #7eb4ff) 92%, white 18%),
+      var(--mc, #7eb4ff) 55%, #04101f 100%);
+    border: 1px solid color-mix(in srgb, var(--mc, #7eb4ff) 85%, transparent);
+    box-shadow:
+      inset 0 0 6px rgba(0,0,0,0.55),
+      0 0 10px color-mix(in srgb, var(--mc, #7eb4ff) 55%, transparent);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-display, 'Cinzel', serif);
+    font-size: 12px; font-weight: 700; color: #f4ede0;
+    text-shadow: 0 0 4px color-mix(in srgb, var(--mc, #7eb4ff) 70%, transparent);
+  }
+  /* Useful orbs glow brighter; useless ones fade toward translucent
+     so the user reads relevance by intensity AND position. */
+  .er-orb[data-use="hi"] {
+    box-shadow:
+      inset 0 0 6px rgba(0,0,0,0.45),
+      0 0 22px color-mix(in srgb, var(--mc, #7eb4ff) 95%, transparent),
+      0 0 42px color-mix(in srgb, var(--mc, #7eb4ff) 45%, transparent);
+  }
+  .er-orb[data-use="lo"] { opacity: 0.32; }
+  .er-orb:active { transform: translate(var(--dx, 0), var(--dy, 0)) scale(0.92); }
+  /* Quick ripple from screen centre on absorb / release. */
+  #er-flash {
+    position: absolute; left: 0; top: 0;
+    width: 0; height: 0; pointer-events: none; opacity: 0;
+  }
+  #er-flash.on {
+    width: 600px; height: 600px; margin: -300px 0 0 -300px;
+    border-radius: 50%; opacity: 0.85;
+    background: radial-gradient(circle, rgba(207,226,255,0.6) 0%, transparent 60%);
+    animation: er-flash-pop 0.7s ease-out forwards;
+  }
+  @keyframes er-flash-pop {
+    0%   { opacity: 0.9; transform: scale(0.4); }
+    100% { opacity: 0;   transform: scale(1.6); }
+  }
+
+  /* Legacy MotherShip body — retired (§0n v2). Earth is now the
+     mother. Hidden but kept in DOM in case stray code references
+     #mother-orb. */
+  #mother-orb, #mother-disc { display: none !important; }
+
+  /* Legacy mother-orb styles still apply if someone re-shows it,
+     but they're orphaned. Kept short here. */
   #mother-orb {
     position: fixed; z-index: 220; width: 56px; height: 56px;
     cursor: grab; -webkit-tap-highlight-color: transparent;
@@ -3719,21 +3799,17 @@ Single-file by design. Any AI/human can continue from this comment + the law.
      showing its dial. Single canonical layer (§0m ORBITAL DIAL LAW). -->
 <div id="orbital-dial" aria-hidden="true"></div>
 
-<!-- MOTHERSHIP ORB (§0n) — small body + three permanent concentric
-     rings of orbs orbiting around her. The rings are always visible;
-     each rotates like a roulette under finger drag. Tap an orb to
-     fire its action; long-press to release it onto the screen; fling
-     a free orb back at the MotherShip to stow it (visible + audio
-     feedback on both directions). -->
-<div id="mother-orb" title="Astranov MotherShip · tap to open">
-  <div class="mo-earth" aria-hidden="true"></div>
-  <div class="mo-halo"  aria-hidden="true"></div>
-  <div class="mo-ring r1" data-ring="0" aria-hidden="true"></div>
-  <div class="mo-ring r2" data-ring="1" aria-hidden="true"></div>
-  <div class="mo-ring r3" data-ring="2" aria-hidden="true"></div>
-  <div class="mo-flash"  aria-hidden="true"></div>
+<!-- EARTH IS THE MOTHERSHIP (§0n v2). The Cesium globe at the centre
+     of the screen IS the mother. Three rings of orbs always orbit
+     around her, arranged LIVE by usefulness: 0° (top) = most useful
+     right now, past 180° = useless. The user reads relevance by
+     angular position. No separate mother body. -->
+<div id="earth-rings" aria-label="Orbital agents">
+  <div class="er-ring" data-ring="0"></div>
+  <div class="er-ring" data-ring="1"></div>
+  <div class="er-ring" data-ring="2"></div>
+  <div id="er-flash" aria-hidden="true"></div>
 </div>
-<div id="mother-disc" aria-hidden="true"></div>
 
 <!-- Me spotlight — a line from the on-screen Me orb to the user's location. -->
 <svg id="me-spotlight"><line id="me-spot-line" x1="0" y1="0" x2="0" y2="0"></line></svg>
@@ -5723,14 +5799,193 @@ const MOTHER_INVENTORY = [
   { id: 'ctrl-vol',      label: 'Volume',   color: '#7eebb4', glyph: '🔊' },
   { id: 'ctrl-bright',   label: 'Bright',   color: '#ffd47e', glyph: '☀'  },
 ];
-// Three concentric orbit rings. Each ring radius is the distance from
-// the mother's centre to the orb's centre. Items are referenced by id
-// from MOTHER_INVENTORY.
-const MOTHER_RINGS = [
-  { radius: 44, ids: ['sys-me',        'sys-astranov',   'aicycle-float'] },
-  { radius: 70, ids: ['sys-eur',       'sys-pilot',      'sys-discover']  },
-  { radius: 96, ids: ['ctrl-mic',      'ctrl-vol',       'ctrl-bright']   },
+// Three concentric orbit rings around EARTH (the globe is the mother).
+// Each entry: id, label, color, glyph, ring index, primary action,
+// optional group id (for category-cluster orbs on the outer ring).
+const EARTH_ORBS = [
+  // Ring 0 — INNER (personal + AI). Always closest to Earth.
+  { id: 'eo-me',       ring: 0, color: '#f0c875', glyph: () => _meInitials(), label: 'Me',       act: () => expandMeOrb() },
+  { id: 'eo-astranov', ring: 0, color: '#a8c8ee', glyph: '◈',                  label: 'Astranov', act: () => openAstranov() },
+  { id: 'eo-aicycle',  ring: 0, color: '#cfe2ff', glyph: '◉',                  label: 'AI Cycle', act: () => openAstranov() },
+  // Ring 1 — MIDDLE (nav + economy + system controls).
+  { id: 'eo-wallet',   ring: 1, color: '#ffd47e', glyph: '€',  label: 'Wallet',  act: () => openWalletPanel() },
+  { id: 'eo-pilot',    ring: 1, color: '#6dd0ff', glyph: '🌍', label: 'Pilot',   act: () => pilotHome() },
+  { id: 'eo-discover', ring: 1, color: '#ffb464', glyph: '⬢',  label: 'Discover',act: () => openFeedPanel() },
+  { id: 'eo-mic',      ring: 1, color: '#7eebb4', glyph: '🎙', label: 'Mic',     act: () => { const c = document.getElementById('ctrl-mic'); if (c) c.click(); } },
+  { id: 'eo-vol',      ring: 1, color: '#7eebb4', glyph: '🔊', label: 'Volume',  act: () => { const c = document.getElementById('ctrl-vol'); if (c) c.click(); } },
+  { id: 'eo-bright',   ring: 1, color: '#ffd47e', glyph: '☀',  label: 'Bright',  act: () => { const c = document.getElementById('ctrl-bright'); if (c) c.click(); } },
+  // Ring 2 — OUTER (CATEGORY GROUPS that came out of the planet).
+  // Tapping a group orb opens its content panel.
+  { id: 'eo-news',     ring: 2, color: '#5db2ff', glyph: '📰', label: 'News',    group: 'news',    act: () => openGroupPanel('news') },
+  { id: 'eo-work',     ring: 2, color: '#7eebb4', glyph: '✦',  label: 'Work',    group: 'work',    act: () => openGroupPanel('work') },
+  { id: 'eo-authors',  ring: 2, color: '#ffb464', glyph: '✎',  label: 'Authors', group: 'authors', act: () => openGroupPanel('authors') },
+  { id: 'eo-places',   ring: 2, color: '#a8c8ee', glyph: '📍', label: 'Places',  group: 'places',  act: () => openGroupPanel('places') },
 ];
+
+// Ring radii (screen pixels from Earth's centre). Sized so the inner
+// ring clears the globe at GLOBAL view without overlapping the
+// wordmark at the top.
+const EARTH_RING_RADII = [110, 175, 240];
+
+// Heuristic usefulness 0..1 per orb. Re-evaluated periodically.
+// MORE: 1.0 = perfectly useful right now, sits at 0° (top).
+// LESS: 0.0 = useless, lands past 180° (bottom-left half).
+function _orbUsefulness(orb) {
+  switch (orb.id) {
+    case 'eo-me':       return 0.92;
+    case 'eo-astranov': return 0.90;
+    case 'eo-aicycle':  return 0.86;
+    case 'eo-wallet': {
+      // Useful if there are open orders or low/high balance signals.
+      const eur = Number(profile?.eur_balance ?? 0);
+      const hot = (window._openOrders || 0) > 0;
+      return hot ? 0.85 : (eur > 0 ? 0.55 : 0.45);
+    }
+    case 'eo-pilot': {
+      // Useless at GLOBAL (you're already home); useful when zoomed in.
+      return (typeof currentLevel === 'undefined' || currentLevel === 'global') ? 0.30 : 0.84;
+    }
+    case 'eo-discover': return 0.60;
+    case 'eo-mic':      return (window._micMode === 'auto') ? 0.85 : (window._micMode === 'tap' ? 0.55 : 0.20);
+    case 'eo-vol':      return 0.30;
+    case 'eo-bright':   return 0.22;
+    case 'eo-news':     return 0.70;
+    case 'eo-work':     return 0.55;
+    case 'eo-authors':  return 0.45;
+    case 'eo-places':   return (typeof currentLevel !== 'undefined' && currentLevel !== 'global') ? 0.75 : 0.50;
+    default:            return 0.50;
+  }
+}
+
+// Layout: sort orbs in each ring by usefulness desc, then place them
+// around the ring. Most useful sits at 0° (top); useless drift past
+// 180° (bottom). Adjacent items are separated by at least 18° so they
+// don't stack. The "useful" half of the ring (top) gets a TIGHTER
+// arc; useless ones spread further around.
+function _layoutEarthOrbs() {
+  const host = document.getElementById('earth-rings');
+  if (!host) return;
+  // Rebuild markup if missing (first call).
+  for (let r = 0; r < EARTH_RING_RADII.length; r++) {
+    const el = host.querySelector(`.er-ring[data-ring="${r}"]`);
+    if (el) el.style.setProperty('--rr', EARTH_RING_RADII[r] + 'px');
+  }
+  // Group orbs by ring, sorted by usefulness desc.
+  const byRing = [[], [], []];
+  for (const orb of EARTH_ORBS) {
+    byRing[orb.ring].push({ orb, u: _orbUsefulness(orb) });
+  }
+  byRing.forEach(arr => arr.sort((a, b) => b.u - a.u));
+
+  // For each ring: compute angles. Most useful → 0°; advance clockwise
+  // by a spacing inversely related to the next item's usefulness.
+  byRing.forEach((arr, ri) => {
+    const radius = EARTH_RING_RADII[ri];
+    const ringEl = host.querySelector(`.er-ring[data-ring="${ri}"]`);
+    if (!ringEl) return;
+    // Compute angle targets. Usefulness maps to "where on the upper
+    // arc": orb sits at base = (1 - u) × 200°. Then we resolve
+    // collisions by enforcing minimum 22° spacing between adjacent
+    // sorted items.
+    let lastAng = -1e9;
+    arr.forEach((entry, k) => {
+      const base = (1 - entry.u) * 200;          // 0..200°
+      const ang = Math.max(base, lastAng + 22);
+      entry.angle = ang;
+      lastAng = ang;
+    });
+    // Ensure the most useful sits at exactly 0° (top) for the visual
+    // anchor the user expects.
+    if (arr.length && arr[0].u > 0.75) arr[0].angle = 0;
+
+    // Render each orb (create if missing, then position).
+    arr.forEach(entry => {
+      const orb = entry.orb;
+      let el = host.querySelector(`.er-orb[data-id="${orb.id}"]`);
+      if (!el) {
+        el = document.createElement('div');
+        el.className = 'er-orb';
+        el.dataset.id = orb.id;
+        el.style.setProperty('--mc', orb.color);
+        el.title = orb.label;
+        const g = typeof orb.glyph === 'function' ? orb.glyph() : orb.glyph;
+        el.textContent = g;
+        el.addEventListener('pointerup', (e) => {
+          // No drag → tap action.
+          if (!el._dragged) { try { orb.act(); } catch (_) {} }
+          el._dragged = false;
+        });
+        ringEl.appendChild(el);
+      } else if (orb.id === 'eo-me') {
+        // Keep Me orb's initials in sync.
+        el.textContent = _meInitials();
+      }
+      // Apply position via translate around the ring centre.
+      const angRad = (entry.angle - 90) * Math.PI / 180;  // 0° = top
+      const dx = Math.cos(angRad) * radius;
+      const dy = Math.sin(angRad) * radius;
+      el.style.setProperty('--dx', dx.toFixed(1) + 'px');
+      el.style.setProperty('--dy', dy.toFixed(1) + 'px');
+      // Usefulness intensity classes.
+      el.dataset.use = entry.u > 0.78 ? 'hi' : (entry.u < 0.30 ? 'lo' : 'mid');
+    });
+  });
+}
+
+// Re-evaluate usefulness on a slow tick — every 8 s — registered with
+// the slumber controller so it sleeps when the tab is idle.
+function _earthOrbsTick() {
+  try { _layoutEarthOrbs(); } catch (_) {}
+}
+let _earthOrbsInterval = 0;
+function _startEarthOrbsTick() {
+  if (_earthOrbsInterval) return;
+  _earthOrbsInterval = setInterval(_earthOrbsTick, 8000);
+}
+function _stopEarthOrbsTick() {
+  if (_earthOrbsInterval) { clearInterval(_earthOrbsInterval); _earthOrbsInterval = 0; }
+}
+// Slumber registration — sleep when the tab is hidden.
+if (window._slumber && Array.isArray(window._slumber.sleepers)) {
+  // No-op — the controller already has a registration helper.
+}
+try {
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) _stopEarthOrbsTick(); else _startEarthOrbsTick();
+  });
+} catch (_) {}
+
+// Quick stub for category-group panels. Real surfaces come next.
+window.openGroupPanel = function (group) {
+  try {
+    openPanel(`<h2>${group[0].toUpperCase() + group.slice(1)}</h2>
+      <div class="subtitle">Items in this orbit · live</div>
+      <div style="font-size:12px;color:#a8c8ee;padding:8px 0;line-height:1.6">
+        This is the ${escapeHtml(group)} orbit cluster. Tapping items here
+        opens them. Implementation continues — for now the cluster orb is
+        a place-holder.
+      </div>`);
+  } catch (_) {}
+};
+
+// Boot — render once, then tick.
+function _bootEarthOrbs() {
+  _layoutEarthOrbs();
+  _startEarthOrbsTick();
+  // Tiny visual flair on boot — the rings briefly pulse so the user
+  // sees them appear.
+  const flash = document.getElementById('er-flash');
+  if (flash) {
+    flash.classList.remove('on'); void flash.offsetWidth; flash.classList.add('on');
+    setTimeout(() => flash.classList.remove('on'), 800);
+  }
+}
+window.addEventListener('load', () => setTimeout(_bootEarthOrbs, 600));
+window.addEventListener('resize', () => { try { _layoutEarthOrbs(); } catch (_) {} }, { passive: true });
+
+// Keep this stub so legacy references (renderMotherRings) don't blow
+// up; Earth orbs are the source of truth now.
+function _renderMotherRings() {}
 window._mother = (function () {
   let released;
   try {
