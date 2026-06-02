@@ -4920,7 +4920,7 @@ function makeThrowableOrb(el, opts) {
    ============================================================== */
 const OrbitalDial = (() => {
   const root = () => document.getElementById('orbital-dial');
-  let active = null;     // { mode, anchorEl, items, value, range, onChange, onCommit, label }
+  let active = null;     // { mode, anchorEl, items, value, range, onChange, onCommit, label, _t, _angVel, _lastAng, _lastT, _down, _dragging, _spinRaf }
   let veil, ring;
 
   function ensure() {
@@ -4929,17 +4929,23 @@ const OrbitalDial = (() => {
       r.innerHTML = `<div class="od-veil"></div><div class="od-ring"></div>`;
       veil = r.querySelector('.od-veil');
       ring = r.querySelector('.od-ring');
-      veil.addEventListener('pointerdown', (e) => {
-        // Tap outside the ring closes the dial.
-        if (e.target === veil) close();
-      });
+      // Drag-start on the veil begins a potential cycle. Tap-with-no-
+      // drag on pointerup is what closes the dial. This lets the user
+      // spin the ring from anywhere on the veil without it slamming
+      // shut on the first touch.
+      veil.addEventListener('pointerdown', onVeilDown);
     }
     return r;
   }
 
   function open(opts) {
     const r = ensure(); if (!r) return;
-    active = opts;
+    cancelSpin();
+    active = Object.assign({}, opts, {
+      _angVel: 0, _lastAng: null, _lastT: 0,
+      _down: null, _dragging: false, _spinRaf: 0,
+      _t: 0,    // normalised position around the ring [0..1)
+    });
     const anchor = opts.anchorEl;
     const rect = anchor.getBoundingClientRect();
     const cx = rect.left + rect.width / 2;
@@ -4949,22 +4955,34 @@ const OrbitalDial = (() => {
     r.style.setProperty('--od-cy', cy + 'px');
     r.style.setProperty('--od-r',  radius + 'px');
     ring.innerHTML = `<div class="od-halo"></div><div class="od-value"></div><div class="od-label">${escapeHtml(opts.label || '')}</div>`;
-    if (opts.mode === 'continuous') buildContinuous(opts, radius);
-    else buildDiscrete(opts, radius);
+    if (opts.mode === 'continuous') {
+      buildContinuous(active, radius);
+      // Seed the ring position from the initial value.
+      active._t = clamp01((active.value - active.range[0]) / (active.range[1] - active.range[0]));
+    } else {
+      buildDiscrete(active, radius);
+      const idx = Math.max(0, active.items.findIndex(i => i.value === active.value));
+      active._t = idx / active.items.length;
+    }
     r.classList.add('open');
     r.setAttribute('aria-hidden', 'false');
     requestAnimationFrame(() => updateValueLabel());
-    // Pointer-drag from anywhere on the veil cycles the dial.
     veil.addEventListener('pointermove', onVeilMove);
     veil.addEventListener('pointerup',   onVeilUp);
+    veil.addEventListener('pointercancel', onVeilUp);
   }
   function close() {
     if (!root()) return;
+    cancelSpin();
     root().classList.remove('open');
     root().setAttribute('aria-hidden', 'true');
     veil.removeEventListener('pointermove', onVeilMove);
     veil.removeEventListener('pointerup',   onVeilUp);
+    veil.removeEventListener('pointercancel', onVeilUp);
     active = null;
+  }
+  function cancelSpin() {
+    if (active && active._spinRaf) { cancelAnimationFrame(active._spinRaf); active._spinRaf = 0; }
   }
   function buildDiscrete(opts, radius) {
     const n = opts.items.length;
@@ -5032,36 +5050,129 @@ const OrbitalDial = (() => {
       el.textContent = it ? (it.glyph || '') : '';
     }
   }
-  function onVeilMove(e) {
-    if (!active) return;
+  // Read the dial centre once per pointer event — cheaper than going
+  // through getComputedStyle every move.
+  function centre() {
     const r = root();
-    const cx = parseFloat(getComputedStyle(r).getPropertyValue('--od-cx'));
-    const cy = parseFloat(getComputedStyle(r).getPropertyValue('--od-cy'));
-    const radius = parseFloat(getComputedStyle(r).getPropertyValue('--od-r')) || 110;
-    const ang = Math.atan2(e.clientY - cy, e.clientX - cx);
-    // Normalise so the top of the dial is t=0.
-    let t = (ang + Math.PI / 2) / (Math.PI * 2);
+    return {
+      cx: parseFloat(r.style.getPropertyValue('--od-cx')) || 0,
+      cy: parseFloat(r.style.getPropertyValue('--od-cy')) || 0,
+      radius: parseFloat(r.style.getPropertyValue('--od-r')) || 110,
+    };
+  }
+  function angleFromCentre(e) {
+    const c = centre();
+    return Math.atan2(e.clientY - c.cy, e.clientX - c.cx);
+  }
+  function onVeilDown(e) {
+    if (!active) return;
+    if (e.target.classList && e.target.classList.contains('od-dot')) return; // dots handle their own
+    cancelSpin();
+    active._down = { x: e.clientX, y: e.clientY, t: performance.now() };
+    active._dragging = false;
+    active._lastAng = angleFromCentre(e);
+    active._lastT = performance.now();
+    active._angVel = 0;
+    try { veil.setPointerCapture(e.pointerId); } catch (_) {}
+  }
+  function onVeilMove(e) {
+    if (!active || !active._down) return;
+    const dx = e.clientX - active._down.x;
+    const dy = e.clientY - active._down.y;
+    if (!active._dragging && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) active._dragging = true;
+    if (!active._dragging) return;
+
+    const ang = angleFromCentre(e);
+    const now = performance.now();
+    let dAng = ang - active._lastAng;
+    // Unwrap the discontinuity at ±π so the velocity is continuous.
+    if (dAng >  Math.PI) dAng -= Math.PI * 2;
+    if (dAng < -Math.PI) dAng += Math.PI * 2;
+    const dt = Math.max(1, now - active._lastT);
+    const angV = dAng / dt;   // rad / ms
+    // EMA-smooth the angular velocity so a wobble doesn't ruin the throw.
+    active._angVel = active._angVel * 0.45 + angV * 0.55;
+    active._lastAng = ang; active._lastT = now;
+
+    // Advance the normalised position around the ring.
+    advancePosition(dAng / (Math.PI * 2));
+    applyT();
+  }
+  function onVeilUp(e) {
+    if (!active) return;
+    try { veil.releasePointerCapture(e.pointerId); } catch (_) {}
+    const wasDragging = !!active._dragging;
+    active._down = null;
+    if (!wasDragging) {
+      // Tap, no drag — tap on the veil closes the dial. Tap on a
+      // dot is intercepted by the dot's own pointerup.
+      if (e.target === veil) close();
+      return;
+    }
+    // Fling: keep spinning with momentum if the release has speed.
+    // Convert rad/ms → fraction-of-ring per frame at 60 fps.
+    const ringVelPerFrame = (active._angVel * 16.67) / (Math.PI * 2);
+    if (Math.abs(ringVelPerFrame) > 0.0015) {
+      spin(ringVelPerFrame);
+    }
+  }
+  function spin(velPerFrame) {
+    if (!active) return;
+    // Cap absurd flings so a panic swipe doesn't infinite-loop.
+    const MAX = 0.12;            // 12 % of ring per frame
+    if (velPerFrame >  MAX) velPerFrame =  MAX;
+    if (velPerFrame < -MAX) velPerFrame = -MAX;
+    const FRICTION = 0.94;
+    const STOP = 0.0008;          // ~ 0.08 %/frame
+    const step = () => {
+      if (!active) return;
+      advancePosition(velPerFrame);
+      applyT();
+      velPerFrame *= FRICTION;
+      if (Math.abs(velPerFrame) > STOP) {
+        active._spinRaf = requestAnimationFrame(step);
+      } else {
+        // Snap to nearest dot in discrete mode so we settle on a real
+        // option, not between two.
+        if (active.mode !== 'continuous') {
+          const n = active.items.length;
+          const idx = Math.round(active._t * n) % n;
+          active._t = (idx + n) % n / n;
+          applyT();
+        }
+        active._spinRaf = 0;
+      }
+    };
+    active._spinRaf = requestAnimationFrame(step);
+  }
+  function advancePosition(delta) {
+    let t = (active._t + delta) % 1;
     if (t < 0) t += 1;
+    active._t = t;
+  }
+  // Project active._t (0..1) onto the actual value + UI state.
+  function applyT() {
+    if (!active) return;
     if (active.mode === 'continuous') {
-      const val = active.range[0] + (active.range[1] - active.range[0]) * t;
+      const val = active.range[0] + (active.range[1] - active.range[0]) * active._t;
       const step = active.step || 0.01;
       active.value = Math.round(val / step) * step;
-      positionKnob(active, radius);
+      positionKnob(active, centre().radius);
       updateValueLabel();
       if (typeof active.onChange === 'function') try { active.onChange(active.value); } catch (_) {}
     } else {
       const n = active.items.length;
-      const idx = Math.round(t * n) % n;
+      const idx = Math.round(active._t * n) % n;
       const next = active.items[idx];
       if (next && next.value !== active.value) {
         active.value = next.value;
-        ring.querySelectorAll('.od-dot').forEach(d => d.classList.toggle('active', d.dataset.value === String(active.value)));
+        ring.querySelectorAll('.od-dot').forEach(d =>
+          d.classList.toggle('active', d.dataset.value === String(active.value)));
         updateValueLabel();
         if (typeof active.onChange === 'function') try { active.onChange(active.value); } catch (_) {}
       }
     }
   }
-  function onVeilUp() { /* veil's pointerdown handler closes when tapping veil itself */ }
   function commit(value) {
     if (!active) return;
     active.value = value;
