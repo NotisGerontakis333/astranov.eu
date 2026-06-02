@@ -172,31 +172,31 @@ globe, the wordmark, the AICYCLE ring, the apex orb dock, the
 contextual back chevron at non-global tiers. Everything else is
 summoned, used, and dismissed.
 
-## MOTHER-SHIP LAW — one orb to hold them all (binding)
-There is **ONE** orb the user always sees: the **Mother Orb**. She holds
-the planet Earth at her centre and contains every other little orb
+## MOTHERSHIP LAW — one orb to hold them all (binding)
+There is **ONE** orb the user always sees: the **MotherShip Orb**. She
+holds the planet Earth at her centre and contains every other little orb
 inside her. The rest of the chrome is summoned out of her, used, and
 thrown back in.
 
 Gesture grammar:
-- **Tap the mother** → her disc expands. A ring of every available
+- **Tap the MotherShip** → her disc expands. A ring of every available
   small orb (Me, Wallet, Pilot, Astranov, Discover, Volume, Mic,
   Brightness, AI Cycle) fans around her body. Tap a stowed orb in
   the disc to **release** it onto the screen at a sensible position.
   Tap a released orb in the disc to **stow** it back.
 - **Tap the Earth at her centre** → warp home (pilotHome — fly the
   camera to the user's location at GLOBAL).
-- **Drag the mother** → she's throwable like every other orb,
+- **Drag the MotherShip** → she's throwable like every other orb,
   trackball physics.
-- **Fling a free orb at the mother** (released orb lands within her
-  capture radius after a fling) → it is **absorbed**, returns to the
-  disc inventory. Visible deed per the Manual Foundation Law.
+- **Fling a free orb at the MotherShip** (released orb lands within
+  her capture radius after a fling) → it is **absorbed**, returns to
+  the disc inventory. Visible deed per the Manual Foundation Law.
 
 State persists: which orbs are released vs stowed, and where each
 released orb sits. On a fresh device, the AI Cycle ring and the
 Me orb are released by default; everything else starts stowed.
 
-Permanent UI is now exactly: globe, wordmark, mother orb. Everything
+Permanent UI is now exactly: globe, wordmark, MotherShip orb. Everything
 else is contextual — released by the user, surfaced by the AI, or
 flowed through the bottom drawer.
 

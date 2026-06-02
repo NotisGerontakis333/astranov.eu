@@ -160,25 +160,25 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     Permanent UI is reserved for the unconditional essentials: globe,
     wordmark, AICYCLE ring, apex orb dock, contextual back chevron.
 
-0n. MOTHER-SHIP LAW — one orb to hold them all (binding, never regress)
-    The user always sees ONE orb: the MOTHER ORB. She holds Earth at
-    her centre and contains every other little orb inside her. The
+0n. MOTHERSHIP LAW — one orb to hold them all (binding, never regress)
+    The user always sees ONE orb: the MOTHERSHIP ORB. She holds Earth
+    at her centre and contains every other little orb inside her. The
     rest of the chrome is summoned out of her, used, and thrown back in.
     Gestures:
-    - TAP the mother → her disc expands; every small orb (Me, Wallet,
-      Pilot, Astranov, Discover, Volume, Mic, Bright, AI Cycle) fans
-      around her body. Tap a STOWED orb to release it onto the screen;
-      tap a RELEASED orb to stow it back.
+    - TAP the MotherShip → her disc expands; every small orb (Me,
+      Wallet, Pilot, Astranov, Discover, Volume, Mic, Bright, AI Cycle)
+      fans around her body. Tap a STOWED orb to release it onto the
+      screen; tap a RELEASED orb to stow it back.
     - TAP the Earth at her centre → pilotHome (warp camera to GLOBAL).
-    - DRAG the mother → trackball-throwable like every other orb.
-    - FLING a free orb at the mother (released orb settles within her
-      capture radius after a fling) → absorbed, returns to inventory.
+    - DRAG the MotherShip → trackball-throwable like every other orb.
+    - FLING a free orb at the MotherShip (released orb settles within
+      her capture radius after a fling) → absorbed, returns to inventory.
     Visible deed per §0k Manual Foundation Law.
     Persistence: released vs stowed + each released orb's position.
     First-run default: AI Cycle and Me are released; the rest stowed.
-    Permanent UI is now exactly: globe, wordmark, mother orb. The
-    apex dock, control orbs, AICYCLE ring all live INSIDE the mother
-    by default. Prior art (Catch-up Law): Apple Dynamic Island, Jarvis
+    Permanent UI is now exactly: globe, wordmark, MotherShip orb. The
+    apex dock, control orbs, AICYCLE ring all live INSIDE her by
+    default. Prior art (Catch-up Law): Apple Dynamic Island, Jarvis
     radial HUD, gaming radial inventories — Astranov adds physics-
     based toss between inventory and workspace.
 
@@ -1978,9 +1978,9 @@ Single-file by design. Any AI/human can continue from this comment + the law.
   }
   .cfc-all { font-weight: 700; }
 
-  /* MOTHER ORB (§0n) — the mothership orb. One element holds every
-     small orb inside her by default; tap her to fan them out around
-     her body. Earth lives at her centre. Throwable like every orb. */
+  /* MOTHERSHIP ORB (§0n) — one element holds every small orb inside
+     her by default; tap her to fan them out around her body. Earth
+     lives at her centre. Throwable like every orb. */
   #mother-orb {
     position: fixed; z-index: 220; width: 88px; height: 88px;
     cursor: grab; -webkit-tap-highlight-color: transparent;
@@ -3640,11 +3640,11 @@ Single-file by design. Any AI/human can continue from this comment + the law.
      showing its dial. Single canonical layer (§0m ORBITAL DIAL LAW). -->
 <div id="orbital-dial" aria-hidden="true"></div>
 
-<!-- MOTHER ORB (§0n) — the OS centerpiece. Holds every small orb
+<!-- MOTHERSHIP ORB (§0n) — the OS centerpiece. Holds every small orb
      inside her; tap to expand the disc; tap Earth (center) to warp
      home. Throwable. Single always-visible chrome element along with
      the wordmark and the globe itself. -->
-<div id="mother-orb" title="Astranov mothership · tap to open">
+<div id="mother-orb" title="Astranov MotherShip · tap to open">
   <div class="mo-earth" aria-hidden="true"></div>
   <div class="mo-halo"  aria-hidden="true"></div>
 </div>
@@ -5622,7 +5622,7 @@ function _startMicMeter() {
 })();
 
 /* ==============================================================
-   MOTHER ORB (§0n MOTHER-SHIP LAW) — the OS centerpiece. Holds
+   MOTHERSHIP ORB (§0n MOTHERSHIP LAW) — the OS centerpiece. Holds
    every small orb inside her; tap her body to fan a disc of them
    around her; tap a token to release/stow; fling a released orb at
    her to absorb it back.
