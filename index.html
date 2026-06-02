@@ -1993,6 +1993,27 @@ Single-file by design. Any AI/human can continue from this comment + the law.
       0 0 22px rgba(45,108,196,0.45),
       inset 0 0 18px rgba(45,108,196,0.18);
   }
+  /* TOP MARKER — the static "selected" indicator at 12 o'clock. The
+     roulette wheel spins beneath it; whichever dot is under the
+     marker is the selected one. */
+  #orbital-dial .od-mark {
+    position: absolute; left: 50%; top: 50%;
+    transform: translate(-50%, calc(-1 * var(--od-r, 110px) - 18px));
+    width: 0; height: 0; pointer-events: none;
+    border-left: 9px solid transparent;
+    border-right: 9px solid transparent;
+    border-top: 14px solid rgba(207,226,255,0.95);
+    filter: drop-shadow(0 0 6px rgba(93,178,255,0.85));
+  }
+  /* WHEEL — the rotating container. Dots / arcs are children. We
+     drive its rotation directly from active._t so the whole roulette
+     spins under the top marker. */
+  #orbital-dial .od-wheel {
+    position: absolute; left: 50%; top: 50%;
+    width: 0; height: 0;
+    transform: translate(-50%, -50%) rotate(var(--od-rot, 0deg));
+    will-change: transform;
+  }
   /* Dial dots — option markers around the halo. */
   #orbital-dial .od-dot {
     position: absolute; left: 50%; top: 50%;
@@ -2020,6 +2041,19 @@ Single-file by design. Any AI/human can continue from this comment + the law.
       0 0 22px color-mix(in srgb, var(--dc, #cfe2ff) 95%, transparent),
       0 0 44px color-mix(in srgb, var(--dc, #cfe2ff) 45%, transparent);
     transform: translate(var(--dx, 0px), var(--dy, 0px)) scale(1.15);
+  }
+  /* Tick marks for continuous mode — let the roulette feel real. */
+  #orbital-dial .od-tick {
+    position: absolute; left: 50%; top: 50%;
+    width: 2px; height: 8px; margin: -4px 0 0 -1px;
+    background: rgba(207,226,255,0.45);
+    transform: translate(var(--dx, 0), var(--dy, 0)) rotate(var(--ang, 0));
+    transform-origin: center;
+  }
+  #orbital-dial .od-tick.major {
+    height: 14px; width: 2.5px; margin-top: -7px;
+    background: rgba(93,178,255,0.95);
+    box-shadow: 0 0 8px rgba(93,178,255,0.7);
   }
   /* Continuous-arc indicator (for value dials like volume/brightness). */
   #orbital-dial .od-arc {
@@ -3530,8 +3564,11 @@ Single-file by design. Any AI/human can continue from this comment + the law.
 <div id="drive-hud"><span class="dh-emoji">🚗</span><span>Driving</span><span class="dh-sp" id="dh-sp">0 km/h</span></div>
 
 <!-- Pilot lifeboat — the always-reachable warp-home gesture at non-global
-     tiers. Hidden at global (the orbital Pilot orb takes over). -->
-<div id="pilot-mini" title="Pilot — warp to home orbit" onclick="pilotHome()">🌍</div>
+     tiers. RETIRED — the apex Pilot orb in the draggable dock
+     (sys-pilot) already provides warp-home from every tier, so a
+     duplicate at top-left was redundant and violated the "little
+     orbs do everything, appear and disappear as needed" rule. -->
+<div id="pilot-mini" hidden></div>
 
 <!-- Showcase tile strip — tiny muted-video-feel tiles of feeds/news/offers,
      auto-scoping to GLOBAL / NATIONAL / LOCAL as the camera descends. -->
@@ -3543,11 +3580,15 @@ Single-file by design. Any AI/human can continue from this comment + the law.
 
 <!-- Volume slider — mirrors the brightness slider on the right edge.
      Controls Astranov's voice loudness. Visible only at the global tier. -->
-<!-- Voice volume — control orb (§0m ORBITAL DIAL LAW). Tap = arc dial,
-     drag = throw. The old vertical slider was retired in favour of
-     the unified orb gesture grammar. -->
+<!-- Voice volume — control orb (§0m ORBITAL DIAL LAW). -->
 <div id="ctrl-vol" class="ctrl-orb" title="Voice volume — tap to dial, drag to throw">
   <div class="co-body">🔊</div>
+</div>
+
+<!-- Microphone — control orb. Tap to dial (Off / Tap-to-talk / Auto);
+     the orb body pulses with real-time mic level when on. -->
+<div id="ctrl-mic" class="ctrl-orb" title="Microphone — tap to dial, drag to throw">
+  <div class="co-body">🎙</div>
 </div>
 
 <!-- Depth slider removed (§5j v2) — replaced by tap+hold gestures on the
@@ -4954,7 +4995,12 @@ const OrbitalDial = (() => {
     r.style.setProperty('--od-cx', cx + 'px');
     r.style.setProperty('--od-cy', cy + 'px');
     r.style.setProperty('--od-r',  radius + 'px');
-    ring.innerHTML = `<div class="od-halo"></div><div class="od-value"></div><div class="od-label">${escapeHtml(opts.label || '')}</div>`;
+    ring.innerHTML = `
+      <div class="od-halo"></div>
+      <div class="od-mark"></div>
+      <div class="od-wheel"></div>
+      <div class="od-value"></div>
+      <div class="od-label">${escapeHtml(opts.label || '')}</div>`;
     if (opts.mode === 'continuous') {
       buildContinuous(active, radius);
       // Seed the ring position from the initial value.
@@ -4964,6 +5010,7 @@ const OrbitalDial = (() => {
       const idx = Math.max(0, active.items.findIndex(i => i.value === active.value));
       active._t = idx / active.items.length;
     }
+    applyRotation();
     r.classList.add('open');
     r.setAttribute('aria-hidden', 'false');
     requestAnimationFrame(() => updateValueLabel());
@@ -4984,14 +5031,24 @@ const OrbitalDial = (() => {
   function cancelSpin() {
     if (active && active._spinRaf) { cancelAnimationFrame(active._spinRaf); active._spinRaf = 0; }
   }
+  function wheelEl() { return ring.querySelector('.od-wheel'); }
+  function applyRotation() {
+    const w = wheelEl(); if (!w) return;
+    // The wheel rotates by -t * 360°, so the dot at index t*n (or the
+    // continuous "value position") slides under the static top marker.
+    const root = document.getElementById('orbital-dial');
+    root.style.setProperty('--od-rot', (-active._t * 360).toFixed(3) + 'deg');
+  }
   function buildDiscrete(opts, radius) {
+    const w = wheelEl(); if (!w) return;
     const n = opts.items.length;
     opts.items.forEach((it, i) => {
+      // Dot 0 starts at the top; subsequent dots clockwise around.
       const angle = (i / n) * Math.PI * 2 - Math.PI / 2;
       const dx = Math.cos(angle) * radius;
       const dy = Math.sin(angle) * radius;
       const dot = document.createElement('div');
-      dot.className = 'od-dot' + (it.value === opts.value ? ' active' : '');
+      dot.className = 'od-dot';
       dot.style.setProperty('--dx', dx + 'px');
       dot.style.setProperty('--dy', dy + 'px');
       dot.style.setProperty('--dc', it.color || '#a8c8ee');
@@ -5003,40 +5060,52 @@ const OrbitalDial = (() => {
         e.stopPropagation();
         commit(it.value);
       });
-      ring.appendChild(dot);
+      w.appendChild(dot);
     });
+    highlightTopDot();
   }
   function buildContinuous(opts, radius) {
+    const w = wheelEl(); if (!w) return;
+    // Tick marks every 10 % around the ring — a "real" roulette feel.
+    for (let i = 0; i < 20; i++) {
+      const angle = (i / 20) * Math.PI * 2 - Math.PI / 2;
+      const tick = document.createElement('div');
+      tick.className = 'od-tick' + (i % 5 === 0 ? ' major' : '');
+      tick.style.setProperty('--dx', (Math.cos(angle) * radius) + 'px');
+      tick.style.setProperty('--dy', (Math.sin(angle) * radius) + 'px');
+      tick.style.setProperty('--ang', (angle * 180 / Math.PI + 90) + 'deg');
+      w.appendChild(tick);
+    }
+    // A glowing fill segment that grows clockwise from the top as the
+    // value increases. Rendered as an SVG circle with stroke-dasharray.
     const arc = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     arc.setAttribute('class', 'od-arc');
     arc.setAttribute('viewBox', `0 0 ${radius * 2} ${radius * 2}`);
-    const C = 2 * Math.PI * radius;
     const v = clamp01((opts.value - opts.range[0]) / (opts.range[1] - opts.range[0]));
+    const C = 2 * Math.PI * (radius - 4);
     arc.innerHTML = `
       <circle class="od-arc-bg"    cx="${radius}" cy="${radius}" r="${radius - 4}"></circle>
       <circle class="od-arc-value" cx="${radius}" cy="${radius}" r="${radius - 4}"
-              stroke-dasharray="${(C - 8) * v} ${C}"></circle>`;
-    ring.appendChild(arc);
-    const knob = document.createElement('div');
-    knob.className = 'od-arc-knob';
-    ring.appendChild(knob);
-    positionKnob(opts, radius);
+              stroke-dasharray="${C * v} ${C * 4}"></circle>`;
+    w.appendChild(arc);
   }
   function positionKnob(opts, radius) {
-    const v = clamp01((opts.value - opts.range[0]) / (opts.range[1] - opts.range[0]));
-    const angle = v * Math.PI * 2 - Math.PI / 2;
-    const kx = Math.cos(angle) * (radius - 4);
-    const ky = Math.sin(angle) * (radius - 4);
-    const knob = ring.querySelector('.od-arc-knob');
-    if (knob) {
-      knob.style.setProperty('--kx', kx + 'px');
-      knob.style.setProperty('--ky', ky + 'px');
-    }
+    // Continuous mode visualisation: the fill segment grows as t goes
+    // from 0 → 1. The TOP marker is the read-out position, so we just
+    // update the stroke-dasharray; the rotation already places the
+    // end of the fill at the top.
     const arcV = ring.querySelector('.od-arc-value');
     if (arcV) {
+      const v = clamp01((opts.value - opts.range[0]) / (opts.range[1] - opts.range[0]));
       const C = 2 * Math.PI * (radius - 4);
       arcV.setAttribute('stroke-dasharray', `${C * v} ${C * 4}`);
     }
+  }
+  function highlightTopDot() {
+    if (!active || active.mode === 'continuous') return;
+    const n = active.items.length;
+    const idx = ((Math.round(active._t * n) % n) + n) % n;
+    ring.querySelectorAll('.od-dot').forEach((d, i) => d.classList.toggle('active', i === idx));
   }
   function clamp01(x) { return Math.max(0, Math.min(1, x)); }
   function updateValueLabel() {
@@ -5150,9 +5219,11 @@ const OrbitalDial = (() => {
     if (t < 0) t += 1;
     active._t = t;
   }
-  // Project active._t (0..1) onto the actual value + UI state.
+  // Project active._t (0..1) onto the actual value + UI state, and
+  // rotate the roulette so the current value sits under the top marker.
   function applyT() {
     if (!active) return;
+    applyRotation();
     if (active.mode === 'continuous') {
       const val = active.range[0] + (active.range[1] - active.range[0]) * active._t;
       const step = active.step || 0.01;
@@ -5162,12 +5233,11 @@ const OrbitalDial = (() => {
       if (typeof active.onChange === 'function') try { active.onChange(active.value); } catch (_) {}
     } else {
       const n = active.items.length;
-      const idx = Math.round(active._t * n) % n;
+      const idx = ((Math.round(active._t * n) % n) + n) % n;
       const next = active.items[idx];
+      highlightTopDot();
       if (next && next.value !== active.value) {
         active.value = next.value;
-        ring.querySelectorAll('.od-dot').forEach(d =>
-          d.classList.toggle('active', d.dataset.value === String(active.value)));
         updateValueLabel();
         if (typeof active.onChange === 'function') try { active.onChange(active.value); } catch (_) {}
       }
@@ -5225,6 +5295,84 @@ window.OrbitalDial = OrbitalDial;
       },
     });
   }
+})();
+
+/* Microphone control orb — tap opens a roulette dial (Off / Tap to
+   talk / Auto-listen). The orb body PULSES with the real-time mic
+   RMS level when on, so the user can SEE the mic working (Manual
+   Foundation Law: visible deed). Throwable like every other orb. */
+window._micMode = (function () {
+  try { return localStorage.getItem('astranov_mic_mode') || 'off'; }
+  catch (_) { return 'off'; }
+})();
+function setMicMode(mode) {
+  window._micMode = mode || 'off';
+  try { localStorage.setItem('astranov_mic_mode', window._micMode); } catch (_) {}
+  const el = document.getElementById('ctrl-mic');
+  if (el) {
+    el.classList.toggle('mic-on', window._micMode !== 'off');
+    el.classList.toggle('mic-auto', window._micMode === 'auto');
+  }
+  if (window._micMode === 'auto') {
+    try { startVoiceSession(); } catch (_) {}
+  } else if (window._micMode === 'off') {
+    try { stopVoiceSession(); } catch (_) {}
+  } else if (window._micMode === 'tap') {
+    // Tap-to-talk: stop the continuous loop; user fires single
+    // recognitions from the AI orb.
+    try { stopVoiceSession(); } catch (_) {}
+  }
+}
+function _micMeterTick() {
+  const el = document.getElementById('ctrl-mic');
+  if (!el || window._micMode === 'off') return;
+  let rms = 0;
+  try { rms = (typeof _rmsNow === 'function') ? _rmsNow() : 0; } catch (_) {}
+  // Map 0..0.35 RMS to a brightness pulse on the orb body.
+  const u = Math.max(0, Math.min(1, rms / 0.35));
+  const body = el.querySelector('.co-body');
+  if (body) body.style.boxShadow =
+    `inset 0 0 10px rgba(0,0,0,0.55),
+     0 0 ${14 + u * 28}px rgba(126,235,180,${0.5 + u * 0.5}),
+     0 0 ${28 + u * 40}px rgba(126,235,180,${0.2 + u * 0.4})`;
+}
+let _micMeterRaf = 0;
+function _startMicMeter() {
+  if (_micMeterRaf) return;
+  const loop = () => {
+    _micMeterTick();
+    _micMeterRaf = requestAnimationFrame(loop);
+  };
+  _micMeterRaf = requestAnimationFrame(loop);
+}
+(function wireMicOrb() {
+  const mic = document.getElementById('ctrl-mic');
+  if (!mic) return;
+  mic.style.setProperty('--co-c', '#7eebb4');
+  const W = window.innerWidth, H = window.innerHeight;
+  mic.style.right = '14px'; mic.style.top = (H * 0.5) + 'px';
+  if (!mic.style.left) mic.style.left = (W - 58) + 'px';
+  // Reflect initial saved mode on the orb.
+  setMicMode(window._micMode);
+  makeThrowableOrb(mic, {
+    size: 44, persistKey: 'astranov_ctrl_mic_pos',
+    onTap: (el) => {
+      // Ensure the analyser is wired so the meter loop has signal.
+      try { _ensureMicMeter().then(ok => { if (ok) _startMicMeter(); }); } catch (_) {}
+      const items = [
+        { value: 'off',  glyph: '✕',  color: '#6a8aaf', label: 'Off' },
+        { value: 'tap',  glyph: '◉',  color: '#ffd47e', label: 'Tap to talk' },
+        { value: 'auto', glyph: '◈',  color: '#7eebb4', label: 'Auto-listen' },
+      ];
+      OrbitalDial.open({
+        anchorEl: el, mode: 'discrete', items,
+        value: window._micMode || 'off',
+        label: 'Microphone',
+        onCommit: (v) => { setMicMode(v); },
+        onChange: (v) => { setMicMode(v); },   // live preview while spinning
+      });
+    },
+  });
 })();
 
 /* AICYCLE ring — tap opens the engine dial (§0m). The dial dots
