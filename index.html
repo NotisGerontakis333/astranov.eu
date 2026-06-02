@@ -184,6 +184,16 @@ This block strives to get shorter, more inclusive, more precise with every edit.
     three rings. The old mother-orb body is hidden in DOM behind a
     display:none guard — its helpers are stubbed.
 
+    MOON — secondary base. Anyone who zooms out far enough sees her at
+    the bottom-right of the screen. A small grey-blue body with her
+    own single orbit ring carrying the COLD / DEEPER orbs the user
+    visits less often:
+      Council of Thirteen · Krypteia (owner-only) · long-term Memory ·
+      Archive · Settings.
+    When the camera height passes ~20,000 km, body.cosmic-zoom is set
+    and the Moon swells so the user notices her. Tapping the Moon body
+    flies the camera to cosmic altitude.
+
 0m. ORBITAL DIAL LAW — every control orb is a throwable trackball with
     a radial dial (binding, never regress)
     Every interactive orb obeys the same two-gesture grammar:
@@ -2115,6 +2125,83 @@ Single-file by design. Any AI/human can continue from this comment + the law.
     100% { opacity: 0;   transform: scale(1.6); }
   }
 
+  /* MOON — secondary base (§0n addendum). A small grey-blue body
+     in the lower-right of the screen with her own single ring of
+     orbs (Council, Krypteia, Memory, Archive, Settings). Pulses
+     gently. By default visible; on COSMIC zoom (camera height > a
+     threshold) she swells slightly so the user notices. */
+  #moon-system {
+    position: fixed;
+    right: max(28px, calc(env(safe-area-inset-right) + 28px));
+    bottom: max(140px, calc(env(safe-area-inset-bottom) + 140px));
+    width: 0; height: 0; z-index: 197;
+    pointer-events: none;
+    transition: transform 0.6s var(--ease);
+    will-change: transform;
+  }
+  body.cosmic-zoom #moon-system { transform: scale(1.35); }
+  .moon-body {
+    position: absolute; left: -16px; top: -16px;
+    width: 32px; height: 32px; border-radius: 50%;
+    pointer-events: auto;
+    background:
+      radial-gradient(circle at 28% 28%, rgba(255,255,255,0.40) 0%, transparent 35%),
+      radial-gradient(circle at 65% 55%, rgba(80,100,140,0.35) 0%, transparent 28%),
+      radial-gradient(circle at 35% 75%, rgba(40,60,90,0.45)  0%, transparent 30%),
+      linear-gradient(165deg, #b6c2d8 0%, #6a7790 55%, #2b3550 100%);
+    border: 1px solid rgba(180,200,235,0.55);
+    box-shadow:
+      inset 0 0 10px rgba(0,0,0,0.55),
+      0 0 16px rgba(140,170,220,0.42),
+      0 0 30px rgba(80,110,160,0.35);
+    cursor: pointer;
+    animation: moon-pulse 5.2s ease-in-out infinite;
+  }
+  @keyframes moon-pulse {
+    0%,100% { box-shadow:
+      inset 0 0 10px rgba(0,0,0,0.55),
+      0 0 16px rgba(140,170,220,0.42),
+      0 0 30px rgba(80,110,160,0.35); }
+    50%     { box-shadow:
+      inset 0 0 10px rgba(0,0,0,0.55),
+      0 0 22px rgba(180,210,255,0.65),
+      0 0 44px rgba(100,140,200,0.55); }
+  }
+  .moon-ring {
+    position: absolute; left: 0; top: 0;
+    width: 0; height: 0; pointer-events: none;
+  }
+  .moon-ring::before {
+    content: ''; position: absolute; left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    width:  120px; height: 120px;
+    border-radius: 50%;
+    border: 1px dashed rgba(160,190,235,0.18);
+    pointer-events: none;
+  }
+  .moon-orb {
+    position: absolute; left: 0; top: 0;
+    width: 22px; height: 22px; margin: -11px 0 0 -11px;
+    border-radius: 50%; pointer-events: auto; cursor: pointer;
+    touch-action: none; -webkit-tap-highlight-color: transparent;
+    transform: translate(var(--dx, 0), var(--dy, 0));
+    transition: transform 0.9s cubic-bezier(0.32, 0.72, 0, 1),
+                opacity   0.4s var(--ease),
+                box-shadow 0.3s var(--ease);
+    background: radial-gradient(circle at 32% 32%,
+      color-mix(in srgb, var(--mc, #a0b4d8) 90%, white 18%),
+      var(--mc, #a0b4d8) 55%, #1a2440 100%);
+    border: 1px solid color-mix(in srgb, var(--mc, #a0b4d8) 85%, transparent);
+    box-shadow:
+      inset 0 0 5px rgba(0,0,0,0.55),
+      0 0 8px color-mix(in srgb, var(--mc, #a0b4d8) 55%, transparent);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-display, 'Cinzel', serif);
+    font-size: 10px; font-weight: 700; color: #f4f6ff;
+    text-shadow: 0 0 4px color-mix(in srgb, var(--mc, #a0b4d8) 70%, transparent);
+  }
+  .moon-orb:active { transform: translate(var(--dx, 0), var(--dy, 0)) scale(0.92); }
+
   /* Legacy MotherShip body — retired (§0n v2). Earth is now the
      mother. Hidden but kept in DOM in case stray code references
      #mother-orb. */
@@ -3868,6 +3955,16 @@ Single-file by design. Any AI/human can continue from this comment + the law.
   <div class="er-ring" data-ring="1"></div>
   <div class="er-ring" data-ring="2"></div>
   <div id="er-flash" aria-hidden="true"></div>
+</div>
+
+<!-- MOON — secondary base (§0n addendum). Visible to anyone who zooms
+     out enough to see the wider cosmos. Holds the deeper / less-
+     frequent orbs: Council of Thirteen, Krypteia, long-term Memory,
+     Archive, Settings. A second cluster of agents in a single ring
+     around her. -->
+<div id="moon-system" aria-label="Moon — cold base">
+  <div class="moon-body" aria-hidden="true"></div>
+  <div class="moon-ring" data-ring="0"></div>
 </div>
 
 <!-- Me spotlight — a line from the on-screen Me orb to the user's location. -->
@@ -6027,9 +6124,95 @@ window.openGroupPanel = function (group) {
   } catch (_) {}
 };
 
+/* ==============================================================
+   MOON — secondary base (§0n addendum). The deeper, less-frequent
+   orbs live here: Council of Thirteen, Krypteia (owner-only),
+   long-term Memory, Archives, Settings. A single ring; tap the Moon
+   body to warp the camera to "cosmic" altitude (so the user can SEE
+   her at the edge of space). When the camera enters cosmic-zoom,
+   body.cosmic-zoom gets set and the whole #moon-system swells.
+   ============================================================== */
+const MOON_ORBS = [
+  { id: 'mo-council',  label: 'Council',  color: '#cfe2ff', glyph: '⌬',  act: () => _moonStub('Council of Thirteen', 'Twelve elder intelligences + Astranov hold the supreme court here. Owner-only convene; visitors see the verdict log.') },
+  { id: 'mo-krypteia', label: 'Krypteia', color: '#ff9eb4', glyph: '⬡', ownerOnly: true, act: () => { try { if (typeof openKrypteia === 'function') openKrypteia(); } catch (_) {} } },
+  { id: 'mo-memory',   label: 'Memory',   color: '#a0c6ff', glyph: '◐',  act: () => _moonStub('Long-term Memory', 'Public memories shared with the brain across sessions. "remember …" writes here.') },
+  { id: 'mo-archive',  label: 'Archive',  color: '#b9c4dd', glyph: '⊟',  act: () => _moonStub('Archive', 'Past orders, past conversations, past routes. Cold storage; one tap to thaw.') },
+  { id: 'mo-settings', label: 'Settings', color: '#7eebb4', glyph: '⚙',  act: () => _moonStub('Settings', 'App preferences. Permissions, voice, theme, data, the door to the owner channel.') },
+];
+function _moonStub(title, body) {
+  try {
+    openPanel(`<h2>${escapeHtml(title)}</h2>
+      <div class="subtitle">Moon orbit · cold base</div>
+      <div style="font-size:12px;color:#a8c8ee;padding:10px 0;line-height:1.6">${escapeHtml(body)}</div>`);
+  } catch (_) {}
+}
+function _layoutMoonOrbs() {
+  const ring = document.querySelector('#moon-system .moon-ring');
+  if (!ring) return;
+  const isOwner = !!(typeof profile !== 'undefined' && profile && profile.is_owner);
+  const items = MOON_ORBS.filter(o => !o.ownerOnly || isOwner);
+  const radius = 60;
+  ring.innerHTML = '';
+  items.forEach((orb, i) => {
+    // Spread the moon orbs around the upper-left arc of the Moon (so
+    // they hang in space between the Moon and the Earth rings instead
+    // of falling off the screen edge to the right).
+    const n = items.length;
+    const angle = Math.PI + (i / Math.max(1, n - 1)) * Math.PI * 0.75 - Math.PI * 0.1;
+    const dx = Math.cos(angle) * radius;
+    const dy = Math.sin(angle) * radius;
+    const el = document.createElement('div');
+    el.className = 'moon-orb';
+    el.dataset.id = orb.id;
+    el.style.setProperty('--mc', orb.color);
+    el.style.setProperty('--dx', dx.toFixed(1) + 'px');
+    el.style.setProperty('--dy', dy.toFixed(1) + 'px');
+    el.title = orb.label;
+    el.textContent = orb.glyph;
+    el.addEventListener('pointerup', (e) => { e.stopPropagation(); try { orb.act(); } catch (_) {} });
+    ring.appendChild(el);
+  });
+}
+function _wireMoonBody() {
+  const body = document.querySelector('#moon-system .moon-body');
+  if (!body) return;
+  body.addEventListener('click', () => {
+    // Warp to cosmic zoom so the user can SEE the Moon in space.
+    try {
+      if (viewer) {
+        const carto = viewer.camera.positionCartographic;
+        const lng = Cesium.Math.toDegrees(carto.longitude);
+        const lat = Cesium.Math.toDegrees(carto.latitude);
+        viewer.camera.flyTo({
+          destination: Cesium.Cartesian3.fromDegrees(lng, lat, 60_000_000),
+          duration: 2.0,
+          orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 },
+        });
+      }
+    } catch (_) {}
+  });
+}
+// Watch the camera height; when the user "sneaks" out past Earth's
+// near gravity well, flip body.cosmic-zoom on so the Moon swells.
+function _watchCosmicZoom() {
+  if (!viewer) return;
+  const COSMIC = 20_000_000;   // 20,000 km — well past low orbit
+  const tick = () => {
+    try {
+      const h = viewer.camera.positionCartographic.height;
+      document.body.classList.toggle('cosmic-zoom', h > COSMIC);
+    } catch (_) {}
+  };
+  viewer.camera.moveEnd.addEventListener(tick);
+  tick();
+}
+
 // Boot — render once, then tick.
 function _bootEarthOrbs() {
   _layoutEarthOrbs();
+  _layoutMoonOrbs();
+  _wireMoonBody();
+  _watchCosmicZoom();
   _startEarthOrbsTick();
   // Tiny visual flair on boot — the rings briefly pulse so the user
   // sees them appear.
@@ -6040,7 +6223,11 @@ function _bootEarthOrbs() {
   }
 }
 window.addEventListener('load', () => setTimeout(_bootEarthOrbs, 600));
-window.addEventListener('resize', () => { try { _layoutEarthOrbs(); } catch (_) {} }, { passive: true });
+window.addEventListener('resize', () => {
+  try { _layoutEarthOrbs(); } catch (_) {}
+  try { _layoutMoonOrbs(); } catch (_) {}
+}, { passive: true });
+window.relayoutMoonOrbs = function () { try { _layoutMoonOrbs(); } catch (_) {} };
 
 // Keep this stub so legacy references (renderMotherRings) don't blow
 // up; Earth orbs are the source of truth now.
@@ -7588,6 +7775,8 @@ function updateIdentityOrb() {
     const sysMe = document.querySelector('#sys-orbs .so[data-orb="sys-me"] .so-body');
     if (sysMe) sysMe.textContent = _meInitials();
   } catch (_) {}
+  // Owner-only Moon orbs (Krypteia) appear / disappear with identity.
+  try { if (typeof window.relayoutMoonOrbs === 'function') window.relayoutMoonOrbs(); } catch (_) {}
   const orbEl = $('g-me');
   const glyphEl = $('g-me-glyph');
   if (!orbEl || !glyphEl) return;

@@ -208,6 +208,21 @@ Permanent UI is now exactly: globe, wordmark, three orbit rings.
 Everything else flows through the bottom drawer or is summoned by
 the AI.
 
+**MOON — secondary base.** Anyone who zooms out far enough sees the
+Moon at the bottom-right. She has her own single orbit ring of
+DEEPER / less-frequent orbs:
+- Council of Thirteen
+- Krypteia (owner-only)
+- long-term Memory
+- Archive
+- Settings
+
+When the camera passes ~20,000 km altitude, `body.cosmic-zoom` is
+set and the whole `#moon-system` swells so the user notices her.
+Tapping the Moon body flies the camera to cosmic altitude. Future
+work: orbs whose usefulness drops to near-zero on Earth migrate
+visually to Moon orbit (the "cold storage" arc).
+
 ## ORBITAL DIAL LAW — every control orb is a throwable trackball with a radial dial (binding)
 **Every interactive orb in AstranoV obeys the same two-gesture grammar:**
 - **Tap** opens a **circular orbital dial** around the orb — dots arranged
