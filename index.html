@@ -1978,7 +1978,7 @@ Single-file by design. Any AI/human can continue from this comment + the law.
   #orbital-dial .od-halo {
     position: absolute; left: 50%; top: 50%;
     transform: translate(-50%, -50%);
-    width: calc(var(--od-r, 110px) * 2); height: calc(var(--od-r, 110px) * 2);
+    width: calc(var(--od-r, 78px) * 2); height: calc(var(--od-r, 78px) * 2);
     border-radius: 50%; box-sizing: border-box;
     border: 1px dashed rgba(93,178,255,0.45);
     box-shadow:
@@ -1990,11 +1990,11 @@ Single-file by design. Any AI/human can continue from this comment + the law.
      marker is the selected one. */
   #orbital-dial .od-mark {
     position: absolute; left: 50%; top: 50%;
-    transform: translate(-50%, calc(-1 * var(--od-r, 110px) - 18px));
+    transform: translate(-50%, calc(-1 * var(--od-r, 78px) - 22px));
     width: 0; height: 0; pointer-events: none;
-    border-left: 9px solid transparent;
-    border-right: 9px solid transparent;
-    border-top: 14px solid rgba(207,226,255,0.95);
+    border-left: 7px solid transparent;
+    border-right: 7px solid transparent;
+    border-top: 11px solid rgba(207,226,255,0.95);
     filter: drop-shadow(0 0 6px rgba(93,178,255,0.85));
   }
   /* WHEEL — the rotating container. Dots / arcs are children. We
@@ -2006,10 +2006,25 @@ Single-file by design. Any AI/human can continue from this comment + the law.
     transform: translate(-50%, -50%) rotate(var(--od-rot, 0deg));
     will-change: transform;
   }
-  /* Dial dots — option markers around the halo. */
+  /* Escalation SHARDS — triangles arranged around the wheel that
+     light up + grow as the value advances. The cool→warm hue is
+     the read-at-a-glance direction of escalation. */
+  #orbital-dial .od-shards {
+    position: absolute; left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    overflow: visible; pointer-events: none;
+  }
+  #orbital-dial .od-shard {
+    stroke-width: 1;
+    transition: opacity 0.18s var(--ease),
+                transform 0.18s var(--ease),
+                filter 0.2s var(--ease);
+  }
+  /* Dial dots — option markers around the halo. Smaller to match
+     the smaller default radius. */
   #orbital-dial .od-dot {
     position: absolute; left: 50%; top: 50%;
-    width: 38px; height: 38px; margin: -19px 0 0 -19px;
+    width: 30px; height: 30px; margin: -15px 0 0 -15px;
     transform: translate(var(--dx, 0px), var(--dy, 0px));
     border-radius: 50%;
     background: radial-gradient(circle at 32% 32%,
@@ -2050,7 +2065,7 @@ Single-file by design. Any AI/human can continue from this comment + the law.
   /* Continuous-arc indicator (for value dials like volume/brightness). */
   #orbital-dial .od-arc {
     position: absolute; left: 50%; top: 50%;
-    width: calc(var(--od-r, 110px) * 2); height: calc(var(--od-r, 110px) * 2);
+    width: calc(var(--od-r, 78px) * 2); height: calc(var(--od-r, 78px) * 2);
     transform: translate(-50%, -50%) rotate(-90deg);
     pointer-events: none;
   }
@@ -2074,7 +2089,7 @@ Single-file by design. Any AI/human can continue from this comment + the law.
   }
   #orbital-dial .od-label {
     position: absolute; left: 50%; top: 50%;
-    transform: translate(-50%, calc(var(--od-r, 110px) + 26px));
+    transform: translate(-50%, calc(var(--od-r, 78px) + 26px));
     font-family: var(--font-display, 'Cinzel', serif);
     font-size: 12px; font-weight: 700; letter-spacing: 0.2em;
     text-transform: uppercase; color: #cfe2ff;
@@ -4991,7 +5006,10 @@ const OrbitalDial = (() => {
     const rect = anchor.getBoundingClientRect();
     const cx = rect.left + rect.width / 2;
     const cy = rect.top  + rect.height / 2;
-    const radius = opts.radius || 110;
+    // Smaller, tighter dial. Was 110; brought down to ~78 so the
+    // roulette sits inside the orb's halo rather than dominating
+    // the screen.
+    const radius = opts.radius || 78;
     r.style.setProperty('--od-cx', cx + 'px');
     r.style.setProperty('--od-cy', cy + 'px');
     r.style.setProperty('--od-r',  radius + 'px');
@@ -5034,14 +5052,81 @@ const OrbitalDial = (() => {
   function wheelEl() { return ring.querySelector('.od-wheel'); }
   function applyRotation() {
     const w = wheelEl(); if (!w) return;
-    // The wheel rotates by -t * 360°, so the dot at index t*n (or the
-    // continuous "value position") slides under the static top marker.
     const root = document.getElementById('orbital-dial');
     root.style.setProperty('--od-rot', (-active._t * 360).toFixed(3) + 'deg');
+    _updateShards();
+  }
+  // Build the SHARD ring — N triangles pointing OUTWARD around the
+  // wheel. Each shard sits at a discrete angular slot. Their colour
+  // climbs along a cool→warm escalation gradient so the user reads
+  // direction at a glance, and they GROW + brighten as the dial's
+  // value advances past their slot.
+  function _buildShards(radius, count) {
+    const w = wheelEl(); if (!w) return;
+    const ns = 'http://www.w3.org/2000/svg';
+    const svgSize = (radius + 14) * 2;
+    const svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('class', 'od-shards');
+    svg.setAttribute('viewBox', `${-svgSize/2} ${-svgSize/2} ${svgSize} ${svgSize}`);
+    svg.style.width  = svgSize + 'px';
+    svg.style.height = svgSize + 'px';
+    for (let i = 0; i < count; i++) {
+      // Slot centred at angle (i / count) * 2π, top-anchored.
+      const a   = (i / count) * Math.PI * 2 - Math.PI / 2;
+      const tipR  = radius + 11;
+      const baseR = radius - 1;
+      const half  = (Math.PI / count) * 0.78;   // half-width of the triangle base
+      // Three points: tip on the outer ring, base on the inner ring.
+      const tipX  = Math.cos(a)         * tipR;
+      const tipY  = Math.sin(a)         * tipR;
+      const bL_x  = Math.cos(a - half)  * baseR;
+      const bL_y  = Math.sin(a - half)  * baseR;
+      const bR_x  = Math.cos(a + half)  * baseR;
+      const bR_y  = Math.sin(a + half)  * baseR;
+      // Hue maps to the escalation: 210° (cool aegean) at the bottom of
+      // the dial, sweeping through 200, 50 (warm chrysos) at the top.
+      const u = i / count;
+      const hue = 210 - u * 160;       // 210 → 50
+      const sat = 75, light = 56;
+      const tri = document.createElementNS(ns, 'polygon');
+      tri.setAttribute('points', `${tipX},${tipY} ${bL_x},${bL_y} ${bR_x},${bR_y}`);
+      tri.setAttribute('class', 'od-shard');
+      tri.style.fill = `hsl(${hue} ${sat}% ${light}% / 0.35)`;
+      tri.style.stroke = `hsl(${hue} ${sat}% ${light + 12}% / 0.85)`;
+      tri.dataset.t = u.toFixed(4);
+      svg.appendChild(tri);
+    }
+    w.appendChild(svg);
+  }
+  // Recolour / brighten shards based on the active position. Shards
+  // BEFORE the current _t (cumulative) are fully lit ("advanced");
+  // shards after are dim ("yet to reach").
+  function _updateShards() {
+    if (!active) return;
+    const shards = ring.querySelectorAll('.od-shard');
+    const t = active._t;
+    shards.forEach(s => {
+      const u = parseFloat(s.dataset.t) || 0;
+      // Distance around the ring from the head (the value) to this shard,
+      // measured forward (clockwise). Smaller distance = closer to the
+      // leading edge = brighter.
+      let d = u - t;
+      while (d < 0) d += 1;
+      // Lit if behind the head within ~85 % of the ring; the trailing
+      // shard right under the marker glows brightest.
+      const lit = d > 0.85 ? 1 : (1 - d / 0.85);
+      const scale = 0.7 + lit * 0.5;
+      s.style.opacity = (0.25 + lit * 0.75).toFixed(2);
+      s.style.transformOrigin = '0 0';
+      s.style.transform = `scale(${scale.toFixed(3)})`;
+      s.style.filter = `drop-shadow(0 0 ${(2 + lit * 8).toFixed(1)}px hsl(${(210 - u * 160).toFixed(0)} 75% 56% / ${lit.toFixed(2)}))`;
+    });
   }
   function buildDiscrete(opts, radius) {
     const w = wheelEl(); if (!w) return;
     const n = opts.items.length;
+    // One shard per option — colour reads as the escalation gradient.
+    _buildShards(radius, n);
     opts.items.forEach((it, i) => {
       // Dot 0 starts at the top; subsequent dots clockwise around.
       const angle = (i / n) * Math.PI * 2 - Math.PI / 2;
@@ -5066,16 +5151,9 @@ const OrbitalDial = (() => {
   }
   function buildContinuous(opts, radius) {
     const w = wheelEl(); if (!w) return;
-    // Tick marks every 10 % around the ring — a "real" roulette feel.
-    for (let i = 0; i < 20; i++) {
-      const angle = (i / 20) * Math.PI * 2 - Math.PI / 2;
-      const tick = document.createElement('div');
-      tick.className = 'od-tick' + (i % 5 === 0 ? ' major' : '');
-      tick.style.setProperty('--dx', (Math.cos(angle) * radius) + 'px');
-      tick.style.setProperty('--dy', (Math.sin(angle) * radius) + 'px');
-      tick.style.setProperty('--ang', (angle * 180 / Math.PI + 90) + 'deg');
-      w.appendChild(tick);
-    }
+    // 18 shards — a clean read of the escalation gradient around the
+    // ring without making the wheel look noisy.
+    _buildShards(radius, 18);
     // A glowing fill segment that grows clockwise from the top as the
     // value increases. Rendered as an SVG circle with stroke-dasharray.
     const arc = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
