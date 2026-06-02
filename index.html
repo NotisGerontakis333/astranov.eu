@@ -1957,7 +1957,15 @@ Single-file by design. Any AI/human can continue from this comment + the law.
     transition: transform 0.18s var(--ease), box-shadow 0.2s var(--ease);
     will-change: transform;
   }
-  #sys-orbs .so.dragging { cursor: grabbing; transition: none; }
+  #sys-orbs .so.dragging,
+  #sys-orbs .so.flinging { cursor: grabbing; transition: none; }
+  #sys-orbs .so.flinging .so-body {
+    /* Faint motion glow while the orb is in flight. */
+    box-shadow:
+      inset 0 0 10px rgba(0,0,0,0.55),
+      0 0 22px color-mix(in srgb, var(--so-c, #7eb4ff) 90%, transparent),
+      0 0 44px color-mix(in srgb, var(--so-c, #7eb4ff) 40%, transparent);
+  }
   #sys-orbs .so:active { transform: scale(0.94); }
   #sys-orbs .so .so-body {
     width: 100%; height: 100%; border-radius: 50%;
@@ -4686,41 +4694,99 @@ function renderSystemOrbDock() {
     host.appendChild(el);
   });
 }
+// TRACKBALL physics for the apex orbs. Fling with one finger —
+// the orb keeps going, bounces off the screen edges, decelerates
+// from friction, and settles. Same gesture grammar as a billiard
+// ball on a frictioned table.
 function _wireDraggableOrb(el, tier) {
-  let startX = 0, startY = 0, origX = 0, origY = 0, moved = false, pid = 0;
+  let pid = 0, moved = false;
+  let lastX = 0, lastY = 0, lastT = 0;
+  let vx = 0, vy = 0;           // px / ms, decoded into px / frame inside the fling
+  let raf = 0;
+  const ORB_W = 44;
+  const FRICTION = 0.94;        // per frame at 60 fps
+  const BOUNCE   = 0.62;        // energy retained per wall bounce
+  const STOP_V  = 0.12;          // px/frame magnitude below which we settle
+
+  const persist = () => {
+    const map = _loadOrbPositions();
+    map[tier.id] = { x: parseFloat(el.style.left), y: parseFloat(el.style.top) };
+    _saveOrbPositions(map);
+  };
+
+  const flingStep = () => {
+    raf = 0;
+    let x = parseFloat(el.style.left) || 0;
+    let y = parseFloat(el.style.top)  || 0;
+    x += vx; y += vy;
+    const W = window.innerWidth, H = window.innerHeight;
+    // Bounce off the four edges, with energy loss + a small inset
+    // so the orb never sticks in a corner.
+    if (x < 4)              { x = 4;              vx = -vx * BOUNCE; }
+    if (x > W - ORB_W - 4)  { x = W - ORB_W - 4;  vx = -vx * BOUNCE; }
+    if (y < 4)              { y = 4;              vy = -vy * BOUNCE; }
+    if (y > H - ORB_W - 4)  { y = H - ORB_W - 4;  vy = -vy * BOUNCE; }
+    vx *= FRICTION; vy *= FRICTION;
+    el.style.left = x.toFixed(1) + 'px';
+    el.style.top  = y.toFixed(1) + 'px';
+    if (Math.abs(vx) + Math.abs(vy) > STOP_V) {
+      raf = requestAnimationFrame(flingStep);
+    } else {
+      el.classList.remove('flinging');
+      persist();
+    }
+  };
+
   const down = (e) => {
     e.preventDefault();
+    if (raf) { cancelAnimationFrame(raf); raf = 0; }
+    el.classList.remove('flinging');
     pid = e.pointerId;
     el.setPointerCapture(pid);
     el.classList.add('dragging');
-    startX = e.clientX; startY = e.clientY;
-    origX = parseFloat(el.style.left) || 0;
-    origY = parseFloat(el.style.top)  || 0;
-    moved = false;
+    lastX = e.clientX; lastY = e.clientY; lastT = performance.now();
+    vx = 0; vy = 0; moved = false;
   };
   const move = (e) => {
     if (e.pointerId !== pid) return;
-    const dx = e.clientX - startX, dy = e.clientY - startY;
+    const now = performance.now();
+    const dx = e.clientX - lastX, dy = e.clientY - lastY;
     if (!moved && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) moved = true;
     if (moved) {
-      const nx = Math.max(4, Math.min(window.innerWidth - 48,  origX + dx));
-      const ny = Math.max(4, Math.min(window.innerHeight - 48, origY + dy));
-      el.style.left = nx + 'px';
-      el.style.top  = ny + 'px';
+      const x = (parseFloat(el.style.left) || 0) + dx;
+      const y = (parseFloat(el.style.top)  || 0) + dy;
+      el.style.left = Math.max(4, Math.min(window.innerWidth  - ORB_W - 4, x)).toFixed(1) + 'px';
+      el.style.top  = Math.max(4, Math.min(window.innerHeight - ORB_W - 4, y)).toFixed(1) + 'px';
+      // Track velocity in px per FRAME (~16.67 ms), exponentially
+      // smoothed so a wobble at release doesn't dominate the throw.
+      const dt = Math.max(1, now - lastT);
+      const fvx = dx / dt * 16.67;
+      const fvy = dy / dt * 16.67;
+      vx = vx * 0.4 + fvx * 0.6;
+      vy = vy * 0.4 + fvy * 0.6;
+      lastX = e.clientX; lastY = e.clientY; lastT = now;
     }
   };
   const up = (e) => {
     if (e.pointerId !== pid) return;
-    el.releasePointerCapture(pid);
+    try { el.releasePointerCapture(pid); } catch (_) {}
     el.classList.remove('dragging');
+    pid = 0;
     if (!moved) {
       try { (new Function(tier.onclick))(); } catch (_) {}
-    } else {
-      const map = _loadOrbPositions();
-      map[tier.id] = { x: parseFloat(el.style.left), y: parseFloat(el.style.top) };
-      _saveOrbPositions(map);
+      return;
     }
-    pid = 0;
+    // Fling if the release has real velocity; otherwise settle now.
+    const speed = Math.hypot(vx, vy);
+    if (speed > 0.6) {
+      // Cap insane velocities so a flick doesn't teleport.
+      const MAX = 38;
+      if (speed > MAX) { vx = vx * MAX / speed; vy = vy * MAX / speed; }
+      el.classList.add('flinging');
+      raf = requestAnimationFrame(flingStep);
+    } else {
+      persist();
+    }
   };
   el.addEventListener('pointerdown', down);
   el.addEventListener('pointermove', move);
