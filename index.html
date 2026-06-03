@@ -2202,6 +2202,11 @@ Single-file by design. Any AI/human can continue from this comment + the law.
   #ctrl-bright,
   #drawer-handle,
   #pilot-mini { display: none !important; }
+  /* Earth-rings container is the spawn area for materialised orbs.
+     We hide it entirely when empty so an accidental hover or
+     pointer event over the orbit-tracks region does nothing — the
+     globe is truly the only thing on screen. */
+  #earth-rings:empty { display: none !important; }
   /* Moon stays hidden until the user is genuinely in cosmic zoom —
      no accidental zoom-out should reveal her cluster. */
   #moon-system { opacity: 0 !important; pointer-events: none; }
@@ -6399,6 +6404,77 @@ function _scenarioPanel(html) { try { openPanel(html); } catch (_) {} }
 function _scenarioClosePanel() { try { closePanel(); } catch (_) {} }
 
 const SCENARIOS = {
+  // PIZZA ORDER — the owner's spoken script, beat-for-beat.
+  // Drives every surface: bottom drawer + AI chat + mic with visible
+  // activation + transcription + national → personal tier shifts +
+  // IP vs GPS disambiguation + vendor materialisation + driver
+  // matching + ETA. Every line in the chat has a visible deed.
+  pizza_order: [
+    { wait: 400 },
+    // Step 1 — bottom action drawer pops up (chat panel slides in).
+    { run: () => { try { if (typeof openAstranov === 'function') openAstranov(); } catch (_) {} } },
+    { wait: 600 },
+    // Step 2 — Astranov asks what to do.
+    { say: "What can I do for you?" },
+    { wait: 1400 },
+    // Step 3 — AI opens the microphone (mic button glows mint).
+    { run: () => {
+        try {
+          if (typeof startVoiceSession === 'function') startVoiceSession();
+          const btn = document.getElementById('aci-mic');
+          if (btn) btn.classList.add('listening');
+        } catch (_) {}
+    } },
+    { wait: 1200 },
+    // Step 4 — user says "pizza". Transcribed live in the chat.
+    { hear: "pizza" },
+    { wait: 900 },
+    { run: () => {
+        try {
+          if (typeof stopVoiceSession === 'function') stopVoiceSession();
+          const btn = document.getElementById('aci-mic');
+          if (btn) btn.classList.remove('listening');
+        } catch (_) {}
+    } },
+    // Step 5 — Astranov acknowledges.
+    { say: "Pizza. Let me find you." },
+    // Step 6 — pull camera back to NATIONAL while locating.
+    { flyTo: { tier: 'national', lat: 38.5, lng: 24.0 } },
+    { wait: 2400 },
+    // Step 7 — IP vs GPS disambiguation.
+    { say: "Your IP locates you in Athens, but your GPS is on Rhodes. I'll search Rhodes." },
+    { wait: 2200 },
+    // Step 8 — fly to Rhodes at PERSONAL.
+    { flyTo: { tier: 'personal', lat: 36.4341, lng: 28.2176 } },
+    { wait: 2400 },
+    // Step 9 — search materialised as an orb.
+    { run: () => { try { materializeOrb({
+        id: 'd-pizza-search', ring: 1, color: '#ffb464', glyph: '🍕',
+        label: 'Pizza', act: () => {}, ttl: 90_000,
+        source: 'scenario.pizza_order',
+      }); } catch (_) {} } },
+    { say: "Searching pizza places nearby — highest rated first." },
+    { wait: 2000 },
+    // Step 10 — recall the favorite + authorise the order.
+    { say: "Your favourite is the Greek Special at Pizza Olympus. You authorised me to order — placing it now." },
+    { wait: 1400 },
+    // Step 11 — order panel (status: looking for driver).
+    { panel: '<h2>Greek Special</h2><div class="subtitle">PIZZA OLYMPUS · RHODES</div><div class="row"><span>Greek Special</span><span>€9.80</span></div><div class="row"><span>Status</span><span style="color:#a8c8ee">looking for a driver…</span></div>' },
+    { wait: 2200 },
+    // Step 12 — driver broadcast.
+    { say: "Broadcasting to drivers nearby." },
+    { wait: 1800 },
+    // Step 13 — driver + vendor accept.
+    { say: "Driver Yannis accepted. Vendor Olympus accepted." },
+    { wait: 1500 },
+    // Step 14 — final panel with the ETA breakdown.
+    { panel: '<h2>Greek Special · accepted</h2><div class="subtitle">PIZZA OLYMPUS · ETA 6 MIN</div><div class="row"><span>Greek Special</span><span>€9.80</span></div><div class="row"><span>Driver</span><span style="color:#7eebb4">Yannis</span></div><div class="row"><span>Vendor</span><span style="color:#7eebb4">accepted</span></div><div class="row"><span>Preparation</span><span>3 min</span></div><div class="row"><span>Delivery</span><span>3 min</span></div><div class="row"><span>Total ETA</span><span style="color:#7eebb4">6 min</span></div>' },
+    { wait: 2500 },
+    { say: "Dinner in six minutes. Anything else?" },
+    { run: () => { try { dematerializeOrb('d-pizza-search'); } catch (_) {} } },
+    { judge: true },
+  ],
+
   // The owner's prompt scenario, distilled to a runnable beat list.
   morning_commute: [
     { wait: 600 },
