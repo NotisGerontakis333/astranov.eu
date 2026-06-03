@@ -2202,10 +2202,12 @@ Single-file by design. Any AI/human can continue from this comment + the law.
   #ctrl-bright,
   #drawer-handle,
   #pilot-mini { display: none !important; }
-  /* Earth-rings container is the spawn area for materialised orbs.
-     We hide it entirely when empty so an accidental hover or
-     pointer event over the orbit-tracks region does nothing — the
-     globe is truly the only thing on screen. */
+  /* Earth-rings sit visually around the globe AT GLOBAL TIER ONLY.
+     The moment the camera descends (NATIONAL or PERSONAL) we hide
+     the rings — they would otherwise float over a country or city
+     and fight the map for attention. Orbs the AI materialises while
+     zoomed in just wait for the user to come back to GLOBAL. */
+  body:not(.at-global) #earth-rings { display: none !important; }
   #earth-rings:empty { display: none !important; }
   /* Moon stays hidden until the user is genuinely in cosmic zoom —
      no accidental zoom-out should reveal her cluster. */
@@ -4944,16 +4946,18 @@ function onCameraSettled() {
 
   updateLayerSwitchVisibility();
   updateCatFilter();
-  // Show delivery pins only at NATIONAL / PERSONAL
-  const showDeliveries = newLevel !== 'global';
-  deliveryIndex.forEach(e => { e.primitive.show = showDeliveries; });
-  // Place-agent billboards (OSM dots) are noise at the global tier — the
-  // informant orbs do the job. Only reveal them once we descend.
-  if (placeBillboards) placeBillboards.show = showDeliveries;
-  // Signal pins on the globe are also noise at GLOBAL — informants and
-  // event-binding beams carry signals at that tier. Reveal at NATIONAL+.
+  // TIER-RELEVANCE: each map element only shows at the zoom where
+  // it's actually useful (owner's directive — no orbs fighting on
+  // the same screen).
+  // - Delivery pins, vendor pins, signal pins → PERSONAL ONLY.
+  //   At NATIONAL the country view is too zoomed-out to be useful
+  //   for "what's around me"; the city dots already mark where to
+  //   dive in.
+  const showNearby = (newLevel === 'personal');
+  deliveryIndex.forEach(e => { e.primitive.show = showNearby; });
+  if (placeBillboards) placeBillboards.show = showNearby;
   signalIndex.forEach(({ primitive, signal }) => {
-    primitive.show = (newLevel !== 'global') && (CAT_FILTER_STATE[signal.category] !== false);
+    primitive.show = showNearby && (CAT_FILTER_STATE[signal.category] !== false);
   });
   // Re-scope the showcase tile strip to the new level.
   renderTileStrip();
