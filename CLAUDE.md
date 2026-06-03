@@ -73,6 +73,36 @@ server a thin coordinator — never the bottleneck. Prefer designs that get
 stronger as more humans and devices join, not ones that need a bigger
 datacenter.
 
+### The three tiers of evolution (binding hierarchy)
+The app does **not** evolve through programmer effort. It evolves through
+**use**. Three tiers, each with a strictly bounded role:
+
+1. **Architects** (Notis Astranov + future co-architects).
+   Decide the **big decisions** — laws, direction, doctrine, the shape of
+   the next surface, what the OS exists for. Architects do not write
+   every line; they set the constitution. When the architect names a
+   law, the law binds every lower tier.
+
+2. **Programmers / AI builders** (Claude, future agents).
+   We do **not invent**. Per the Catch-up Law §0i we study the field,
+   adopt the proven pattern, and innovate only at the frontier the field
+   left unfinished. We ship the surfaces the architect names; we do not
+   choose the direction. We refuse destructive rewrites of working
+   systems (SCOPOS). Our deliverable is **the surface**, not the
+   judgement of what to build.
+
+3. **Users** (everyone running the app).
+   This is the layer that **drives evolution**. Every interaction
+   sharpens the system: explicit "remember …" facts; the AI cycle's
+   creator-dialogue; the **DeBug ORB** which donates device resources
+   to run scenarios + ships verdicts back; collective human judgement
+   harvested into the brain. The more the app is **used and debugged**,
+   the more it evolves — not because programmers worked harder, but
+   because users supplied the signal.
+
+The architect picks the direction. The builders ship the passage.
+The users do the evolving. That is the order, and the order is the law.
+
 ## SCOPOS (σκοπός) — the cause, the reason of existence (gain-to-gain, foundational)
 AstranoV exists to empower every user with the essentials to perform any task,
 and in return each use improves the system that serves them — a coevolutionary
