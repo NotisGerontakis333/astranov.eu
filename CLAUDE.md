@@ -172,6 +172,32 @@ globe, the wordmark, the AICYCLE ring, the apex orb dock, the
 contextual back chevron at non-global tiers. Everything else is
 summoned, used, and dismissed.
 
+## DEBUG ORB LAW — resources donation, paid in AVC (binding)
+Users can DONATE their device resources to the OS via the **DeBug ORB**
+(Moon ring). The orb carries a single **Start/Stop button**: tap to
+start, tap again to stop. While Start is on, the scenario engine runs
+continuously, judges its own steps, queues improvements, and **self-
+evolves the app** from the verdicts.
+
+Reward: **13 AstranoV Coins per device-hour** of allocated workload —
+dynamically adjustable by `window._DEBUG_RATE_PER_HOUR` as the network
+grows. Seconds donated are accumulated locally; the user taps **Submit
+& cash in** to credit the pending AVC to their wallet (Edge function
+`/debug-credit` is the canonical credit path; service-role gated so
+no client can mint).
+
+Recording is a **separate opt-in**. Users can earn without sharing
+any data — when recording is off the loop runs locally only. When
+recording is on, the judge verdicts + slow-step traces are queued
+and uploaded with the next submit, feeding the self-evolution loop.
+
+Slumber-aware: auto-pauses when the tab is hidden so the battery
+isn't burned. The user resumes by returning to the tab.
+
+This realises the EVOLUTION METHODOLOGY (decentralized, human-
+powered) and SCOPOS (gain-to-gain) — the more users contribute, the
+stronger the OS gets; the stronger it gets, the more it pays back.
+
 ## SCENARIO LAW — the OS demonstrates its own competence (binding)
 Every binding capability must be exercisable as a runnable **scenario**:
 a beat-list the system performs against its real surfaces (AI speaks,

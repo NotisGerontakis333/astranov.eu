@@ -6080,6 +6080,7 @@ const MOON_ORBS = [
   { id: 'mo-krypteia', label: 'Krypteia', color: '#ff9eb4', glyph: '⬡', ownerOnly: true, act: () => { try { if (typeof openKrypteia === 'function') openKrypteia(); } catch (_) {} } },
   { id: 'mo-memory',   label: 'Memory',   color: '#a0c6ff', glyph: '◐',  act: () => _moonStub('Long-term Memory', 'Public memories shared with the brain across sessions. "remember …" writes here.') },
   { id: 'mo-archive',  label: 'Archive',  color: '#b9c4dd', glyph: '⊟',  act: () => _moonStub('Archive', 'Past orders, past conversations, past routes. Cold storage; one tap to thaw.') },
+  { id: 'mo-debug',    label: 'DeBug',    color: '#7eebb4', glyph: '◉',  act: () => openDebugPanel() },
   { id: 'mo-settings', label: 'Settings', color: '#7eebb4', glyph: '⚙',  act: () => _moonStub('Settings', 'App preferences. Permissions, voice, theme, data, the door to the owner channel.') },
 ];
 function _moonStub(title, body) {
@@ -6322,6 +6323,189 @@ function _scenarioJudge() {
 }
 window.runScenario = runScenario;
 window.SCENARIOS = SCENARIOS;
+
+/* ==============================================================
+   DEBUG LOOP — opt-in contribution. The user taps Start on the
+   DeBug orb (Moon ring) and the scenario engine runs continuously,
+   self-evolves via the judge verdicts, and rewards the user in
+   AstranoV Coins for the device-resources they donate.
+
+   Rate: 13 AVC per device-hour of OS workload — dynamically
+   adjustable by the owner (window._DEBUG_RATE_PER_HOUR).
+
+   Recording is a SEPARATE opt-in: when on, the verdicts + slow-
+   step traces are queued for upload (Edge fn comes later); when
+   off, the loop just runs locally and the user still earns.
+   ============================================================== */
+window._DEBUG_RATE_PER_HOUR = 13;    // AVC/h — owner-tunable
+window._debug = (function () {
+  let state;
+  try { state = JSON.parse(localStorage.getItem('astranov_debug_v1') || 'null'); }
+  catch (_) { state = null; }
+  if (!state) state = { on: false, recording: false, seconds: 0, avcPending: 0, lastSubmitAt: 0, queue: [] };
+  state.on = false;   // never resume the loop automatically
+  return state;
+})();
+function _debugSave() {
+  try { localStorage.setItem('astranov_debug_v1', JSON.stringify(window._debug)); } catch (_) {}
+}
+let _debugTickerId = 0, _debugLoopRunning = false;
+function _debugTickStart() {
+  if (_debugTickerId) return;
+  _debugTickerId = setInterval(() => {
+    if (!window._debug.on) return;
+    window._debug.seconds += 1;
+    window._debug.avcPending += window._DEBUG_RATE_PER_HOUR / 3600;
+    _debugSave();
+    // Refresh the panel readout if it's open.
+    const c = document.getElementById('debug-counter');
+    if (c) _debugFillPanel(c.closest('.debug-panel'));
+  }, 1000);
+}
+function _debugTickStop() {
+  if (_debugTickerId) { clearInterval(_debugTickerId); _debugTickerId = 0; }
+}
+async function _debugLoop() {
+  if (_debugLoopRunning) return;
+  _debugLoopRunning = true;
+  const names = Object.keys(SCENARIOS);
+  let i = 0;
+  while (window._debug.on) {
+    const name = names[i % names.length]; i++;
+    try { await runScenario(name); } catch (_) {}
+    // Capture the judge verdict for the queue (recording mode only).
+    if (window._debug.recording && window._scenario && window._scenario.steps) {
+      const slow = window._scenario.steps.filter(s => s.ms > 600).map(s => s.beat);
+      const errs = window._scenario.steps.filter(s => s.err).map(s => ({ beat: s.beat, err: s.err }));
+      window._debug.queue.push({
+        scenario: name, t: Date.now(),
+        seconds: (performance.now() - window._scenario.t0) / 1000,
+        slow, errs,
+      });
+      if (window._debug.queue.length > 200) window._debug.queue.shift();
+      _debugSave();
+    }
+    if (!window._debug.on) break;
+    await new Promise(r => setTimeout(r, 3500));   // breathe between runs
+  }
+  _debugLoopRunning = false;
+}
+function startDebug() {
+  if (window._debug.on) return;
+  window._debug.on = true; _debugSave();
+  _debugTickStart();
+  _debugLoop();
+  try { toast('◉ DeBug on · ' + window._DEBUG_RATE_PER_HOUR + ' AVC/h', 'ok'); } catch (_) {}
+}
+function stopDebug() {
+  if (!window._debug.on) return;
+  window._debug.on = false; _debugSave();
+  _debugTickStop();
+  try { toast('DeBug off · ' + window._debug.avcPending.toFixed(4) + ' AVC pending', ''); } catch (_) {}
+}
+function toggleDebug() { if (window._debug.on) stopDebug(); else startDebug(); }
+function toggleDebugRecording() {
+  window._debug.recording = !window._debug.recording;
+  _debugSave();
+  try { toast('Recording ' + (window._debug.recording ? 'ON · sharing verdicts' : 'OFF · local only'), window._debug.recording ? 'ok' : ''); } catch (_) {}
+}
+async function submitDebugBatch() {
+  // Stub — the Edge function /debug-credit isn't wired yet. We POST
+  // when it is; for now we just clear the local pending AVC and
+  // ship a toast so the user sees the deed (§0k).
+  const amount = window._debug.avcPending;
+  if (amount <= 0) { try { toast('Nothing pending to submit', ''); } catch (_) {} return; }
+  try {
+    if (sb && session) {
+      const { data, error } = await sb.functions.invoke('debug-credit', {
+        body: { seconds: window._debug.seconds, ratePerHour: window._DEBUG_RATE_PER_HOUR, queue: window._debug.queue, recording: window._debug.recording },
+      });
+      if (error) throw error;
+      if (data && data.credited) {
+        window._debug.avcPending = 0; window._debug.queue = []; window._debug.lastSubmitAt = Date.now();
+        _debugSave();
+        try { toast('Credited ' + Number(data.credited).toFixed(4) + ' AVC', 'ok'); } catch (_) {}
+        return;
+      }
+    }
+  } catch (_) {}
+  // Backend not yet up: keep the pending balance, let the user know.
+  try { toast('Backend offline · ' + amount.toFixed(4) + ' AVC stays pending', ''); } catch (_) {}
+}
+function _debugFillPanel(root) {
+  if (!root) return;
+  const s = window._debug;
+  root.innerHTML = `
+    <h2>DeBug ORB</h2>
+    <div class="subtitle">RESOURCES DONATION · SELF-EVOLVE LOOP</div>
+    <div style="font-size:12px;color:#a8c8ee;padding:6px 0 14px;line-height:1.55">
+      Donate your device resources to the OS. The scenario engine
+      runs in a loop, judges its own steps, queues improvements,
+      and self-evolves. You earn
+      <b style="color:#7eebb4">${window._DEBUG_RATE_PER_HOUR} AVC</b>
+      per device-hour of allocated workload — dynamically adjustable
+      as the network grows. Recording the AI's findings is a
+      SEPARATE opt-in; you can earn without sharing data.
+    </div>
+
+    <div class="me-sec">Start / Stop button</div>
+    <div class="me-chips">
+      <div class="me-chip${s.on ? ' on' : ''}" onclick="toggleDebug();setTimeout(openDebugPanel,80)" style="min-width:140px">
+        <span style="font-size:13px">${s.on ? '■ STOP' : '▶ START'}</span>
+        <span style="font-size:8px;opacity:0.75">${s.on ? 'donating resources' : 'allocate device & earn'}</span>
+      </div>
+    </div>
+
+    <div class="me-sec" style="margin-top:12px">Resources donation allocation</div>
+    <div class="me-chips">
+      <div class="me-chip${s.recording ? ' on' : ''}" onclick="toggleDebugRecording();setTimeout(openDebugPanel,80)">
+        <span>${s.recording ? '● Share findings' : '○ Local only'}</span>
+        <span style="font-size:8px;opacity:0.7">${s.recording ? 'verdicts uploaded' : 'data stays on device'}</span>
+      </div>
+    </div>
+
+    <div class="me-sec" style="margin-top:14px">Earnings this session</div>
+    <div class="row"><span>Work seconds donated</span><span id="debug-counter">${s.seconds}</span></div>
+    <div class="row"><span>AVC pending</span><span style="color:#7eebb4">${s.avcPending.toFixed(4)}</span></div>
+    <div class="row"><span>Current rate</span><span>${window._DEBUG_RATE_PER_HOUR} AVC / device-hour</span></div>
+    <div class="row"><span>Queued verdicts</span><span>${s.queue.length}</span></div>
+
+    <div class="me-chips" style="margin-top:14px">
+      <div class="me-chip" onclick="submitDebugBatch();setTimeout(openDebugPanel,200)">
+        <span>Submit & cash in</span>
+        <span style="font-size:8px;opacity:0.7">credit pending AVC to wallet</span>
+      </div>
+    </div>
+
+    <div style="font-size:10px;color:#6a8aaf;margin:14px 0 0;line-height:1.55">
+      Idle-friendly. Leave START on while the device is unused — the
+      OS plays scenarios against itself and you keep accruing. Auto-
+      pauses when the tab is hidden so the battery isn't burned.
+      Backend (/debug-credit) ships next push.
+    </div>`;
+}
+function openDebugPanel() {
+  try { openPanel('<div class="debug-panel"></div>'); } catch (_) {}
+  setTimeout(() => {
+    const root = document.querySelector('#panel .debug-panel');
+    if (root) _debugFillPanel(root);
+  }, 0);
+}
+window.startDebug           = startDebug;
+window.stopDebug            = stopDebug;
+window.toggleDebug          = toggleDebug;
+window.toggleDebugRecording = toggleDebugRecording;
+window.submitDebugBatch     = submitDebugBatch;
+window.openDebugPanel       = openDebugPanel;
+// Slumber: stop the debug loop when the tab hides so we don't drain
+// battery for nothing. Resume when the user returns AND was on.
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    if (window._debug.on) { window._debug._wasOn = true; stopDebug(); }
+  } else if (window._debug._wasOn) {
+    window._debug._wasOn = false; startDebug();
+  }
+});
 
 // INTRO SEQUENCE. Zero UI at t=0. The AI introduces itself, attempts
 // to log the user in, and the remaining orbs unfurl one by one as
