@@ -3034,6 +3034,22 @@ Single-file by design. Any AI/human can continue from this comment + the law.
   }
   #aicycle-chat.visible { transform: translateY(0); }
   #aicycle-chat.resizing { transition: none; }
+  /* Thinking indicator — animated electric-blue line under the
+     drag handle while runAstranovAgent is processing. */
+  #aicycle-chat.thinking #aicycle-drag-handle::after {
+    content: '';
+    position: absolute; left: 50%; top: 0;
+    transform: translateX(-50%);
+    width: 60%; height: 2px;
+    background: linear-gradient(90deg, transparent, #4aa6ff, transparent);
+    animation: aicycle-thinking 1.4s linear infinite;
+  }
+  @keyframes aicycle-thinking {
+    0%   { transform: translateX(-50%) translateX(-30%); opacity: 0; }
+    50%  { transform: translateX(-50%);                  opacity: 1; }
+    100% { transform: translateX(-50%) translateX(30%);  opacity: 0; }
+  }
+  #aicycle-drag-handle { position: relative; }
   #aicycle-drag-handle {
     display: flex; flex-direction: column; align-items: center; gap: 6px;
     padding: 10px 0 2px; cursor: ns-resize; flex-shrink: 0; touch-action: none;
@@ -14840,6 +14856,7 @@ async function runAstranovAgent(userText) {
   ].join('; ');
   const convo = [{ role: 'user', content: userText + '\n\n[' + stateBits + ']' }];
   $('aicycle-float').classList.add('thinking'); window._gfxThinking = true;
+  document.getElementById('aicycle-chat')?.classList.add('thinking');
   try {
     for (let step = 0; step < 6; step++) {
       const prompt = convo[convo.length - 1].content;
@@ -14869,6 +14886,7 @@ async function runAstranovAgent(userText) {
     appendAICycleMessage('ai', '(Astranov could not complete that: ' + (e.message || e) + ')', 'offline', 'fallback');
   } finally {
     $('aicycle-float').classList.remove('thinking'); window._gfxThinking = false;
+    document.getElementById('aicycle-chat')?.classList.remove('thinking');
   }
 }
 
