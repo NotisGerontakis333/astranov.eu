@@ -7385,6 +7385,14 @@ async function openCallPickPanel() {
 }
 window.openCallPickPanel = openCallPickPanel;
 window.addEventListener('load', () => setTimeout(_bootEarthOrbs, 600));
+// SAFETY NET — the chat greeting runs even if Cesium fails to load.
+// _runIntroSequence is idempotent (window._introRan flag), so this
+// fires the chat introduction on a separate timer; whichever path
+// runs first wins, the other is a no-op. The user always gets the
+// AI chat even on a broken globe (CDN blocked, WebGL disabled).
+window.addEventListener('load', () => setTimeout(() => {
+  try { if (!window._introRan) _runIntroSequence(); } catch (_) {}
+}, 1800));
 window.addEventListener('resize', () => {
   try { _layoutEarthOrbs(); } catch (_) {}
   try { _layoutMoonOrbs(); } catch (_) {}
