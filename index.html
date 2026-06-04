@@ -14105,8 +14105,52 @@ function _routeLocal(raw) {
     _routedFire('Opening your wallet.', () => openWalletPanel());
     return true;
   }
+  // "call NAME" / "ring NAME" / "video call NAME" — find the peer
+  // and start the call directly. Falls back to the contact picker
+  // when no name is given.
+  const callMatch = text.match(/\b(?:call|ring|videocall|video call)\s+([a-zÀ-ſ][a-zÀ-ſ\s']{1,40}?)(?:[.,!?]|$)/i);
+  if (callMatch) {
+    const name = callMatch[1].trim();
+    _routedFire("Calling " + name + ".", async () => {
+      try {
+        if (!sb || !session) { openYouPanel(); return; }
+        const { data } = await sb.rpc('find_peer', { q: name });
+        const peer = (data || [])[0];
+        if (peer) { try { startCallTo(peer.id, peer.display_name); } catch (_) {} }
+        else { openCallPickPanel(); }
+      } catch (_) { openCallPickPanel(); }
+    });
+    return true;
+  }
   if (/\b(call|ring|video|videocall)\b/.test(text)) {
     _routedFire('Opening your contacts.', () => openCallPickPanel());
+    return true;
+  }
+  // "message NAME hi there" / "text NAME …" / "send NAME a message"
+  const msgMatch =
+       text.match(/\b(?:message|text|dm|write to|write)\s+([a-zÀ-ſ][a-zÀ-ſ\s']{1,40}?)(?:\s+(.+))?$/i)
+    || text.match(/\bsend\s+([a-zÀ-ſ][a-zÀ-ſ\s']{1,40}?)\s+(?:a\s+)?(?:message|msg|text)\b\s*(.*)$/i);
+  if (msgMatch) {
+    const name = msgMatch[1].trim();
+    const initialBody = (msgMatch[2] || '').trim();
+    _routedFire('Looking for ' + name + '.', async () => {
+      try {
+        if (!sb || !session) { openYouPanel(); return; }
+        const { data } = await sb.rpc('find_peer', { q: name });
+        const peer = (data || [])[0];
+        if (peer) {
+          try { openConversation(peer.id, peer.display_name); } catch (_) {}
+          if (initialBody) {
+            setTimeout(() => {
+              const inp = document.getElementById('msg-input');
+              if (inp) { inp.value = initialBody; try { sendMessage(); } catch (_) {} }
+            }, 500);
+          }
+        } else {
+          openMessagesPanel();
+        }
+      } catch (_) { openMessagesPanel(); }
+    });
     return true;
   }
   if (/\b(home|global|world|earth|pilot|warp|back to globe)\b/.test(text)) {
