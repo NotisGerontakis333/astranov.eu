@@ -6259,7 +6259,9 @@ function _layoutEarthOrbs() {
         el.textContent = g;
         // Tap action — only fires if no spin-drag happened. The
         // spin handler swallows clicks for 200 ms after a drag.
+        // Close the chat first so the new surface has the room.
         el.addEventListener('click', (e) => {
+          try { closeAstranov(); } catch (_) {}
           try { orb.act(); } catch (_) {}
         });
         ringEl.appendChild(el);
@@ -6874,7 +6876,12 @@ function _runIntroSequence() {
 // when context shifts (§0o).
 function _materializePillars() {
   const pillars = [
-    { id: 'p-order',  ring: 1, color: '#ffd47e', glyph: '🛒', label: 'Order',    act: () => { try { openFeedPanel();      } catch (_) {} } },
+    // Order = the marketplace pillar. Tapping it dives the camera
+    // straight to PERSONAL over the user's location so vendor pins
+    // appear on the globe. Then the 5-click manual order path
+    // (tap vendor → + → Place order) is one tap away.
+    { id: 'p-order',  ring: 1, color: '#ffd47e', glyph: '🛒', label: 'Order',
+      act: () => { try { diveToMe(); } catch (_) { try { startLocate(); } catch (_) {} } } },
     { id: 'p-news',   ring: 2, color: '#5db2ff', glyph: '📰', label: 'News',     act: () => { try { openFeedPanel();      } catch (_) {} } },
     { id: 'p-msg',    ring: 1, color: '#a0c6ff', glyph: '✉',  label: 'Messages', act: () => { try { openMessagesPanel();  } catch (_) {} } },
     { id: 'p-call',   ring: 1, color: '#7eebb4', glyph: '◈',  label: 'Call',     act: () => { try { openCallPickPanel();  } catch (_) {} } },
