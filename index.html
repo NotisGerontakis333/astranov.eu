@@ -6984,9 +6984,12 @@ function _runIntroSequence() {
   // by tapping an orb the AI summoned the moment it was needed.
   setTimeout(() => {
     const signedIn = !!(typeof session !== 'undefined' && session);
+    const h = new Date().getHours();
+    const tod = h < 5 ? 'Up late' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : h < 22 ? 'Good evening' : 'Working late';
+    const name = (typeof profile !== 'undefined' && profile && profile.display_name) ? (' ' + profile.display_name) : '';
     _astranovIntro(signedIn
-      ? "Welcome back. Type one word: pizza · news · messages · call · wallet."
-      : "I'm Astranov. Type one word: pizza · news · messages · call · wallet · sign in."
+      ? (tod + (name ? ',' + name : '') + ". Type one word: pizza · news · messages · call · wallet.")
+      : ("I'm Astranov. " + tod + ". Type one word: pizza · news · messages · call · wallet · sign in.")
     );
     // §0o MATERIALISATION LAW + owner directive: cold boot is ONLY
     // the globe + the AI text window. No orbs auto-materialise.
