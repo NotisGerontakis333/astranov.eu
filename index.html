@@ -11566,9 +11566,20 @@ function openWalletPanel() {
       </svg>
       <div style="flex:1">
         <div style="font-size:30px;font-weight:300;color:#ffd47e;line-height:1">€${eur.toFixed(2)}</div>
-        <div style="font-size:10px;color:#6a8aaf;letter-spacing:0.2em;text-transform:uppercase;margin-top:6px">Available balance</div>
+        <div style="font-size:10px;color:#6a8aaf;letter-spacing:0.2em;text-transform:uppercase;margin-top:6px">Available balance · EUR</div>
       </div>
     </div>
+
+    ${!isOwner && (Number(profile?.avc_balance ?? 0) > 0) ? `
+    <div style="display:flex;align-items:center;gap:14px;margin:6px 0 6px;padding:14px 18px;border-radius:14px;
+                background:linear-gradient(135deg, rgba(126,235,180,0.10) 0%, rgba(126,235,180,0.04) 100%);
+                border:1px solid rgba(126,235,180,0.22)">
+      <div style="font-size:22px;color:#7eebb4;line-height:1">◈</div>
+      <div style="flex:1">
+        <div style="font-size:22px;font-weight:300;color:#7eebb4;line-height:1">${Number(profile.avc_balance).toFixed(2)} <span style="font-size:11px;color:#6a8aaf;letter-spacing:0.18em">AVC</span></div>
+        <div style="font-size:10px;color:#6a8aaf;letter-spacing:0.18em;text-transform:uppercase;margin-top:6px">Earned from DeBug · 1 AVC = €1 internally</div>
+      </div>
+    </div>` : ''}
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:14px 0">
       <div class="gadget-engage" onclick="openBuyAVC()" style="border-color:rgba(126,235,180,0.55);color:#d6f7e6;background:rgba(126,235,180,0.06)">
