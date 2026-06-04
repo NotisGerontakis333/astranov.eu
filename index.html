@@ -2217,6 +2217,27 @@ Single-file by design. Any AI/human can continue from this comment + the law.
   }
   .moon-orb:active { transform: translate(var(--dx, 0), var(--dy, 0)) scale(0.92); }
 
+  /* BACK-TO-GLOBE chevron — hidden at GLOBAL, shown at NATIONAL +
+     PERSONAL so the user always has a one-tap way back to the
+     world view. Auto-fades when the user is idle. */
+  #back-to-globe {
+    position: fixed; left: 14px;
+    top: max(54px, calc(env(safe-area-inset-top) + 54px));
+    z-index: 199;
+    width: 36px; height: 36px; border-radius: 50%;
+    background: rgba(8, 18, 38, 0.55);
+    border: 1px solid rgba(74, 166, 255, 0.55);
+    color: #cde7ff; font-size: 18px; line-height: 1;
+    display: none; align-items: center; justify-content: center;
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    box-shadow: 0 0 12px rgba(45, 108, 196, 0.45);
+    transition: transform 0.12s var(--ease), opacity 0.4s var(--ease);
+  }
+  body.at-national #back-to-globe,
+  body.at-personal #back-to-globe { display: flex; }
+  #back-to-globe:active { transform: scale(0.94); }
+
   /* CHAT RE-OPEN TAB — small bottom-edge affordance. Hidden when
      the chat is open; appears the moment it's closed. */
   #chat-reopen {
@@ -4049,6 +4070,11 @@ Single-file by design. Any AI/human can continue from this comment + the law.
      one tap away even when the panel is closed. Manual Foundation Law
      §0k: every AI affordance has a visible manual twin. -->
 <div id="chat-reopen" title="Open Astranov"></div>
+
+<!-- BACK-TO-GLOBE chevron — contextual, hidden at GLOBAL, shown at
+     NATIONAL/PERSONAL (Zero UI Law §6 contextual exception). Tap to
+     warp back to global. -->
+<div id="back-to-globe" title="Back to globe">↑</div>
 
 <!-- MOON — secondary base (§0n addendum). Visible to anyone who zooms
      out enough to see the wider cosmos. Holds the deeper / less-
@@ -13880,6 +13906,13 @@ $('aicycle-messages')?.addEventListener('click', () => {
   const tab = document.getElementById('chat-reopen');
   if (!tab) return;
   tab.addEventListener('click', () => { try { openAstranov(); } catch (_) {} });
+})();
+
+// Back-to-globe — contextual chevron at non-global tiers.
+(function _wireBackToGlobe() {
+  const btn = document.getElementById('back-to-globe');
+  if (!btn) return;
+  btn.addEventListener('click', () => { try { pilotHome(); } catch (_) {} });
 })();
 
 // Manual mic toggle on the chat — §0k Manual Foundation Law. The
