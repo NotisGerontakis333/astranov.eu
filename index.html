@@ -2234,14 +2234,15 @@ Single-file by design. Any AI/human can continue from this comment + the law.
     background: rgba(8, 18, 38, 0.55);
     border: 1px solid rgba(74, 166, 255, 0.55);
     color: #cde7ff; font-size: 18px; line-height: 1;
-    display: none; align-items: center; justify-content: center;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none;
     cursor: pointer; -webkit-tap-highlight-color: transparent;
     user-select: none;
     box-shadow: 0 0 12px rgba(45, 108, 196, 0.45);
     transition: transform 0.12s var(--ease), opacity 0.4s var(--ease);
   }
   body.at-national #back-to-globe,
-  body.at-personal #back-to-globe { display: flex; }
+  body.at-personal #back-to-globe { opacity: 1; pointer-events: auto; }
   #back-to-globe:active { transform: scale(0.94); }
 
   /* CHAT RE-OPEN TAB — small bottom-edge affordance. Hidden when
