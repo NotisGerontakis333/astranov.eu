@@ -14392,7 +14392,7 @@ function _routedFire(line, fn) {
 // Returns true if the text was matched and a surface fired.
 function _routeLocal(raw) {
   const text = raw.toLowerCase().trim();
-  const foodMatch = text.match(/\b(pizza|burger|sushi|kebab|gyros|souvlaki|coffee|tea|wine|beer|food|eat|hungry|order|delivery|deliver|drink)\b/);
+  const foodMatch = text.match(/\b(pizza|burger|sushi|kebab|gyros|souvlaki|coffee|tea|wine|beer|food|eat|hungry|order|delivery|deliver|drink|πίτσα|σουβλάκι|καφέ|κρασ|μπύρα|παραγγελ|φαγητ|πεινάω)\b/);
   if (foodMatch) {
     const cuisine = foodMatch[1];
     const signedIn = !!(typeof session !== 'undefined' && session);
@@ -14449,17 +14449,17 @@ function _routeLocal(raw) {
     });
     return true;
   }
-  if (/\b(news|headline|feed|stories|today|happening)\b/.test(text)) {
+  if (/\b(news|headline|feed|stories|today|happening|νέα|ειδήσεις|τι γίνεται)\b/.test(text)) {
     _routedFire('Opening the feed.', () => openFeedPanel());
     return true;
   }
-  if (/\b(message|messages|msg|inbox|chat|chats|texts|dm|conversation)\b/.test(text)) {
+  if (/\b(message|messages|msg|inbox|chat|chats|texts|dm|conversation|μήνυμα|μηνύματα|μήνυμ)\b/.test(text)) {
     const signedIn = !!(typeof session !== 'undefined' && session);
     _routedFire(signedIn ? 'Opening your messages.' : 'Sign in first — messages need an identity.',
       () => signedIn ? openMessagesPanel() : openYouPanel());
     return true;
   }
-  if (/\b(wallet|balance|money|euros|avc|coins|payment|pay|top\s*up)\b/.test(text)) {
+  if (/\b(wallet|balance|money|euros|avc|coins|payment|pay|top\s*up|πορτοφόλι|λεφτά|χρήματα|ευρώ|πληρωμή)\b/.test(text)) {
     const signedIn = !!(typeof session !== 'undefined' && session);
     _routedFire(signedIn ? 'Opening your wallet.' : 'Sign in to see your wallet.',
       () => signedIn ? openWalletPanel() : openYouPanel());
@@ -14513,7 +14513,7 @@ function _routeLocal(raw) {
     });
     return true;
   }
-  if (/\b(home|global|world|earth|pilot|warp|back to globe)\b/.test(text)) {
+  if (/\b(home|global|world|earth|pilot|warp|back to globe|σπίτι|κόσμος|γη|πιλότος)\b/.test(text)) {
     _routedFire('Warping home.', () => pilotHome());
     return true;
   }
