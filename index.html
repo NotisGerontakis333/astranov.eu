@@ -10977,6 +10977,15 @@ function subscribeRealtime() {
    ============================================================== */
 function onCanvasClick(click) {
   if (!viewer) return;
+  // If a bottom drawer is open, the user tapping the globe = "close
+  // the drawer, give me the map back" (per common map-app pattern).
+  // Only intercept the click for this; the descent / pin tap is
+  // still available on the NEXT tap, which feels natural.
+  const panelEl = document.getElementById('panel');
+  if (panelEl && panelEl.classList.contains('visible')) {
+    try { closePanel(); } catch (_) {}
+    return;
+  }
   const picked = viewer.scene.pick(click.position);
   // DIVE-TO-ME (one tap to where you are). The user's beacon is the
   // shortest path from any tier to PERSONAL: tap it and the camera
