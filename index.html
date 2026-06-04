@@ -14366,7 +14366,11 @@ function _routeLocal(raw) {
   const foodMatch = text.match(/\b(pizza|burger|sushi|kebab|gyros|souvlaki|coffee|tea|wine|beer|food|eat|hungry|order|delivery|deliver|drink)\b/);
   if (foodMatch) {
     const cuisine = foodMatch[1];
-    _routedFire("Looking for " + cuisine + " near you.", async () => {
+    const signedIn = !!(typeof session !== 'undefined' && session);
+    _routedFire(signedIn
+      ? "Looking for " + cuisine + " near you."
+      : "Showing " + cuisine + " spots nearby. Sign in to order.",
+    async () => {
       // Wait for a location fix (up to 8 s polling) before diving.
       // Without a fix, _agentFindPlaces returns [] and the route
       // silently does nothing. The dive starts as soon as we have
@@ -14401,8 +14405,16 @@ function _routeLocal(raw) {
             phone: t.phone || '', website: t.website || '',
             hours: t.opening_hours || '', cuisine: t.cuisine || '',
             _lat: p.lat, _lng: p.lng };
-          _placeOrder();
-          setTimeout(() => { try { if (window._menu == null) _loadMenu(); } catch (_) {} }, 240);
+          // Auto-open the order panel only for signed-in users.
+          // Anonymous users see the dive + pins; tapping a pin
+          // surfaces the order flow which redirects them to sign-in.
+          // No surprise sign-in prompt from a one-word request.
+          if (signedIn) {
+            _placeOrder();
+            setTimeout(() => { try { if (window._menu == null) _loadMenu(); } catch (_) {} }, 240);
+          } else {
+            try { toast('Tap a pin to see the menu, sign in to order.', ''); } catch (_) {}
+          }
         } catch (_) {}
       } catch (_) {}
     });
