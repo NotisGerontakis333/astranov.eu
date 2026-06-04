@@ -8545,9 +8545,15 @@ function bootSupabase() {
     const go = sp.get('go');
     if (go) setTimeout(() => {
       try {
-        if (go === 'wallet')   openWalletPanel();
+        if (go === 'wallet')        openWalletPanel();
         else if (go === 'discover') openFeedPanel();
         else if (go === 'astranov') openAstranov();
+        else if (go === 'order')    diveToMe();
+        else if (go === 'news')     openFeedPanel();
+        else if (go === 'messages') openMessagesPanel();
+        else if (go === 'call')     openCallPickPanel();
+        else if (go === 'home')     pilotHome();
+        else if (go === 'debug')    openDebugPanel();
       } catch (_) {}
     }, 900);
   } catch (_) {}
