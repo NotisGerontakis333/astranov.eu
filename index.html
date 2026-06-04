@@ -9249,7 +9249,7 @@ async function openMessagesPanel() {
   const inbox = data || [];
   const sub = $('msg-sub'); if (sub) sub.textContent = inbox.length + ' conversations';
   const body = $('msg-body'); if (!body) return;
-  body.innerHTML = inbox.length ? inbox.map(c => `
+  const inboxHtml = inbox.length ? inbox.map(c => `
     <div class="msg-row" onclick="openConversation(${JSON.stringify(c.peer_id)},${JSON.stringify(c.peer_display)})">
       <div class="av${Number(c.unread_count) > 0 ? ' unread' : ''}">${escapeHtml((c.peer_display||'?').charAt(0).toUpperCase())}</div>
       <div class="meta">
@@ -9257,9 +9257,64 @@ async function openMessagesPanel() {
         <div class="preview">${escapeHtml((c.last_body||'').slice(0,60))}</div>
       </div>
       <div class="ts">${formatRelative(c.last_at)}</div>
-    </div>`).join('')
-    : '<div style="color:#6a8aaf;font-size:13px;padding:16px 0">No messages yet. Call someone from a signal to start.</div>';
+    </div>`).join('') : '';
+  // Always show "Start new conversation" — a fresh user has no
+  // previous threads and there's no path to a peer otherwise.
+  // §0k Manual Foundation Law: a real action with a visible handle.
+  body.innerHTML = inboxHtml + `
+    <div class="me-sec" style="margin-top:14px">Start a new conversation</div>
+    <input id="msg-find-input" class="me-inp" placeholder="Search by name or email…"
+      oninput="window._findPeer(this.value)" />
+    <div id="msg-find-results" style="margin-top:8px"></div>` +
+    (inbox.length ? '' : '<div style="color:#6a8aaf;font-size:12px;padding:12px 0 0">No threads yet. Search above to find someone to write to.</div>');
 }
+
+// Peer search — fires on input, debounced lightly. Uses a public
+// projection of the profiles table (id + display_name) via the
+// SECURITY DEFINER RPC if available, else a direct profiles read.
+window._findPeer = (function () {
+  let timer = 0;
+  return function (q) {
+    clearTimeout(timer);
+    timer = setTimeout(() => _doFindPeer(q), 280);
+  };
+})();
+async function _doFindPeer(q) {
+  const out = document.getElementById('msg-find-results');
+  if (!out) return;
+  q = (q || '').trim();
+  if (q.length < 2) { out.innerHTML = ''; return; }
+  out.innerHTML = '<div style="color:#7eb4ff;font-size:11px;padding:6px 0">Searching…</div>';
+  if (!sb) { out.innerHTML = '<div style="color:#ff9e9e">Offline.</div>'; return; }
+  let rows = [];
+  // Try the safe RPC first; fall back to a direct read filtered by
+  // display_name. Both surfaces are RLS-protected on the server.
+  try {
+    const r = await sb.rpc('find_peer', { q });
+    if (!r.error && Array.isArray(r.data)) rows = r.data;
+  } catch (_) {}
+  if (!rows.length) {
+    try {
+      const r = await sb.from('profiles')
+        .select('id, display_name')
+        .ilike('display_name', '%' + q + '%')
+        .limit(8);
+      if (!r.error && Array.isArray(r.data)) rows = r.data;
+    } catch (_) {}
+  }
+  rows = (rows || []).filter(r => r && r.id && r.id !== session.user.id);
+  if (!rows.length) {
+    out.innerHTML = '<div style="color:#6a8aaf;font-size:12px;padding:6px 0">No one with that name yet.</div>';
+    return;
+  }
+  out.innerHTML = rows.map(r => `
+    <div class="msg-row" onclick="openConversation(${JSON.stringify(r.id)},${JSON.stringify(r.display_name||'Friend')})">
+      <div class="av">${escapeHtml((r.display_name||'?').charAt(0).toUpperCase())}</div>
+      <div class="meta"><div class="peer">${escapeHtml(r.display_name||'Friend')}</div>
+        <div class="preview" style="color:#7eebb4">Tap to write</div></div>
+    </div>`).join('');
+}
+window._doFindPeer = _doFindPeer;
 
 window.openConversation = async (peerId, peerName) => {
   _activePeer = { id: peerId, name: peerName };
@@ -11148,32 +11203,86 @@ function _renderFeedCards(signals) {
     </div>`).join('');
 }
 
+// Combine local signals (user-emitted, on the globe) with the LIVE
+// world news the informant-feed Edge function has pulled into
+// _externalFindings. A cold-start user with no signals of their own
+// still sees real headlines, sports, science, market — the GDELT
+// seed informants are doing their job.
+function _allFeedItems() {
+  const items = [];
+  // Local signals from the globe index.
+  for (const e of signalIndex.values()) {
+    const s = e.signal;
+    items.push({
+      id: 'sig:' + s.id,
+      title: s.title,
+      category: s.category || 'news',
+      source_name: s.source_name || '',
+      source_url: s.source_url || '',
+      created_at: s.created_at,
+      _signal: s,
+    });
+  }
+  // External findings from the informant feeds (real news, GDELT etc.).
+  try {
+    if (typeof _externalFindings !== 'undefined' && _externalFindings) {
+      for (const [infId, arr] of _externalFindings) {
+        const inf = (typeof _loadInformants === 'function') ? (_loadInformants().find(x => x.id === infId) || {}) : {};
+        (arr || []).forEach((f, i) => {
+          items.push({
+            id: 'ext:' + infId + ':' + i,
+            title: f.title || '(untitled)',
+            category: inf.category || 'news',
+            source_name: f.source || inf.name || '',
+            source_url: f.source_url || f.url || '',
+            created_at: f.published_at || f.created_at || new Date().toISOString(),
+            _external: f,
+          });
+        });
+      }
+    }
+  } catch (_) {}
+  // Newest first.
+  items.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  return items;
+}
+
 async function openFeedPanel() {
-  const local = [...signalIndex.values()]
-    .sort((a, b) => new Date(b.signal.created_at) - new Date(a.signal.created_at))
-    .slice(0, 40).map(e => e.signal);
+  const items = _allFeedItems().slice(0, 60);
+  // Map back to signal shape for _renderFeedCards which expects that.
+  const cards = items.map(it => it._signal || ({
+    id: it.id, title: it.title, category: it.category,
+    source_name: it.source_name, source_url: it.source_url,
+    created_at: it.created_at, scope: 'global', amplitude: 1, source: 'crawler',
+  }));
 
   openPanel(`
     <h2>Feed</h2>
-    <div class="subtitle" id="feed-subtitle">${signalIndex.size} signals on globe</div>
-    <div id="feed-list">${_renderFeedCards(local)}</div>
+    <div class="subtitle" id="feed-subtitle">${items.length} items · live</div>
+    <div id="feed-list">${_renderFeedCards(cards)}</div>
     <div class="gadget-engage" onclick="openEmitPanel()" style="margin-top:14px"><span class="verb-glyph">⊕</span><span>Emit signal</span></div>
   `);
 
+  // Kick a fresh poll so the informant feed catches up if it's been
+  // a while since last refresh — and re-fetch DB signals.
+  try { if (typeof pollInformantFeeds === 'function') pollInformantFeeds().catch(() => {}); } catch (_) {}
+
   if (!sb) return;
-  // Always fetch fresh from DB — merge new ones into globe index
   const { data } = await sb.from('signals')
     .select('id,author_id,category,scope,title,body,lng,lat,amplitude,created_at,source,source_url,source_name')
     .eq('status','active').order('created_at',{ascending:false}).limit(80);
   if (!data) return;
   data.forEach(s => { if (s.lat && s.lng) addSignalPoint(s); });
-  const merged = [...signalIndex.values()]
-    .sort((a, b) => new Date(b.signal.created_at) - new Date(a.signal.created_at))
-    .slice(0, 60).map(e => e.signal);
+  const items2 = _allFeedItems().slice(0, 60);
+  const cards2 = items2.map(it => it._signal || ({
+    id: it.id, title: it.title, category: it.category,
+    source_name: it.source_name, source_url: it.source_url,
+    created_at: it.created_at, scope: 'global', amplitude: 1, source: 'crawler',
+  }));
   const feedList = $('feed-list');
   const feedSub  = $('feed-subtitle');
-  if (feedList) feedList.innerHTML = _renderFeedCards(merged);
-  if (feedSub)  feedSub.textContent = signalIndex.size + ' signals on globe';
+  if (feedList) feedList.innerHTML = _renderFeedCards(cards2);
+  if (feedSub)  feedSub.textContent = items2.length + ' items · live';
 }
 
 const RADAR_COLORS = {
