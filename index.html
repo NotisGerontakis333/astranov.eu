@@ -14044,6 +14044,21 @@ function _routeLocal(raw) {
     });
     return true;
   }
+  if (/\b(sign\s*in|sign\s*up|log\s*in|log\s*out|register|account|profile|me|who am i|my profile|identity)\b/.test(text)) {
+    if (/\b(log\s*out|sign\s*out)\b/.test(text) && typeof sb !== 'undefined' && session) {
+      _routedFire('Signing you out.', async () => {
+        try { await sb.auth.signOut(); } catch (_) {}
+      });
+      return true;
+    }
+    _routedFire(session ? 'Opening your identity.' : "Let's get you signed in.", () => openYouPanel());
+    return true;
+  }
+  // Help / what can you do / commands.
+  if (/\b(help|what can you do|commands|how|what now)\b/.test(text)) {
+    _routedFire("Try one word: pizza · news · messages · call · wallet · home. Or tap the orbs around the globe.", () => {});
+    return true;
+  }
   return false;
 }
 window._routeLocal = _routeLocal;
