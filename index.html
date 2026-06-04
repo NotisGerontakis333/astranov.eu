@@ -14423,6 +14423,27 @@ $('aicycle-messages')?.addEventListener('click', () => {
   tab.addEventListener('click', () => { try { openAstranov(); } catch (_) {} });
 })();
 
+// Escape key closes the chat panel + any open content panel. Standard
+// keyboard expectation; helps anyone using a physical keyboard.
+window.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape' && e.key !== 'Esc') return;
+  // Don't intercept Escape if the user is typing in a field (they
+  // probably want to clear or unfocus). Only when no input is focused.
+  const tag = document.activeElement && document.activeElement.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA') {
+    try { document.activeElement.blur(); } catch (_) {}
+    return;
+  }
+  try {
+    if (document.getElementById('panel')?.classList.contains('visible')) {
+      closePanel(); return;
+    }
+    if (document.getElementById('aicycle-chat')?.classList.contains('visible')) {
+      closeAstranov();
+    }
+  } catch (_) {}
+});
+
 // Back-to-globe — contextual chevron at non-global tiers.
 (function _wireBackToGlobe() {
   const btn = document.getElementById('back-to-globe');
