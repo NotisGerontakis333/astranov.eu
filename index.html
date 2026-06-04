@@ -7046,21 +7046,42 @@ async function openCallPickPanel() {
       if (b) b.innerHTML = '<div style="color:#ff9e9e">Sign in to call.</div>';
       return;
     }
-    // Recent peers from messages, deduped.
+    // Recent peers from messages, deduped. The messages schema uses
+    // sender_id / recipient_id (not author_id). Use message_inbox()
+    // RPC first since it's the canonical inbox view; fall back to
+    // a direct query if the RPC is unavailable.
     let peers = [];
     try {
-      const { data } = await sb.from('messages')
-        .select('recipient_id, author_id, recipient:profiles!messages_recipient_id_fkey(id,display_name), author:profiles!messages_author_id_fkey(id,display_name)')
-        .or(`author_id.eq.${session.user.id},recipient_id.eq.${session.user.id}`)
-        .order('created_at', { ascending: false }).limit(40);
-      const seen = new Set();
-      (data || []).forEach(r => {
-        const other = r.author_id === session.user.id ? r.recipient : r.author;
-        if (!other || !other.id || other.id === session.user.id) return;
-        if (seen.has(other.id)) return; seen.add(other.id);
-        peers.push(other);
-      });
+      const inbox = await sb.rpc('message_inbox', { max_results: 40 });
+      if (!inbox.error && Array.isArray(inbox.data)) {
+        const seen = new Set();
+        inbox.data.forEach(r => {
+          if (!r || !r.peer_id || seen.has(r.peer_id)) return;
+          seen.add(r.peer_id);
+          peers.push({ id: r.peer_id, display_name: r.peer_display || 'Friend' });
+        });
+      }
     } catch (_) {}
+    if (peers.length === 0) {
+      try {
+        const { data } = await sb.from('messages')
+          .select('sender_id, recipient_id, created_at')
+          .or(`sender_id.eq.${session.user.id},recipient_id.eq.${session.user.id}`)
+          .order('created_at', { ascending: false }).limit(40);
+        const seen = new Set();
+        const peerIds = [];
+        (data || []).forEach(r => {
+          const otherId = r.sender_id === session.user.id ? r.recipient_id : r.sender_id;
+          if (!otherId || otherId === session.user.id || seen.has(otherId)) return;
+          seen.add(otherId); peerIds.push(otherId);
+        });
+        if (peerIds.length) {
+          const { data: profs } = await sb.from('profiles')
+            .select('id, display_name').in('id', peerIds);
+          (profs || []).forEach(p => peers.push(p));
+        }
+      } catch (_) {}
+    }
     const b = document.getElementById('call-pick-body');
     if (!b) return;
     if (peers.length === 0) {
