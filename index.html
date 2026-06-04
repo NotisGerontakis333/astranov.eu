@@ -14490,11 +14490,28 @@ function _pickVoice(lang) {
   if (!_ttsVoices.length) _loadVoices();
   lang = (lang || (navigator.language || 'en-US')).slice(0, 2);
   const inLang = _ttsVoices.filter(v => v.lang.toLowerCase().startsWith(lang));
-  // Prefer premium / natural voices in the target language. Apple "Enhanced"
-  // and "Premium", Google neural, and Microsoft Natural voices all sound
-  // dramatically cleaner than the default robotic eSpeak fallback.
-  const premium = inLang.filter(v => /(Premium|Enhanced|Neural|Natural|Google)/i.test(v.name));
-  if (premium.length) return premium[0];
+  // Ranked premium-voice patterns. iOS Siri voices (named "Siri" or
+  // variants like "Karen", "Daniel", "Moira") sound dramatically
+  // cleaner than the default eSpeak fallback. Apple "Premium" /
+  // "Enhanced" are higher-quality downloaded packs. Microsoft uses
+  // "Natural" suffixes on its neural voices. Google labels neural
+  // voices simply as "Google". Score each voice and pick the best.
+  const PRIORITY = [
+    /^Siri /i,
+    /\bPremium\b/i,
+    /\bEnhanced\b/i,
+    /\bNeural\b/i,
+    /\bNatural\b/i,
+    /^Google /i,
+    /^Microsoft (?:Aria|Guy|Davis|Jenny|Tony|Sara|Andrew)/i,
+  ];
+  for (const re of PRIORITY) {
+    const hit = inLang.find(v => re.test(v.name));
+    if (hit) return hit;
+  }
+  // Local voices (no network) tend to be of better quality on mobile.
+  const local = inLang.find(v => v.localService);
+  if (local) return local;
   // System default for the language, then any English voice.
   return inLang.find(v => v.default) || inLang[0] ||
          _ttsVoices.find(v => v.lang.toLowerCase().startsWith('en')) || null;
