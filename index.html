@@ -14830,8 +14830,11 @@ function appendAICycleMessage(role, text, provider, via, info) {
     r.textContent = body;
     if (body) div.appendChild(r);
   }
+  // Only auto-scroll if the user is already near the bottom — don't
+  // hijack their scroll if they're reading older messages.
+  const nearBottom = (aicycleMessages.scrollHeight - aicycleMessages.scrollTop - aicycleMessages.clientHeight) < 80;
   aicycleMessages.appendChild(div);
-  aicycleMessages.scrollTop = aicycleMessages.scrollHeight;
+  if (nearBottom) aicycleMessages.scrollTop = aicycleMessages.scrollHeight;
 }
 
 /* ==============================================================
