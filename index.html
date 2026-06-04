@@ -14009,11 +14009,14 @@ $('aicycle-messages')?.addEventListener('click', () => {
   handle.addEventListener('pointerup', e => {
     handle.releasePointerCapture(e.pointerId);
     aicycleChat.classList.remove('resizing');
-    // Snap closed if dragged below threshold
+    // Snap closed if dragged below threshold. Use closeAstranov so
+    // body.chat-open is cleared and the #chat-reopen tab reappears.
     if (aicycleChat.getBoundingClientRect().height < 80) {
-      aicycleChat.classList.remove('visible');
-      aicycleChat.style.height = '';
-      aicycleChat.style.maxHeight = '';
+      try { closeAstranov(); } catch (_) {
+        aicycleChat.classList.remove('visible');
+        aicycleChat.style.height = '';
+        aicycleChat.style.maxHeight = '';
+      }
     }
   });
   handle.addEventListener('pointercancel', e => {
