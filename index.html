@@ -4349,7 +4349,12 @@ function emitTelemetry(event, severity = 'info', context = {}) {
     context,
   };
 
-  console[severity === 'error' ? 'error' : 'info']('[ASTRANOV TELEMETRY]', payload);
+  // Only log warn + error to console; info-level telemetry is silent
+  // by default. Owner can flip window._telemetryVerbose=true to see
+  // all events while debugging.
+  if (severity === 'error') console.error('[ASTRANOV]', payload);
+  else if (severity === 'warn') console.warn('[ASTRANOV]', payload);
+  else if (window._telemetryVerbose) console.info('[ASTRANOV]', payload);
 
   // Ship error-severity telemetry to the /diag sink (real, owner-reviewable)
   // instead of the old /api/client-telemetry (which 404'd). Fire-and-forget,
