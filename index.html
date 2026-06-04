@@ -6456,19 +6456,22 @@ function _moonOverlayTick() {
   const el = document.getElementById('moon-system');
   if (!el) return;
   if (!document.body.classList.contains('cosmic-zoom')) {
-    // Hidden by CSS at non-cosmic zoom — no need to track.
-    return;
+    return;     // Hidden by CSS at non-cosmic zoom.
   }
   const pos = _computeMoonScreenPos();
-  if (!pos) { el.style.opacity = '0'; return; }
-  // Track the celestial moon's screen position. Subtract half the
-  // overlay's footprint so the moon body sits centred on the real
-  // moon's pixel.
+  if (!pos) { el.style.opacity = '0'; el.style.pointerEvents = 'none'; return; }
+  // Hide the overlay when the moon would be drawn outside the
+  // viewport — saves the user from tapping empty space, and stops
+  // a tiny stray glyph in the corner when she's hidden behind Earth.
+  if (pos.x < -40 || pos.x > innerWidth + 40 || pos.y < -40 || pos.y > innerHeight + 40) {
+    el.style.opacity = '0'; el.style.pointerEvents = 'none'; return;
+  }
   el.style.left = (pos.x) + 'px';
   el.style.top  = (pos.y) + 'px';
   el.style.right = 'auto';
   el.style.bottom = 'auto';
   el.style.opacity = '1';
+  el.style.pointerEvents = 'auto';
 }
 
 function _wireMoonBody() {
