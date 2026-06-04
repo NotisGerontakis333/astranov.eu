@@ -8741,6 +8741,15 @@ function bootSupabase() {
     } else {
       profile = null; updateIdentityOrb();
       if (typeof renderInformants === 'function') renderInformants();
+      // Privacy: drop the in-memory AI conversation history so the
+      // next signed-in user (on a shared device) doesn't see the
+      // previous session's threads.
+      try { aicycleHistory.length = 0; } catch (_) {}
+      try {
+        const msgs = document.getElementById('aicycle-messages');
+        if (msgs) msgs.innerHTML = '';
+      } catch (_) {}
+      window._introRan = false;   // greet again on next sign-in
     }
   });
 
