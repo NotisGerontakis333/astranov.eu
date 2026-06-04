@@ -2105,8 +2105,14 @@ Single-file by design. Any AI/human can continue from this comment + the law.
     -webkit-tap-highlight-color: transparent;
     transform: translate(var(--dx, 0), var(--dy, 0));
     transition: transform 0.9s cubic-bezier(0.32, 0.72, 0, 1),
-                opacity   0.4s var(--ease),
+                opacity   0.55s var(--ease),
                 box-shadow 0.3s var(--ease);
+    animation: er-orb-emerge 0.55s ease both;
+  }
+  @keyframes er-orb-emerge {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
     background: radial-gradient(circle at 32% 32%,
       color-mix(in srgb, var(--mc, #7eb4ff) 88%, white 14%),
       var(--mc, #7eb4ff) 55%, #04101f 100%);
@@ -6897,8 +6903,8 @@ function _runIntroSequence() {
   setTimeout(() => {
     const signedIn = !!(typeof session !== 'undefined' && session);
     _astranovIntro(signedIn
-      ? "Welcome back. Tap an orb, or say what you need."
-      : "I'm Astranov. Tap an orb, or say what you need."
+      ? "Welcome back. Tap an orb — or type one word: pizza · news · messages · call · wallet."
+      : "I'm Astranov. Tap an orb — or type one word: pizza · news · messages · call · wallet · sign in."
     );
     setTimeout(() => _materializePillars(), 300);
   }, 1200);
