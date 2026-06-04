@@ -6416,22 +6416,88 @@ function _layoutMoonOrbs() {
     ring.appendChild(el);
   });
 }
+// Compute the celestial moon's REAL screen position from Cesium's
+// planetary ephemeris (Simon 1994). Position is in Earth-inertial
+// (ICRF); transform to Earth-fixed (ECEF), then project to canvas.
+// Cached and refreshed on every postRender so the DOM moon tracks
+// the actual moon as the camera moves and time advances.
+function _computeMoonScreenPos() {
+  if (!viewer) return null;
+  try {
+    const t = viewer.clock.currentTime;
+    const inertial = Cesium.Simon1994PlanetaryPositions.computeMoonPositionInEarthInertialFrame(t);
+    if (!inertial) return null;
+    const icrfToFixed = Cesium.Transforms.computeIcrfToFixedMatrix(t);
+    if (!icrfToFixed) return null;
+    const fixed = Cesium.Matrix3.multiplyByVector(icrfToFixed, inertial, new Cesium.Cartesian3());
+    const win = viewer.scene.cartesianToCanvasCoordinates(fixed);
+    if (!win || !isFinite(win.x) || !isFinite(win.y)) return null;
+    return { x: win.x, y: win.y, fixed };
+  } catch (_) { return null; }
+}
+
+function _moonOverlayTick() {
+  const el = document.getElementById('moon-system');
+  if (!el) return;
+  if (!document.body.classList.contains('cosmic-zoom')) {
+    // Hidden by CSS at non-cosmic zoom — no need to track.
+    return;
+  }
+  const pos = _computeMoonScreenPos();
+  if (!pos) { el.style.opacity = '0'; return; }
+  // Track the celestial moon's screen position. Subtract half the
+  // overlay's footprint so the moon body sits centred on the real
+  // moon's pixel.
+  el.style.left = (pos.x) + 'px';
+  el.style.top  = (pos.y) + 'px';
+  el.style.right = 'auto';
+  el.style.bottom = 'auto';
+  el.style.opacity = '1';
+}
+
 function _wireMoonBody() {
   const body = document.querySelector('#moon-system .moon-body');
   if (!body) return;
+  // Enable Cesium's built-in celestial Moon so a real moon graphic
+  // appears at her actual orbital position. Clock runs in realtime
+  // so the moon moves as time passes.
+  try {
+    if (viewer && viewer.scene) {
+      try { viewer.scene.moon = new Cesium.Moon({ show: true }); } catch (_) {}
+      try { viewer.clock.currentTime = Cesium.JulianDate.now(); } catch (_) {}
+      try { viewer.clock.shouldAnimate = true; viewer.clock.multiplier = 1; } catch (_) {}
+      // Track moon screen position on every settled camera move +
+      // on a slow tick so she stays in sync with realtime.
+      viewer.camera.moveEnd.addEventListener(_moonOverlayTick);
+      setInterval(_moonOverlayTick, 5_000);
+    }
+  } catch (_) {}
+
   body.addEventListener('click', () => {
-    // Warp to cosmic zoom so the user can SEE the Moon in space.
+    // Tap → fly the camera toward the celestial moon's position
+    // for a close-up view. Reveals the cold-base orbs around her.
     try {
-      if (viewer) {
-        const carto = viewer.camera.positionCartographic;
-        const lng = Cesium.Math.toDegrees(carto.longitude);
-        const lat = Cesium.Math.toDegrees(carto.latitude);
-        viewer.camera.flyTo({
-          destination: Cesium.Cartesian3.fromDegrees(lng, lat, 60_000_000),
-          duration: 2.0,
-          orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 },
-        });
-      }
+      const pos = _computeMoonScreenPos();
+      if (!pos || !viewer) return;
+      // Camera flies to a point 4000 km on the Earth-side of the
+      // moon so she fills the view.
+      const moonFixed = pos.fixed;
+      const earthCentre = new Cesium.Cartesian3(0, 0, 0);
+      const earthToMoon = Cesium.Cartesian3.subtract(moonFixed, earthCentre, new Cesium.Cartesian3());
+      const len = Cesium.Cartesian3.magnitude(earthToMoon);
+      const back = Cesium.Cartesian3.multiplyByScalar(
+        Cesium.Cartesian3.normalize(earthToMoon, new Cesium.Cartesian3()),
+        len - 4_000_000,   // 4000 km short of the moon
+        new Cesium.Cartesian3()
+      );
+      viewer.camera.flyTo({
+        destination: back,
+        duration: 3.0,
+        orientation: {
+          direction: Cesium.Cartesian3.normalize(earthToMoon, new Cesium.Cartesian3()),
+          up: Cesium.Cartesian3.UNIT_Z,
+        },
+      });
     } catch (_) {}
   });
 }
@@ -6903,10 +6969,14 @@ function _runIntroSequence() {
   setTimeout(() => {
     const signedIn = !!(typeof session !== 'undefined' && session);
     _astranovIntro(signedIn
-      ? "Welcome back. Tap an orb — or type one word: pizza · news · messages · call · wallet."
-      : "I'm Astranov. Tap an orb — or type one word: pizza · news · messages · call · wallet · sign in."
+      ? "Welcome back. Type one word: pizza · news · messages · call · wallet."
+      : "I'm Astranov. Type one word: pizza · news · messages · call · wallet · sign in."
     );
-    setTimeout(() => _materializePillars(), 300);
+    // §0o MATERIALISATION LAW + owner directive: cold boot is ONLY
+    // the globe + the AI text window. No orbs auto-materialise.
+    // The AI summons them slowly, slowly as the user's intents and
+    // the daily schedule call for them. Even the News orb waits
+    // for the user to ask, or for the morning schedule to fire.
   }, 1200);
   // ?demo=<name> runs the named scenario as a guided tour.
   try {
@@ -14222,6 +14292,43 @@ async function _agentExec(act) {
     if (tool === 'order') {
       const p = _AGENT.places[a.index]; if (!p) return { ok: false, error: 'no such place index' };
       return await _agentOrder(p, a.items || [], a.notes || '');
+    }
+    // Generic "open a pillar surface" — lets the AI brain fire any
+    // of the four pillars + sign-in by name. Visible deed per §0k.
+    if (tool === 'open') {
+      const surface = (a.surface || a.what || '').toLowerCase();
+      const close = () => { try { closeAstranov(); } catch (_) {} };
+      if (surface === 'news' || surface === 'feed')        { close(); openFeedPanel();      return { ok: true, opened: 'news' }; }
+      if (surface === 'messages' || surface === 'msg')     { close(); openMessagesPanel();  return { ok: true, opened: 'messages' }; }
+      if (surface === 'wallet' || surface === 'money')     { close(); openWalletPanel();    return { ok: true, opened: 'wallet' }; }
+      if (surface === 'call' || surface === 'contacts')    { close(); openCallPickPanel(); return { ok: true, opened: 'call' }; }
+      if (surface === 'order' || surface === 'food')       { close(); try { diveToMe(); } catch (_) {} return { ok: true, opened: 'order' }; }
+      if (surface === 'home' || surface === 'globe')       { close(); pilotHome();          return { ok: true, opened: 'home' }; }
+      if (surface === 'signin' || surface === 'identity' || surface === 'profile') { close(); openYouPanel(); return { ok: true, opened: surface }; }
+      if (surface === 'topup' || surface === 'buy')        { close(); openBuyAVC();         return { ok: true, opened: 'topup' }; }
+      if (surface === 'debug')                              { close(); openDebugPanel();    return { ok: true, opened: 'debug' }; }
+      return { ok: false, error: 'unknown surface: ' + surface };
+    }
+    // Materialise / dematerialise — let the AI summon any orb on
+    // demand (§0o MATERIALISATION LAW).
+    if (tool === 'materialize_orb' || tool === 'orb') {
+      try {
+        window.materializeOrb({
+          id: a.id || 'd-ai-' + Date.now(),
+          ring: (a.ring != null) ? a.ring : 2,
+          color: a.color || '#5db2ff',
+          glyph: a.glyph || '◉',
+          label: a.label || 'Orb',
+          act: () => { try { _agentExec(a.act || { tool: 'open', args: { surface: a.surface || 'home' } }); } catch (_) {} },
+          ttl: a.ttl_ms || 30 * 60 * 1000,
+          source: 'ai.materialize',
+        });
+        return { ok: true, id: a.id || 'materialised' };
+      } catch (e) { return { ok: false, error: String(e.message || e) }; }
+    }
+    if (tool === 'dematerialize_orb') {
+      try { window.dematerializeOrb(a.id); return { ok: true }; }
+      catch (e) { return { ok: false, error: String(e.message || e) }; }
     }
     return { ok: false, error: 'unknown tool: ' + tool };
   } catch (e) { return { ok: false, error: String(e.message || e) }; }
