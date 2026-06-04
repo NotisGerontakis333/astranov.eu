@@ -14347,6 +14347,15 @@ $('aicycle-form').addEventListener('submit', async e => {
 // the surface is clear. 800 ms feels right — readable, not laggy.
 function _routedFire(line, fn) {
   try { appendAICycleMessage('ai', line, 'astranov', ''); } catch (_) {}
+  // Speak the routed line only if voice mode is active (mic was
+  // engaged by the user). Quiet by default — don't talk unless
+  // talked to. §0k Manual Foundation Law: the visible text is the
+  // primary deed; TTS is optional acceleration.
+  try {
+    if (typeof sessionOn !== 'undefined' && sessionOn && typeof speakAstranov === 'function') {
+      speakAstranov(line);
+    }
+  } catch (_) {}
   try { fn(); } catch (_) {}
   setTimeout(() => { try { closeAstranov(); } catch (_) {} }, 800);
 }
