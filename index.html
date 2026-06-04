@@ -14135,13 +14135,26 @@ function _routeLocal(raw) {
   if (foodMatch) {
     const cuisine = foodMatch[1];
     _routedFire("Looking for " + cuisine + " near you.", async () => {
-      try { diveToMe(); } catch (_) { try { startLocate(); } catch (_) {} return; }
-      // Wait for the camera flight + nearby fetch, then auto-open
-      // the nearest matching vendor's order panel. The user gets
-      // straight to the menu in one word.
+      // Wait for a location fix (up to 8 s polling) before diving.
+      // Without a fix, _agentFindPlaces returns [] and the route
+      // silently does nothing. The dive starts as soon as we have
+      // a fix; the auto-open follows the Overpass return.
+      try { if (window._userLat == null && typeof startLocate === 'function') startLocate(); } catch (_) {}
+      const waitForLoc = async () => {
+        for (let i = 0; i < 40; i++) {
+          if (window._userLat != null) return true;
+          await new Promise(r => setTimeout(r, 200));
+        }
+        return false;
+      };
+      const haveLoc = await waitForLoc();
+      if (!haveLoc) {
+        try { toast('Need your location to find ' + cuisine + '.', 'err'); } catch (_) {}
+        return;
+      }
+      try { diveToMe(); } catch (_) {}
       try {
         await new Promise(r => setTimeout(r, 1800));
-        if (window._userLat == null) return;
         const places = await _agentFindPlaces(cuisine, 2500);
         if (!places || !places.length) {
           try { toast('No ' + cuisine + ' near you — try widening.', ''); } catch (_) {}
