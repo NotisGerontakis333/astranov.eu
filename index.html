@@ -14426,11 +14426,15 @@ function _routeLocal(raw) {
     return true;
   }
   if (/\b(message|messages|msg|inbox|chat|chats|texts|dm|conversation)\b/.test(text)) {
-    _routedFire('Opening your messages.', () => openMessagesPanel());
+    const signedIn = !!(typeof session !== 'undefined' && session);
+    _routedFire(signedIn ? 'Opening your messages.' : 'Sign in first — messages need an identity.',
+      () => signedIn ? openMessagesPanel() : openYouPanel());
     return true;
   }
   if (/\b(wallet|balance|money|euros|avc|coins|payment|pay|top\s*up)\b/.test(text)) {
-    _routedFire('Opening your wallet.', () => openWalletPanel());
+    const signedIn = !!(typeof session !== 'undefined' && session);
+    _routedFire(signedIn ? 'Opening your wallet.' : 'Sign in to see your wallet.',
+      () => signedIn ? openWalletPanel() : openYouPanel());
     return true;
   }
   // "call NAME" / "ring NAME" / "video call NAME" — find the peer
