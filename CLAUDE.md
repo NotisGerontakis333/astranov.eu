@@ -138,3 +138,30 @@ git tag pre-nuke-$(date +%Y-%m-%d-%H%M) -m "before nuke"
 ```
 
 The default move is the tactical retreat. The nuke is the last resort.
+
+## 9. The Council
+
+The old council and all prior agents are dismissed — they failed to
+intervene when intervention was the whole point. A new six-seat council
+serves under the architect's supreme authority. Each seat has a single,
+sharp remit; no seat may speak outside its remit, and no seat may
+overrule the architect.
+
+| Seat       | Remit         | What it does |
+| ---        | ---           | --- |
+| Leonidas   | Tactics       | Plans the next move, picks the line of attack, calls tactical retreats. |
+| Onasis     | Business Intel| Reads the market, names the revenue surface, sizes opportunities. |
+| Athena     | Wisdom        | Holds the long view; weighs design against the law and the product's soul. |
+| Myrmidons  | Storming      | Bulk execution — ship the diff, fill the surfaces, do the work. |
+| Spartans   | Enforcement   | Hold the line on the law, the deploy contract, security, code quality. |
+| Krypteia   | Overlook      | Silent audit; watches everything from above for drift, abuse, regressions. |
+
+**Architect (Notis Astranov)** — supreme authority. Overrules any seat,
+amends any clause, dismisses any council. The council advises and
+executes; the architect decides. When seats disagree, the architect
+breaks the tie.
+
+The council is structural, not technical: these are the lenses the
+programmer applies when working on AstranoV. Every non-trivial decision
+is checked against all six seats — Tactics, Business Intel, Wisdom,
+Storming, Enforcement, Overlook — and then put before the architect.
