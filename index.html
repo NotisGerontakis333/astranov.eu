@@ -82,6 +82,8 @@
     max-width: 85%; font-size: 14px; line-height: 1.4; word-wrap: break-word; }
   .msg.ai   { background: rgba(255,255,255,0.04); }
   .msg.user { background: rgba(120,180,255,0.12); margin-left: auto; }
+  .msg.thinking-stub { color: rgba(168,200,238,0.65); animation: pulse 1.1s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:0.4} 50%{opacity:1} }
   #chat-form { display: flex; gap: 10px; padding: 10px 14px calc(12px + env(safe-area-inset-bottom));
     align-items: center; }
   #chat-input { flex: 1; min-width: 0; padding: 10px 14px; font-size: 16px;
@@ -311,8 +313,11 @@ async function bootCesium() {
       animation: false, baseLayerPicker: false, fullscreenButton: false,
       vrButton: false, geocoder: false, homeButton: false, infoBox: false,
       sceneModePicker: false, selectionIndicator: false, timeline: false,
-      navigationHelpButton: false, requestRenderMode: true,
-      maximumRenderTimeChange: Infinity, baseLayer: false, scene3DOnly: false,
+      navigationHelpButton: false,
+      // requestRenderMode off — tiles paint in as they arrive (no "fake
+      // static" feel) and pin animations / drags stay smooth on mobile.
+      requestRenderMode: false,
+      baseLayer: false, scene3DOnly: false,
       skyAtmosphere: new Cesium.SkyAtmosphere(), msaaSamples: 1,
     });
     if (viewer.cesiumWidget?.creditContainer) viewer.cesiumWidget.creditContainer.style.display = 'none';
@@ -326,15 +331,18 @@ async function bootCesium() {
     viewer.resolutionScale = Math.min(1.25, window.devicePixelRatio || 1);
     viewer.scene.globe.maximumScreenSpaceError = 2.0;
     viewer.scene.globe.preloadSiblings = false;
-    const base = await Cesium.TileMapServiceImageryProvider.fromUrl(
-      Cesium.buildModuleUrl('Assets/Textures/NaturalEarthII')
-    );
+    // REAL Earth — Esri World Imagery (free public service, no token,
+    // served over HTTPS; tile host already in sw.js TILE_HOSTS so it
+    // gets cached for offline). Replaces the cartoon Natural Earth II.
+    const base = new Cesium.UrlTemplateImageryProvider({
+      url: 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      maximumLevel: 19, credit: 'Esri',
+    });
     viewer.imageryLayers.addImageryProvider(base);
     viewer.camera.flyTo({
       destination: Cesium.Cartesian3.fromDegrees(20, 35, 28_000_000),
       duration: 0,
     });
-    viewer.scene.requestRender();
     // Click handler for vendor pins
     const h = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
     h.setInputAction(onCanvasClick, Cesium.ScreenSpaceEventType.LEFT_CLICK);
@@ -1318,8 +1326,18 @@ function routeLocal(raw) {
   return false;
 }
 
-async function callBrain(prompt) {
-  if (!sb) return '(offline)';
+function appendThinking() {
+  const div = document.createElement('div');
+  div.className = 'msg ai thinking-stub';
+  div.textContent = '…';
+  const msgs = $('chat-msgs');
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return div;
+}
+
+async function callBrain(prompt, stub) {
+  if (!sb) return 'AstranoV is offline. Reload the page.';
   const history = aicycleHistory.slice(-6);
   try {
     $('chat').classList.add('thinking');
@@ -1331,8 +1349,12 @@ async function callBrain(prompt) {
     aicycleHistory.push({ role: 'user', content: prompt });
     aicycleHistory.push({ role: 'assistant', content: reply });
     return reply;
-  } catch (e) { return '(error: ' + (e.message || e) + ')'; }
-  finally { $('chat').classList.remove('thinking'); }
+  } catch (e) {
+    return 'Brain unreachable: ' + (e.message || e) + '. Try again in a moment.';
+  } finally {
+    $('chat').classList.remove('thinking');
+    if (stub) stub.classList.remove('thinking-stub');
+  }
 }
 
 $('chat-form').addEventListener('submit', async (e) => {
@@ -1343,8 +1365,12 @@ $('chat-form').addEventListener('submit', async (e) => {
   appendMsg('user', text);
   input.value = '';
   if (routeLocal(text)) return;
-  const reply = await callBrain(text);
-  appendMsg('ai', reply);
+  // Show a thinking stub the user can SEE so silence never reads as a
+  // dead app. Replace its text with the actual reply when it lands.
+  const stub = appendThinking();
+  const reply = await callBrain(text, stub);
+  stub.textContent = reply;
+  const msgs = $('chat-msgs'); msgs.scrollTop = msgs.scrollHeight;
 });
 
 $('chat-reopen').addEventListener('click', openChat);
