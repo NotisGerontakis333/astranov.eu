@@ -1082,7 +1082,7 @@ function _renderOrder(o) {
     <h3>Items</h3>
     ${items}
     <h3>Total</h3>
-    <div class="row"><span>Paid</span><span>€${(o.calc?.total ?? 0).toFixed(2)}</span></div>
+    <div class="row"><span>Paid</span><span>€${Number(o.calc?.total ?? 0).toFixed(2)}</span></div>
     <p style="margin-top:14px;font-size:11px;color:rgba(168,200,238,0.55)">Updates live as the vendor and driver advance the order.</p>
   `);
 }
@@ -1105,7 +1105,7 @@ async function openDriverPanel() {
   } catch (e) { $('drv-list').textContent = 'Failed: ' + e.message; }
   $('drv-list').innerHTML = nearby.length ? nearby.map(d => `
     <div class="card">
-      <div class="ct">${escapeHtml(d.short_id || d.id.slice(0, 8))} — €${Number(d.reward_avc || 0).toFixed(2)}</div>
+      <div class="ct">#${d.id.slice(0, 8)} — €${Number(d.reward_avc || 0).toFixed(2)}</div>
       <div class="cm">${escapeHtml(d.pickup_address || '')} → ${escapeHtml(d.dropoff_address || '')}</div>
       <button class="pbtn ok" style="margin-top:6px" onclick="acceptDelivery('${d.id}')">Accept</button>
     </div>
@@ -1115,7 +1115,7 @@ async function openDriverPanel() {
     const runs = r.data || [];
     $('drv-runs').innerHTML = runs.length ? runs.map(d => `
       <div class="card">
-        <div class="ct">${escapeHtml(d.short_id || d.id.slice(0, 8))} — ${escapeHtml(d.status)}</div>
+        <div class="ct">#${d.id.slice(0, 8)} — ${escapeHtml(d.status)}</div>
         <div class="cm">€${Number(d.reward_avc || 0).toFixed(2)} reward</div>
         <button class="pbtn" onclick="advanceDelivery('${d.id}','picked_up')">Mark picked up</button>
         <button class="pbtn ok" onclick="advanceDelivery('${d.id}','delivered')">Mark delivered</button>
@@ -1151,11 +1151,17 @@ async function openVendorOrdersPanel() {
     <div id="vo-list">Loading…</div>
   `);
   try {
-    const r = await sb.from('orders').select('*').eq('vendor_owner_id', session.user.id)
+    const v = await sb.from('vendors').select('id').eq('owner_id', session.user.id);
+    const ids = (v.data || []).map(r => r.id);
+    if (!ids.length) {
+      $('vo-list').innerHTML = '<p>You have no vendor profiles yet. Sell something to receive orders here.</p>';
+      return;
+    }
+    const r = await sb.from('orders').select('*').in('vendor_id', ids)
       .order('created_at', { ascending: false }).limit(30);
     const orders = r.data || [];
     if (!orders.length) {
-      $('vo-list').innerHTML = '<p>No orders yet. Register your business in profile → become vendor.</p>';
+      $('vo-list').innerHTML = '<p>No orders yet.</p>';
       return;
     }
     $('vo-list').innerHTML = orders.map(o => `
@@ -1218,15 +1224,21 @@ async function openBuyPanel() {
 async function payProvider(provider) {
   const eur = parseFloat($('buy-amt').value) || 10;
   const amount_cents = Math.round(eur * 100);
+  const success_url = location.origin + '/?paid=1';
+  const cancel_url  = location.origin + '/?paid=0';
+  const item_name   = `AstranoV top-up €${eur}`;
+  // Stripe is fronted by the unified `payments` Edge fn; the others are
+  // named after their provider. Body params differ per provider.
+  const slug = provider === 'stripe' ? 'payments' : provider;
+  const body = provider === 'stripe'
+    ? { mode: 'payment', amount_cents, currency: 'eur', item_name, success_url, cancel_url }
+    : { amount_cents, currency: 'EUR', item_name, return_url: success_url, cancel_url };
   try {
-    const { data, error } = await sb.functions.invoke(provider, { body: {
-      amount_cents, currency: 'EUR', return_url: location.origin + '/?paid=1',
-      cancel_url: location.origin + '/?paid=0',
-    }});
+    const { data, error } = await sb.functions.invoke(slug, { body });
     if (error) throw error;
     if (data?.url) { location.href = data.url; return; }
-    toast('Payment session failed', 'err');
-  } catch (e) { toast(e.message, 'err'); }
+    toast('Payment session failed: ' + (data?.error || 'no url'), 'err');
+  } catch (e) { toast(e.message || String(e), 'err'); }
 }
 
 /* ============================== Chat router ============================== */
