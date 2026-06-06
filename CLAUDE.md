@@ -199,13 +199,25 @@ not a bar or tab. Each orb is trackball-draggable anywhere on the
 screen; the position persists per device. A drag never fires the
 orb's tap action — tap and drag are distinct.
 
-**Gestures (Google-Maps grammar, no learning curve).**
-- One-finger drag = pan.
-- Pinch = zoom (Cesium default).
-- Double-tap = zoom IN to the picked point.
-- Two-finger tap = zoom OUT one step.
-- Two-finger drag DOWN = zoom IN.
-- Two-finger drag UP = zoom OUT.
+**Gestures — Google-Maps grammar, no learning curve.** Cesium's default
+camera-controller inputs (enableInputs / Zoom / Rotate / Tilt / Look /
+Translate) are always re-asserted on boot so touch devices never
+silently disable a gesture. On top of the defaults the programmer
+binds these handlers, every release:
+
+| Gesture                       | Effect |
+| ---                           | --- |
+| One-finger drag               | Pan the globe |
+| Pinch                         | Zoom in / out (continuous) |
+| Double-tap / double-click     | Zoom IN to the picked surface point, fly 0.7 s |
+| Two-finger tap                | Zoom OUT one step (×2.8 altitude, fly 0.6 s) |
+| Two-finger drag DOWN          | Zoom IN (continuous, exp curve) |
+| Two-finger drag UP            | Zoom OUT (continuous, exp curve) |
+| Tap empty globe (single)      | No effect (preserve for future surface dive) |
+| Tap vendor pin                | Open vendor panel |
+| Tap incoming-call orb         | Answer the call |
+| Tap pilot orb                 | Warp camera to global view (28 000 km) |
+| Tap test-call orb             | Open self-loopback call stage |
 
 **Pilot orb.** Whenever the camera is below ~12 000 km, a small blue
 Earth thumbnail labelled GLOBE appears bottom-right. Tap = warp camera
@@ -232,3 +244,88 @@ Model accountability is not optional.
 **Push, don't preempt.** When a panel or drawer opens, it never
 covers what the user is touching or watching. Always recompute the
 orb resting bottom from the drawer's actual height.
+
+**Chat thinking-stub.** Every chat send appends a pulsing thinking
+stub the user can see before the reply lands. Replace the stub with
+the actual reply or with a clear error string ("Brain unreachable: …")
+— never silence. The chat is the AI's heartbeat; if the heart stops
+beating visibly, the user thinks the app is dead.
+
+## 11. Marketplace law
+
+These rules govern the food / goods / delivery pillar. Same standing
+as §10: they survive every nuke and the architect does not re-state
+them.
+
+**Vendors with menus.** A vendor pin renders BRIGHT on the globe only
+if its `vendors.items` JSONB contains at least one entry with a real
+`price > 0`. Vendors without a published menu render DIM (alpha 0.45)
+so the user can still see them — tap a dim pin opens "Publish menu on
+their behalf" or "This is my business" (claim). Bright pins go straight
+to menu + cart + order.
+
+**Crawler auto-fires on empty.** When a search ("pizza", "coffee", any
+food keyword) returns zero nearby vendors, the client invokes
+`vendor-crawler` for the user's GPS at 2.5 km radius, then re-fetches.
+The architect must never see a bare "nothing here" with no path
+forward.
+
+**Publish, outside Google.** Vendors finish their menus through us:
+name + price rows, saved into `vendors.items`. Photos and details
+follow. We do not depend on Google Maps menus.
+
+**Driver bootstrap.** Until the architect names additional runners,
+the driver pool is `is_owner = true` only. Non-owners who type "drive"
+see "Driver onboarding opens after the bootstrap" and a notify-me
+button. Deliveries route to the architect's real GPS via
+`nearby_deliveries`.
+
+**Money.** EUR everywhere in the UI. AVC = €1 internal accounting unit.
+A 3 % Orbital License royalty is booked server-side on every top-up;
+the user receives the full amount. Money RPCs (`credit_eur`,
+`credit_avc`, `admin_transfer_avc_to_eur`, `order_debit_eur`,
+`order_refund_eur`) are SECURITY DEFINER, server-only, never trusted
+from the client.
+
+## 12. Calls law
+
+**Incoming = orb on the globe.** Inbound call materialises as a
+pulsing green Cesium entity at the caller's broadcast `callerLat /
+callerLng`. Camera flies to ~35 km city-altitude. Tap orb = answer.
+30 s silence = auto-decline. The only chrome is the top "Ignore ✕"
+pill, used only when the caller's GPS is missing.
+
+**Outgoing carries GPS.** Caller-side `startCall` includes
+`callerLat` / `callerLng` (current `_userLat / _userLng`) in the
+Realtime broadcast payload alongside the SDP offer. If the caller
+hasn't given location, the orb falls back to the pill UI; never
+silent failure.
+
+**ICE.** WebRTC uses Google STUN plus Open Relay free TURN as the
+fallback for strict NAT. Document the limit honestly — strict
+corporate / mobile-carrier NATs may still fail; that is a known
+ceiling, not a bug to chase forever.
+
+**Self-test.** The test-call orb (§10) opens a single-device loopback:
+local stream is rendered into both `<video>` slots, remote `<video>`
+is muted (no audio echo), call stage shows status "connected · this
+is YOU". Self-test rows are NOT written to the `calls` table.
+
+## 13. Law maintenance
+
+**Every architectural decision is written into this file the same
+turn it is made.** The programmer does not store rules in chat
+memory; chat memory dies at the next nuke. If the architect names a
+behaviour, a gesture, a colour, a sequence — the programmer codifies
+it here BEFORE moving on, and ships the CLAUDE.md change in the same
+commit as the implementation.
+
+**Honest gaps.** When the architect names something the programmer
+cannot yet enforce in code (browser API limit, hardware constraint,
+unknown spec), the programmer writes the gap into the law explicitly,
+naming the limit. Future programmers see the gap and do not waste
+cycles trying to brute-force around it.
+
+**No silent renames.** If a rule changes, the programmer edits the
+existing clause rather than adding a contradictory one. The law is a
+contract, not a journal.
