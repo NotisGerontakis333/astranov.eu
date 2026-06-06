@@ -175,21 +175,24 @@
     bottom: calc(20px + env(safe-area-inset-bottom));
     display: flex; justify-content: center; gap: 18px; z-index: 511; }
   #call-controls .btn { width: 56px; height: 56px; font-size: 22px; }
-  #incoming { position: fixed; top: max(16px, env(safe-area-inset-top));
-    left: 16px; right: 16px; z-index: 400;
-    background: rgba(8,18,38,0.92); backdrop-filter: blur(10px);
-    border: 1px solid rgba(126,235,180,0.7); border-radius: 14px;
-    padding: 14px 18px; color: #cde7ff; display: none;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.5); animation: ringPulse 1.2s ease infinite; }
-  #incoming.on { display: block; }
-  @keyframes ringPulse { 0%,100%{box-shadow:0 0 0 0 rgba(126,235,180,0.4)} 50%{box-shadow:0 0 0 12px rgba(126,235,180,0)} }
-  #incoming .title { font-size: 14px; margin-bottom: 10px; }
+  /* Incoming — a single ignore pill at the top. The PRIMARY answer
+     surface is the glowing orb that pulses on the globe at the
+     caller's GPS point. Tap orb = answer. Tap ✕ = ignore. */
+  #incoming { position: fixed; top: max(14px, env(safe-area-inset-top));
+    left: 50%; transform: translateX(-50%); z-index: 400;
+    background: rgba(8,18,38,0.85); backdrop-filter: blur(8px);
+    border: 1px solid rgba(126,235,180,0.6); border-radius: 22px;
+    padding: 8px 14px; color: #cde7ff; display: none; gap: 10px;
+    align-items: center; font-size: 13px;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.5);
+    animation: ringPulse 1.4s ease infinite; }
+  #incoming.on { display: flex; }
+  @keyframes ringPulse { 0%,100%{box-shadow:0 0 0 0 rgba(126,235,180,0.35)} 50%{box-shadow:0 0 0 10px rgba(126,235,180,0)} }
   #incoming .name { font-weight: 700; color: #7eebb4; }
-  #incoming .acts { display: flex; gap: 10px; }
-  #incoming .pbtn { padding: 8px 14px; border-radius: 10px; cursor: pointer; font-weight: 600; font-size: 13px;
-    border: 1px solid; flex: 1; text-align: center; }
-  #incoming .accept { background: rgba(20,80,40,0.85); border-color: #7eebb4; color: #d6f7e6; }
-  #incoming .decline { background: rgba(80,20,20,0.85); border-color: #ff7878; color: #ffd6d6; }
+  #incoming .ign { padding: 4px 10px; cursor: pointer; border-radius: 18px;
+    border: 1px solid rgba(255,120,120,0.5); color: #ffd6d6;
+    background: rgba(80,20,20,0.5); font-size: 12px; }
+  #incoming .ign:active { transform: scale(0.94); }
 
   /* TOAST */
   #toast { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%);
@@ -270,11 +273,8 @@ Supabase project lkoatrkhuigdolnjsbie.
 </div>
 
 <div id="incoming">
-  <div class="title">Incoming call from <span class="name" id="inc-name">—</span></div>
-  <div class="acts">
-    <div class="pbtn accept" onclick="acceptIncoming()">Accept</div>
-    <div class="pbtn decline" onclick="declineIncoming()">Decline</div>
-  </div>
+  <span>◈ <span class="name" id="inc-name">—</span> · tap the orb to answer</span>
+  <span class="ign" onclick="declineIncoming()">Ignore ✕</span>
 </div>
 
 <div id="toast"></div>
@@ -418,6 +418,8 @@ async function pilotHome() {
 function onCanvasClick(click) {
   if (!viewer) return;
   const picked = viewer.scene.pick(click.position);
+  // Glowing call orb has top priority — tap = answer
+  if (picked?.id?.__callOrb) { acceptIncoming(); return; }
   if (picked?.primitive?.__vendorId) {
     const p = vendorIndex.get(picked.primitive.__vendorId);
     if (p) openVendorPanel(p);
@@ -660,6 +662,7 @@ const ICE_SERVERS = [
 
 let pc = null, localStream = null, callChannel = null, currentCall = null;
 let _pendingIncoming = null, _inboxChannel = null;
+let _callOrb = null, _callOrbTimeout = 0;
 
 function listenForIncomingCalls() {
   if (!sb || !session) return;
@@ -669,17 +672,74 @@ function listenForIncomingCalls() {
   _inboxChannel.subscribe();
 }
 
+// Spawn a pulsing green orb on the globe at the caller's GPS point and
+// fly the camera to it. Tap orb = accept. Tap ✕ pill = ignore.
+function _spawnCallOrb(lat, lng, callerName) {
+  _killCallOrb();
+  if (!viewer || lat == null || lng == null) return false;
+  _callOrb = viewer.entities.add({
+    position: Cesium.Cartesian3.fromDegrees(lng, lat),
+    point: {
+      pixelSize: new Cesium.CallbackProperty(() => 22 + 10 * (0.5 + 0.5 * Math.sin(Date.now() / 220)), false),
+      color: Cesium.Color.fromCssColorString('#7eebb4'),
+      outlineColor: new Cesium.CallbackProperty(
+        () => Cesium.Color.fromCssColorString('#7eebb4').withAlpha(0.25 + 0.55 * (0.5 + 0.5 * Math.sin(Date.now() / 220))),
+        false),
+      outlineWidth: new Cesium.CallbackProperty(() => 6 + 8 * (0.5 + 0.5 * Math.sin(Date.now() / 220)), false),
+      disableDepthTestDistance: Number.POSITIVE_INFINITY,
+    },
+    label: {
+      text: '◈ ' + (callerName || 'Caller'),
+      font: '600 14px Quicksand, sans-serif',
+      fillColor: Cesium.Color.fromCssColorString('#cde7ff'),
+      outlineColor: Cesium.Color.fromCssColorString('#020a1c'),
+      outlineWidth: 3,
+      style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+      pixelOffset: new Cesium.Cartesian2(0, -42),
+      showBackground: true,
+      backgroundColor: Cesium.Color.fromCssColorString('#020a1c').withAlpha(0.55),
+      backgroundPadding: new Cesium.Cartesian2(8, 4),
+      disableDepthTestDistance: Number.POSITIVE_INFINITY,
+    },
+  });
+  _callOrb.__callOrb = true;
+  // Fly to city-level altitude so the caller's point is clearly visible.
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(lng, lat, 35_000),
+    duration: 1.4,
+    orientation: { heading: 0, pitch: Cesium.Math.toRadians(-65), roll: 0 },
+  });
+  return true;
+}
+
+function _killCallOrb() {
+  if (_callOrb && viewer) { try { viewer.entities.remove(_callOrb); } catch (_) {} }
+  _callOrb = null;
+  clearTimeout(_callOrbTimeout); _callOrbTimeout = 0;
+}
+
 function onIncomingInvite(p) {
   if (currentCall) return;   // ignore if already on a call
   _pendingIncoming = p;
+  // Close anything covering the globe so the orb is the focus.
+  try { closePanel(); } catch (_) {}
+  try { closeChat(); } catch (_) {}
   $('inc-name').textContent = p.fromName || 'Caller';
   $('incoming').classList.add('on');
+  // Try the geographic answer surface first. If the caller didn't share
+  // a location, the top pill alone still works.
+  _spawnCallOrb(p.callerLat, p.callerLng, p.fromName);
+  // Auto-decline after 30s of silence — frees both ends.
+  _callOrbTimeout = setTimeout(() => {
+    if (_pendingIncoming === p) declineIncoming();
+  }, 30_000);
 }
 
 async function acceptIncoming() {
   if (!_pendingIncoming) return;
   const p = _pendingIncoming; _pendingIncoming = null;
   $('incoming').classList.remove('on');
+  _killCallOrb();
   try { localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true }); }
   catch (e) { toast('Mic/cam blocked', 'err'); return; }
   currentCall = { id: p.callId, peerId: p.fromId, peerName: p.fromName, role: 'callee' };
@@ -704,6 +764,7 @@ async function declineIncoming() {
   if (!_pendingIncoming) return;
   const p = _pendingIncoming; _pendingIncoming = null;
   $('incoming').classList.remove('on');
+  _killCallOrb();
   try {
     const ch = sb.channel('call:' + p.callId);
     await ch.subscribe();
@@ -739,13 +800,17 @@ async function startCall(peerId, peerName) {
   callChannel.on('broadcast', { event: 'ice' }, ({ payload }) => onRemoteIce(payload));
   callChannel.on('broadcast', { event: 'bye' }, () => endCall());
   callChannel.subscribe();
-  // Tell the callee via their user channel + push notification
+  // Tell the callee via their user channel + push notification.
+  // The caller's live GPS rides along so the orb materialises at the
+  // exact point the call is coming from.
+  if (_userLat == null) { try { await locateMe(); } catch (_) {} }
   const userCh = sb.channel('user:' + peerId);
   await userCh.subscribe();
   await userCh.send({
     type: 'broadcast', event: 'incoming-call',
     payload: { callId: row.id, fromId: session.user.id,
-      fromName: (profile?.display_name || session.user.email || 'Caller'), offer },
+      fromName: (profile?.display_name || session.user.email || 'Caller'),
+      callerLat: _userLat, callerLng: _userLng, offer },
   });
   userCh.unsubscribe();
   try {
@@ -802,6 +867,7 @@ function endCall() {
     try { sb.from('calls').update({ status: 'ended', ended_at: new Date().toISOString() }).eq('id', currentCall.id); } catch (_) {}
   }
   currentCall = null;
+  _killCallOrb();
   hideCallStage();
 }
 
