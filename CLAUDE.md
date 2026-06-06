@@ -227,6 +227,15 @@ to global view at 28 000 km. At global view it dematerialises.
 self-loopback call stage (your camera in both slots) so a single
 device can verify mic + camera without a second peer.
 
+**Login orb.** On every cold boot the client calls
+`sb.auth.getSession()` to try to restore a session. If none is found,
+a pulsing aegean-blue ◈ orb labelled SIGN IN appears top-right by
+default and waits for a tap. Tap = open auth panel. The orb
+dematerialises the moment `auth.onAuthStateChange` reports a session.
+On success a one-line "Welcome back, {display_name}" toast confirms
+who is signed in. The orb is draggable and persists position like
+every other orb.
+
 **Incoming call = orb on the globe.** A call materialises as a pulsing
 green orb at the caller's GPS point. Camera flies to ~35 km
 city-altitude so the receiver sees who is calling from where. Tap orb

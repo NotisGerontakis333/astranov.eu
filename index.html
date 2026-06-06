@@ -139,6 +139,30 @@
     color: rgba(207,226,255,0.7); }
   #pilot-orb:active { transform: scale(0.92); cursor: grabbing; }
 
+  /* Login orb — visible on every cold boot until the user is signed
+     in. Pulsing aegean-blue ◈, top-right by default, draggable.
+     Tap = open the auth panel. Disappears when signed in. */
+  #login-orb { position: fixed; right: 16px;
+    top: calc(58px + env(safe-area-inset-top));
+    z-index: 250; width: 54px; height: 54px; border-radius: 50%;
+    cursor: grab; display: none; touch-action: none;
+    background: radial-gradient(circle at 50% 50%,
+      rgba(74,166,255,0.85) 0%, rgba(30,108,255,0.5) 55%, rgba(0,26,102,0) 80%);
+    border: 2px solid rgba(207,226,255,0.7);
+    color: #cde7ff; align-items: center; justify-content: center;
+    font-size: 22px; font-weight: 700;
+    box-shadow: 0 0 14px rgba(74,166,255,0.55);
+    animation: pulse 1.6s ease-in-out infinite;
+    transition: transform 0.18s var(--ease);
+  }
+  #login-orb.on { display: flex; }
+  #login-orb.dragged { animation: none; transition: none; }
+  #login-orb:active { transform: scale(0.92); cursor: grabbing; }
+  #login-orb::after { content: 'SIGN IN'; position: absolute; left: 50%; bottom: -14px;
+    transform: translateX(-50%); font-size: 9px; letter-spacing: 0.22em;
+    color: rgba(207,226,255,0.85); white-space: nowrap; }
+  body.signed-in #login-orb { display: none; }
+
   /* Test-call orb — small floating ◈ next to the mic for verifying
      camera + mic on a single device (self-loopback). Draggable. */
   #test-orb { position: fixed; left: 16px;
@@ -286,8 +310,9 @@ Supabase project lkoatrkhuigdolnjsbie.
 </div>
 
 <div id="chat-reopen" title="Open Astranov"></div>
-<div id="pilot-orb" title="Back to the globe" onclick="pilotHome()"></div>
-<div id="test-orb"  title="Test camera & mic" onclick="startSelfCallTest()">◈</div>
+<div id="login-orb" title="Sign in"            onclick="openAuthPanel()">◈</div>
+<div id="pilot-orb" title="Back to the globe"  onclick="pilotHome()"></div>
+<div id="test-orb"  title="Test camera & mic"  onclick="startSelfCallTest()">◈</div>
 
 <div id="chat">
   <div id="chat-handle"></div>
@@ -571,15 +596,34 @@ function bootSupabase() {
     sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     sb.auth.getSession().then(({ data }) => {
       session = data.session;
-      if (session) { loadProfile(); listenForIncomingCalls(); }
+      _reflectSignedIn();
+      if (session) { loadProfile().then(_greetSignedIn); listenForIncomingCalls(); }
     });
     sb.auth.onAuthStateChange((_e, s) => {
       const becameSignedIn = !session && s;
       session = s;
-      if (s) { loadProfile(); listenForIncomingCalls(); if (becameSignedIn) closePanel(); }
-      else { profile = null; }
+      _reflectSignedIn();
+      if (s) {
+        loadProfile().then(_greetSignedIn);
+        listenForIncomingCalls();
+        if (becameSignedIn) closePanel();
+      } else { profile = null; }
     });
   } catch (e) { console.error('[Supabase]', e); }
+}
+
+function _reflectSignedIn() {
+  document.body.classList.toggle('signed-in', !!session);
+  const orb = $('login-orb');
+  if (orb) orb.classList.toggle('on', !session);
+}
+
+let _greeted = false;
+function _greetSignedIn() {
+  if (_greeted || !session) return;
+  _greeted = true;
+  const name = profile?.display_name || session.user?.email || 'friend';
+  toast('Welcome back, ' + name, 'ok');
 }
 
 async function loadProfile() {
@@ -683,8 +727,22 @@ function openAuthPanel() {
       <button class="pbtn muted" onclick="sendMagicLink()">Magic link</button>
       <button class="pbtn muted" onclick="signInGoogle()">Google</button>
     </div>
+    <div style="margin-top:14px;padding:10px 12px;border:1px dashed rgba(126,235,180,0.45);border-radius:10px;font-size:12px;color:#a8c8ee">
+      Test peer for call testing —
+      <b style="color:#7eebb4">astranov@astranov.eu</b> /
+      <b style="color:#7eebb4">astranov2026</b>.
+      Sign in as this on a second device, then call "astranov" from your main account.
+      <div style="margin-top:8px">
+        <button class="pbtn muted" onclick="useTestCreds()">Use test credentials</button>
+      </div>
+    </div>
     <div id="auth-status" style="font-size:11px;color:rgba(168,200,238,0.65);margin-top:10px"></div>
   `);
+}
+
+function useTestCreds() {
+  $('auth-email').value = 'astranov@astranov.eu';
+  $('auth-pass').value  = 'astranov2026';
 }
 
 async function signInPassword() {
@@ -1904,6 +1962,7 @@ window.addEventListener('load', () => {
   bootSupabase();
   ipWarmup();
   // Trackball drag on every floating orb. Position survives reloads.
+  _bindOrbDrag($('login-orb'), 'astranov.orb.login');
   _bindOrbDrag($('pilot-orb'), 'astranov.orb.pilot');
   _bindOrbDrag($('test-orb'),  'astranov.orb.test');
   // Initial orb-resting position so they sit above the chat once it opens.
