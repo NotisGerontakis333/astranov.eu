@@ -915,12 +915,16 @@ async function findPeer(q) {
   try {
     const { data } = await sb.rpc('find_peer', { q });
     const rows = (data || []).filter(r => r.id !== session?.user.id);
-    out.innerHTML = rows.length ? rows.map(r => `
-      <div class="card" onclick="openConversation('${r.id}', ${JSON.stringify(r.display_name || 'Friend').replace(/"/g, '&quot;')})">
-        <div class="ct">${escapeHtml(r.display_name || 'Friend')}</div>
-        <div class="cm">Tap to write or call</div>
-      </div>
-    `).join('') : '<p>No one with that name.</p>';
+    out.innerHTML = rows.length ? rows.map(r => {
+      const fn = r.is_agent
+        ? `startAgentCall(${JSON.stringify({id: r.id, display_name: r.display_name, is_agent: true})})`
+        : `openConversation('${r.id}', ${JSON.stringify(r.display_name || 'Friend').replace(/"/g, '&quot;')})`;
+      return `
+        <div class="card" onclick='${fn}'>
+          <div class="ct">${escapeHtml(r.display_name || 'Friend')}${r.is_agent ? ' · <span style="color:#a98cff">agent</span>' : ''}</div>
+          <div class="cm">${r.is_agent ? '◈ tap to call' : 'Tap to write or call'}</div>
+        </div>`;
+    }).join('') : '<p>No one with that name.</p>';
   } catch (_) { out.innerHTML = ''; }
 }
 
@@ -1485,12 +1489,16 @@ async function findPeerForCall(q) {
   try {
     const { data } = await sb.rpc('find_peer', { q });
     const rows = (data || []).filter(r => r.id !== session?.user.id);
-    out.innerHTML = rows.length ? rows.map(r => `
-      <div class="card" onclick="startCall('${r.id}', ${JSON.stringify(r.display_name || 'Friend').replace(/"/g, '&quot;')})">
-        <div class="ct">${escapeHtml(r.display_name || 'Friend')}</div>
-        <div class="cm">◈ video call</div>
-      </div>
-    `).join('') : '<p>No one with that name.</p>';
+    out.innerHTML = rows.length ? rows.map(r => {
+      const fn = r.is_agent
+        ? `startAgentCall(${JSON.stringify({id: r.id, display_name: r.display_name, is_agent: true})})`
+        : `startCall('${r.id}', ${JSON.stringify(r.display_name || 'Friend').replace(/"/g, '&quot;')})`;
+      return `
+        <div class="card" onclick='${fn}'>
+          <div class="ct">${escapeHtml(r.display_name || 'Friend')}${r.is_agent ? ' · <span style="color:#a98cff">agent</span>' : ''}</div>
+          <div class="cm">◈ video call</div>
+        </div>`;
+    }).join('') : '<p>No one with that name.</p>';
   } catch (_) { out.innerHTML = ''; }
 }
 
@@ -2095,8 +2103,36 @@ function routeLocal(raw) {
       if (!session) { openAuthPanel(); return; }
       const { data } = await sb.rpc('find_peer', { q: name });
       const peer = (data || [])[0];
-      if (peer) startCall(peer.id, peer.display_name);
-      else openCallPicker();
+      if (peer) {
+        if (peer.is_agent) startAgentCall({ id: peer.id, display_name: peer.display_name, is_agent: true });
+        else               startCall(peer.id, peer.display_name);
+      } else openCallPicker();
+    });
+    return true;
+  }
+  // Bare agent name (leonidas / onasis / athena / myrmidons / spartans / krypteia)
+  const agentName = t.match(/\b(leonidas|onasis|athena|myrmidons?|spartans?|krypteia)\b/i);
+  if (agentName) {
+    const q = agentName[1];
+    _routedFire('Summoning ' + q + '.', async () => {
+      if (!session) { openAuthPanel(); return; }
+      const { data } = await sb.rpc('find_peer', { q });
+      const peer = (data || []).find(p => p.is_agent) || (data || [])[0];
+      if (peer) startAgentCall({ id: peer.id, display_name: peer.display_name, is_agent: true });
+      else toast('Agent not found', 'err');
+    });
+    return true;
+  }
+  // Council / agents → fly camera to Greece, show every agent orb
+  if (/\b(council|agents?|σύμβουλιο|πράκτορες)\b/.test(t)) {
+    _routedFire('Showing the council.', () => {
+      if (!viewer) return;
+      viewer.camera.flyTo({
+        destination: Cesium.Cartesian3.fromDegrees(23.5, 38.4, 800_000),
+        duration: 1.6,
+        orientation: { heading: 0, pitch: Cesium.Math.toRadians(-80), roll: 0 },
+      });
+      refreshPeerOrbs();
     });
     return true;
   }
