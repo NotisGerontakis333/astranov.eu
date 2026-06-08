@@ -1990,7 +1990,11 @@ async function openDriverPanel() {
   if (_userLat == null) await locateMe();
   let nearby = [];
   try {
-    const r = await sb.rpc('nearby_deliveries', { lat: _userLat ?? 0, lng: _userLng ?? 0, radius_meters: 8000, max_results: 30 });
+    // Architect sees Athens seed deliveries even when testing from
+    // another country — bump the radius so the driver flow is
+    // demoable end-to-end. Other runners use a normal city radius.
+    const radius = profile?.is_owner ? 5_000_000 : 8_000;
+    const r = await sb.rpc('nearby_deliveries', { lat: _userLat ?? 37.97, lng: _userLng ?? 23.73, radius_meters: radius, max_results: 30 });
     nearby = (r.data || []).filter(d => d.status === 'requested');
   } catch (e) { $('drv-list').textContent = 'Failed: ' + e.message; }
   $('drv-list').innerHTML = nearby.length ? nearby.map(d => `
