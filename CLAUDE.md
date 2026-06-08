@@ -337,6 +337,13 @@ see "Driver onboarding opens after the bootstrap" and a notify-me
 button. Deliveries route to the architect's real GPS via
 `nearby_deliveries`.
 
+**Order → delivery bridge.** Every `orders` insert fires the
+`_order_spawns_delivery` trigger which creates a `deliveries` row at
+`status = requested`, copying pickup coords from the vendor and
+dropoff coords from the order. `reward_avc` defaults to the order's
+`delivery_fee`. This closes the marketplace ↔ driver loop without any
+client change — place an order, the driver panel sees it immediately.
+
 **Money.** EUR everywhere in the UI. AVC = €1 internal accounting unit.
 A 3 % Orbital License royalty is booked server-side on every top-up;
 the user receives the full amount. Money RPCs (`credit_eur`,
