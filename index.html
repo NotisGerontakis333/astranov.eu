@@ -2237,8 +2237,13 @@ function routeLocal(raw) {
     _routedFire('Looking for ' + kw + ' nearby.', () => diveToVendors(kw));
     return true;
   }
+  // Everyone on the globe — fast list of callable peers.
+  if (/\b(people|everyone|peers?|κόσμος|όλοι)\b/.test(t)) {
+    _routedFire('Showing every callable peer.', openPeoplePanel);
+    return true;
+  }
   if (/\b(help|commands|τι μπορείς|βοήθεια)\b/.test(t)) {
-    _routedFire('Try one word: news · pizza · messages · call · call NAME · wallet · drive · council · diag.', () => {});
+    _routedFire('Try one word: news · pizza · people · council · call NAME · wallet · drive · diag.', () => {});
     return true;
   }
   // diag — one-word health check across the three pillars.
@@ -2340,6 +2345,40 @@ async function _retryBrain(btn) {
 }
 
 $('chat-reopen').addEventListener('click', openChat);
+
+/* ---------- People panel ---------- */
+async function openPeoplePanel() {
+  if (!session) return openAuthPanel();
+  openPanel(`
+    <h2>People on the globe</h2>
+    <p>Tap a card to ring them. Agents (violet) run on our brain; humans (aegean) get real WebRTC.</p>
+    <div id="peers-list">Loading…</div>
+  `);
+  try {
+    const { data, error } = await sb.rpc('discoverable_peers');
+    if (error) throw error;
+    const peers = (data || []).slice().sort((a, b) => {
+      if (a.is_agent !== b.is_agent) return a.is_agent ? -1 : 1;
+      return String(a.display_name||'').localeCompare(String(b.display_name||''));
+    });
+    if (!peers.length) { $('peers-list').innerHTML = '<p>Nobody on the globe yet.</p>'; return; }
+    $('peers-list').innerHTML = peers.map(p => {
+      const fn = p.is_agent
+        ? `startAgentCall(${JSON.stringify({id:p.id, display_name:p.display_name, is_agent:true, bio:p.bio||''})})`
+        : `startCall('${p.id}', ${JSON.stringify(p.display_name || 'Friend').replace(/"/g,'&quot;')})`;
+      const tag = p.is_agent
+        ? `<span style="color:#a98cff">agent · ${escapeHtml(p.bio || '')}</span>`
+        : `<span style="color:#4aa6ff">human</span>`;
+      return `
+        <div class="card" onclick='${fn}'>
+          <div class="ct">${escapeHtml(p.display_name || 'Friend')} · ${tag}</div>
+          <div class="cm">◈ tap to call</div>
+        </div>`;
+    }).join('');
+  } catch (e) {
+    $('peers-list').innerHTML = '<p>Failed to load peers: ' + escapeHtml(e.message || String(e)) + '</p>';
+  }
+}
 
 /* ---------- Diagnostics ---------- */
 async function runDiag() {
