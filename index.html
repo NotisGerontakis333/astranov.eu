@@ -1455,6 +1455,25 @@ function onAgentFormSubmit(e) {
   agentSend(v);
 }
 
+function _pickVoice() {
+  if (!('speechSynthesis' in window)) return null;
+  const all = speechSynthesis.getVoices() || [];
+  if (!all.length) return null;
+  const en = all.filter(v => /^en[-_]/i.test(v.lang));
+  const pool = en.length ? en : all;
+  const score = (v) => {
+    const n = String(v.name || '');
+    let s = 0;
+    if (/premium|enhanced|neural|natural/i.test(n)) s += 10;
+    if (/siri/i.test(n))            s += 8;
+    if (/google/i.test(n))          s += 6;
+    if (/samantha|alex|daniel|karen|tessa/i.test(n)) s += 4;
+    return s;
+  };
+  pool.sort((a, b) => score(b) - score(a));
+  return pool[0];
+}
+
 async function agentSend(rawText) {
   if (!currentCall || currentCall.role !== 'agent') return;
   const text = (rawText || '').trim();
@@ -1477,7 +1496,8 @@ async function agentSend(rawText) {
   if ('speechSynthesis' in window && !out.failed) {
     try {
       const u = new SpeechSynthesisUtterance(reply);
-      u.rate = 1.0; u.pitch = 1.0;
+      const v = _pickVoice(); if (v) u.voice = v;
+      u.rate = 1.0; u.pitch = 1.0; u.volume = 1.0;
       speechSynthesis.cancel(); speechSynthesis.speak(u);
     } catch (_) {}
   }
