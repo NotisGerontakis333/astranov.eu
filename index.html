@@ -770,12 +770,14 @@ function openAuthPanel() {
       <button class="pbtn muted" onclick="signInGoogle()">Google</button>
     </div>
     <div style="margin-top:14px;padding:10px 12px;border:1px dashed rgba(126,235,180,0.45);border-radius:10px;font-size:12px;color:#a8c8ee">
-      Test peer for call testing —
-      <b style="color:#7eebb4">astranov@astranov.eu</b> /
-      <b style="color:#7eebb4">astranov2026</b>.
-      Sign in as this on a second device, then call "astranov" from your main account.
-      <div style="margin-top:8px">
-        <button class="pbtn muted" onclick="useTestCreds()">Use test credentials</button>
+      <b>Architect</b> — one-tap magic link to
+      <b style="color:#7eebb4">notisastranov@gmail.com</b>.
+      <div style="margin-top:8px"><button class="pbtn muted" onclick="architectMagic()">Send architect magic link</button></div>
+      <div style="margin-top:12px;border-top:1px solid rgba(93,178,255,0.18);padding-top:10px">
+        <b>Test peer</b> — sign in on a second device, then call "Astranov" from your main account.
+        <div style="margin-top:8px">
+          <button class="pbtn muted" onclick="useTestCreds()">Use test credentials</button>
+        </div>
       </div>
     </div>
     <div id="auth-status" style="font-size:11px;color:rgba(168,200,238,0.65);margin-top:10px"></div>
@@ -785,6 +787,17 @@ function openAuthPanel() {
 function useTestCreds() {
   $('auth-email').value = 'astranov@astranov.eu';
   $('auth-pass').value  = 'astranov2026';
+}
+
+async function architectMagic() {
+  const email = 'notisastranov@gmail.com';
+  $('auth-email').value = email;
+  $('auth-status').textContent = 'Sending magic link to ' + email + '…';
+  const { error } = await sb.auth.signInWithOtp({
+    email, options: { emailRedirectTo: location.origin },
+  });
+  if (error) $('auth-status').textContent = 'Magic link failed: ' + error.message;
+  else $('auth-status').textContent = 'Magic link sent — check your inbox.';
 }
 
 async function signInPassword() {
