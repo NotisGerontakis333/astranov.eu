@@ -347,7 +347,7 @@ Supabase project lkoatrkhuigdolnjsbie.
   </div>
   <div id="agent-input-wrap">
     <div id="agent-log"></div>
-    <form id="agent-form" onsubmit="event.preventDefault();const i=document.getElementById('agent-input');const v=i.value;i.value='';agentSend(v);">
+    <form id="agent-form" onsubmit="onAgentFormSubmit(event)">
       <input id="agent-input" autocomplete="off" placeholder="Talk to the agent…" />
       <button class="btn primary" type="submit">↑</button>
     </form>
@@ -1420,6 +1420,21 @@ function _wrapText(ctx, text, x, y, maxWidth, lineHeight) {
   for (let i = 0; i < lines.length; i++) ctx.fillText(lines[i], x, top + i * lineHeight);
 }
 
+// LAW §10: iOS Safari only allows speechSynthesis after a direct user
+// gesture. Prime it the FIRST time the architect submits, synchronously,
+// so the agent's first reply actually speaks.
+let _ttsPrimed = false;
+function onAgentFormSubmit(e) {
+  e.preventDefault();
+  if (!_ttsPrimed && 'speechSynthesis' in window) {
+    try { speechSynthesis.cancel(); speechSynthesis.speak(new SpeechSynthesisUtterance(' ')); } catch (_) {}
+    _ttsPrimed = true;
+  }
+  const i = document.getElementById('agent-input');
+  const v = i.value; i.value = '';
+  agentSend(v);
+}
+
 async function agentSend(rawText) {
   if (!currentCall || currentCall.role !== 'agent') return;
   const text = (rawText || '').trim();
@@ -2421,7 +2436,7 @@ window.addEventListener('load', () => {
     openChat();
     const h = new Date().getHours();
     const tod = h < 5 ? 'Up late' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
-    appendMsg('ai', tod + ". I'm Astranov. Try: news · pizza · messages · call NAME · wallet · drive.");
+    appendMsg('ai', tod + ". I'm Astranov. Try: news · pizza · council · call NAME · wallet · drive · diag.");
   }, 1400);
   // Handle ?paid=1 from a payment provider redirect.
   try {
