@@ -272,6 +272,30 @@ On success a one-line "Welcome back, {display_name}" toast confirms
 who is signed in. The orb is draggable and persists position like
 every other orb.
 
+**Architect quick sign-in.** The auth panel carries a one-tap
+"Architect magic link" button that fires a magic link to
+`notisastranov@gmail.com`, and a "Use test credentials" button for
+the seeded test peer. The architect never needs to remember a
+password.
+
+**Chat shortcuts.** One-word commands resolve immediately and the
+chat closes:
+- `news` → news panel
+- `pizza` / `coffee` / any food keyword → staged dive + nearby vendors
+- `messages` → inbox
+- `wallet` / `top up` → wallet + Stripe/Revolut/PayPal
+- `drive` → driver panel (architect-only until others are named)
+- `call NAME` / bare agent name → ring that peer
+- `council` / `agents` → fly camera to Greece, surface every agent orb
+- `people` / `everyone` → list every callable peer (agents + humans)
+- `diag` → one-line health probe across all three pillars + wallet
+- `home` / `globe` → warp to global view
+
+**Architect driver radius.** Normal runners see deliveries within 8 km
+of their GPS. The architect (is_owner) sees deliveries within
+5 000 km so he can drive any test order anywhere on the planet
+during the bootstrap.
+
 **Incoming call = orb on the globe.** A call materialises as a pulsing
 green orb at the caller's GPS point. Camera flies to ~35 km
 city-altitude so the receiver sees who is calling from where. Tap orb
