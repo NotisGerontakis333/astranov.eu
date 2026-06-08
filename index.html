@@ -231,6 +231,23 @@
     bottom: calc(20px + env(safe-area-inset-bottom));
     display: flex; justify-content: center; gap: 18px; z-index: 511; }
   #call-controls .btn { width: 56px; height: 56px; font-size: 22px; }
+  /* Agent call input strip — only visible during agent calls */
+  #agent-input-wrap { position: absolute; left: 0; right: 0;
+    bottom: calc(96px + env(safe-area-inset-bottom)); z-index: 511;
+    padding: 0 14px; display: none; flex-direction: column; gap: 8px; }
+  #agent-input-wrap.on { display: flex; }
+  #agent-log { max-height: 30vh; overflow-y: auto;
+    background: rgba(2,6,18,0.55); border: 1px solid rgba(93,178,255,0.35);
+    border-radius: 14px; padding: 8px 12px; color: #cde7ff;
+    font-size: 12px; line-height: 1.4; }
+  #agent-log .ag-line { padding: 4px 0; border-bottom: 1px solid rgba(93,178,255,0.10); }
+  #agent-log .ag-you { color: rgba(120,180,255,0.85); }
+  #agent-log .ag-agent { color: #cde7ff; }
+  #agent-log .ag-meta { color: rgba(120,180,255,0.55); font-size: 10px; }
+  #agent-form { display: flex; gap: 8px; align-items: center; }
+  #agent-form input { flex: 1; padding: 10px 14px; font-size: 16px;
+    background: rgba(2,6,18,0.7); border: 1px solid rgba(93,178,255,0.55);
+    border-radius: 22px; color: #e8eef8; outline: none; }
   /* Incoming — a single ignore pill at the top. The PRIMARY answer
      surface is the glowing orb that pulses on the globe at the
      caller's GPS point. Tap orb = answer. Tap ✕ = ignore. */
@@ -326,6 +343,13 @@ Supabase project lkoatrkhuigdolnjsbie.
   <div id="call-overlay">
     <div id="call-peer">—</div>
     <div id="call-status">connecting…</div>
+  </div>
+  <div id="agent-input-wrap">
+    <div id="agent-log"></div>
+    <form id="agent-form" onsubmit="event.preventDefault();const i=document.getElementById('agent-input');const v=i.value;i.value='';agentSend(v);">
+      <input id="agent-input" autocomplete="off" placeholder="Talk to the agent…" />
+      <button class="btn primary" type="submit">↑</button>
+    </form>
   </div>
   <div id="call-controls">
     <button class="btn" id="btn-mute" aria-label="Mute">🔴</button>
@@ -538,20 +562,32 @@ async function ipWarmup() {
   return null;
 }
 
+// Staged descent: globe → national → city → street. The architect's
+// LAW §10: zoom never teleports above the planet; every dive lands
+// with the user's neighbourhood actually visible.
 async function diveToMe() {
   if (_userLat == null) {
     toast('Locating…');
     await locateMe();
     if (_userLat == null) { toast('Need your location', 'err'); return false; }
   }
-  if (viewer) {
-    viewer.camera.flyTo({
-      destination: Cesium.Cartesian3.fromDegrees(_userLng, _userLat, 1_200),
-      duration: 1.4,
-      orientation: { heading: 0, pitch: Cesium.Math.toRadians(-65), roll: 0 },
-    });
-  }
+  if (!viewer) return false;
+  await _flyStage(_userLng, _userLat, 1_400_000, 0.9, -90);  // national
+  await _flyStage(_userLng, _userLat,    35_000, 0.9, -75);  // city
+  await _flyStage(_userLng, _userLat,     1_200, 0.8, -65);  // street
   return true;
+}
+
+function _flyStage(lng, lat, height, dur, pitchDeg) {
+  return new Promise((resolve) => {
+    if (!viewer) return resolve();
+    viewer.camera.flyTo({
+      destination: Cesium.Cartesian3.fromDegrees(lng, lat, height),
+      duration: dur,
+      orientation: { heading: 0, pitch: Cesium.Math.toRadians(pitchDeg), roll: 0 },
+      complete: resolve, cancel: resolve,
+    });
+  });
 }
 
 async function pilotHome() {
@@ -576,9 +612,12 @@ function onCanvasClick(click) {
   const picked = viewer.scene.pick(click.position);
   // Glowing incoming-call orb has top priority — tap = answer
   if (picked?.id?.__callOrb) { acceptIncoming(); return; }
-  // Peer orb on the globe — tap = ring them
+  // Peer orb on the globe — tap = ring them. Agents route to the
+  // synthesized-video call surface; humans get full WebRTC.
   if (picked?.id?.__peerOrb) {
-    startCall(picked.id.__peerOrb.id, picked.id.__peerOrb.display_name);
+    const p = picked.id.__peerOrb;
+    if (p.is_agent) startAgentCall(p);
+    else            startCall(p.id, p.display_name);
     return;
   }
   if (picked?.primitive?.__vendorId) {
@@ -794,6 +833,7 @@ async function openNewsPanel() {
     <p>Real signals from the globe + informant feeds. Tap a card to read.</p>
     <div id="news-list">Loading…</div>
   `);
+  const problems = [];
   let signals = [];
   try {
     const r = await sb.from('signals')
@@ -801,30 +841,39 @@ async function openNewsPanel() {
       .eq('status', 'active')
       .order('created_at', { ascending: false })
       .limit(50);
+    if (r.error) throw r.error;
     signals = r.data || [];
-  } catch (_) {}
+  } catch (e) { problems.push('signals: ' + (e.message || e)); }
   let informants = [];
   try {
     const r = await sb.functions.invoke('informant-feed', { body: { informants: DEFAULT_INFORMANTS } });
+    if (r.error) throw r.error;
+    if (r.data && r.data.ok === false) throw new Error(r.data.error || 'informant-feed failed');
     if (r.data?.findings) {
       for (const arr of Object.values(r.data.findings)) {
         if (Array.isArray(arr)) informants.push(...arr);
       }
     }
-  } catch (_) {}
+  } catch (e) { problems.push('informants: ' + (e.message || e)); }
   const items = [
     ...signals.map(s => ({
       title: s.title, src: s.source_name || s.category || 'signal',
       t: s.created_at, url: s.source_url, body: s.body,
     })),
     ...informants.map(f => ({
-      title: f.title || '(untitled)', src: f.source || 'informant',
+      title: f.title || '(untitled)',
+      src: f.source_name || f.source || 'informant',
       t: f.published_at || f.created_at || new Date().toISOString(),
       url: f.source_url || f.url, body: f.summary,
     })),
   ].sort((a, b) => new Date(b.t) - new Date(a.t)).slice(0, 80);
-  if (!items.length) { $('news-list').textContent = 'No news yet — informants are warming up.'; return; }
-  $('news-list').innerHTML = items.map((it, i) => `
+  if (!items.length) {
+    $('news-list').innerHTML = `<p>No news landed. ${
+      problems.length ? '<br>' + problems.map(escapeHtml).join('<br>') : ''
+    }</p>`;
+    return;
+  }
+  $('news-list').innerHTML = items.map((it) => `
     <div class="card" onclick="${it.url ? `window.open('${escapeHtml(it.url)}','_blank','noopener')` : `toast('No link')`}">
       <div class="ct">${escapeHtml(it.title)}</div>
       <div class="cm">${escapeHtml(it.src)} · ${formatRelative(it.t)}</div>
@@ -998,26 +1047,32 @@ async function refreshPeerOrbs() {
     for (const p of peers) {
       if (!Number.isFinite(p.lat) || !Number.isFinite(p.lng)) continue;
       seen.add(p.id);
+      // Council agents glow violet with their remit; humans glow aegean.
+      const baseHex = p.is_agent ? '#a98cff' : '#4aa6ff';
+      const labelText = p.is_agent && p.bio
+        ? '◈ ' + (p.display_name || 'Agent') + ' · ' + p.bio
+        : '◈ ' + (p.display_name || 'Friend');
       const existing = _peerEntities.get(p.id);
       if (existing) {
         existing.position = Cesium.Cartesian3.fromDegrees(p.lng, p.lat);
-        if (existing.label) existing.label.text = '◈ ' + (p.display_name || 'Friend');
+        if (existing.label) existing.label.text = labelText;
         existing.__peerOrb = p;
         continue;
       }
+      const c = Cesium.Color.fromCssColorString(baseHex);
       const ent = viewer.entities.add({
         position: Cesium.Cartesian3.fromDegrees(p.lng, p.lat),
         point: {
           pixelSize: new Cesium.CallbackProperty(() => 16 + 6 * (0.5 + 0.5 * Math.sin(Date.now() / 380)), false),
-          color: Cesium.Color.fromCssColorString('#4aa6ff'),
+          color: c,
           outlineColor: new Cesium.CallbackProperty(
-            () => Cesium.Color.fromCssColorString('#4aa6ff').withAlpha(0.25 + 0.45 * (0.5 + 0.5 * Math.sin(Date.now() / 380))),
+            () => c.withAlpha(0.25 + 0.45 * (0.5 + 0.5 * Math.sin(Date.now() / 380))),
             false),
           outlineWidth: new Cesium.CallbackProperty(() => 4 + 6 * (0.5 + 0.5 * Math.sin(Date.now() / 380)), false),
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
         },
         label: {
-          text: '◈ ' + (p.display_name || 'Friend'),
+          text: labelText,
           font: '600 12px Quicksand, sans-serif',
           fillColor: Cesium.Color.fromCssColorString('#cde7ff'),
           outlineColor: Cesium.Color.fromCssColorString('#020a1c'),
@@ -1033,7 +1088,6 @@ async function refreshPeerOrbs() {
       ent.__peerOrb = p;
       _peerEntities.set(p.id, ent);
     }
-    // Drop entities for peers that disappeared.
     for (const [id, ent] of _peerEntities) {
       if (!seen.has(id)) {
         try { viewer.entities.remove(ent); } catch (_) {}
@@ -1207,11 +1261,16 @@ function endCall() {
   try { pc?.close(); } catch (_) {}
   pc = null;
   stopLocalStream();
-  // Self-test calls aren't in the calls table; everything else is.
-  if (currentCall && currentCall.id !== 'self-test') {
+  // Agent call cleanup — synthesized canvas stream, captions, log strip.
+  try { _agentStream?.getTracks().forEach(t => t.stop()); } catch (_) {}
+  _agentStream = null; _agentCanvas = null; _agentCtx = null; _agentCaption = '';
+  $('agent-input-wrap')?.classList.remove('on');
+  try { speechSynthesis.cancel(); } catch (_) {}
+  // Real human calls land in the calls table; self-test + agent calls don't.
+  if (currentCall && currentCall.role !== 'self' && currentCall.role !== 'agent' && currentCall.id !== 'self-test') {
     try { sb.from('calls').update({ status: 'ended', ended_at: new Date().toISOString() }).eq('id', currentCall.id); } catch (_) {}
   }
-  currentCall = null;
+  currentCall = null; _currentAgentKey = null;
   _killCallOrb();
   hideCallStage();
 }
@@ -1223,9 +1282,150 @@ function stopLocalStream() {
   try { $('call-remote').srcObject = null; } catch (_) {}
 }
 
-// Single-device self-test: open the camera, render the local stream
-// into both video slots, and prove that the call stage works without
-// needing a second human peer. Tap End to stop.
+/* ---------- Agent video call ---------- */
+// A council seat is not a real human peer, so we don't carry an SDP
+// offer. We open the same call stage, paint a synthesized canvas as
+// the "remote" video, and route every typed line through OUR BRAIN
+// (aicycle) with the agent's persona prepended. Captions land on the
+// canvas; SpeechSynthesis speaks them when available.
+
+const AGENT_PERSONAS = {
+  leonidas:  { color: '#ffaa33', remit: 'TACTICS',
+    sys: 'You are Leonidas, head of the Tactics seat in the AstranoV council. Speak briefly, military-tactical, no fluff. Plan the next move. Single short paragraph.' },
+  onasis:    { color: '#7eebb4', remit: 'BUSINESS INTEL',
+    sys: 'You are Onasis, head of Business Intel. Read the market, name the revenue surface, size opportunities. Single short paragraph.' },
+  athena:    { color: '#4aa6ff', remit: 'WISDOM',
+    sys: 'You are Athena, head of Wisdom. Hold the long view; weigh design against the law and the product soul. Single short paragraph.' },
+  myrmidons: { color: '#d96e6e', remit: 'STORMING',
+    sys: 'You are the Myrmidons, head of Storming. Bulk execution. Blunt. Tell the architect what to ship next. Single short paragraph.' },
+  spartans:  { color: '#a98cff', remit: 'ENFORCEMENT',
+    sys: 'You are the Spartans, Enforcement. Hold the line on the law, deploy contract, security, code quality. Single short paragraph.' },
+  krypteia:  { color: '#cde7ff', remit: 'OVERLOOK',
+    sys: 'You are Krypteia, Overlook. Silent audit. Name the drift, abuse, regression others miss. Single short paragraph.' },
+};
+
+let _agentAnim = 0, _agentCanvas = null, _agentCtx = null, _agentStream = null;
+let _agentCaption = '', _currentAgentKey = null;
+
+function _agentKey(name) {
+  return String(name || '').toLowerCase().replace(/[^a-z]/g, '').slice(0, 16);
+}
+
+async function startAgentCall(agent) {
+  if (currentCall) return toast('Already on a call', 'err');
+  const key = _agentKey(agent.display_name);
+  const persona = AGENT_PERSONAS[key] || { color: '#cde7ff', remit: 'AGENT', sys: 'You are an AstranoV council seat. Speak briefly.' };
+  _currentAgentKey = key;
+  currentCall = { id: 'agent-' + agent.id, peerId: agent.id, peerName: agent.display_name, role: 'agent', persona };
+  $('call-peer').textContent = agent.display_name + ' · ' + persona.remit;
+  $('call-status').textContent = 'connected · brain via aicycle';
+  // Architect's own camera in the local slot — optional, never required.
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+    $('call-local').srcObject = localStream;
+  } catch (_) { /* fine — agent call works without camera */ }
+  // Synthesized canvas drives the remote video slot.
+  _agentCanvas = document.createElement('canvas');
+  _agentCanvas.width = 540; _agentCanvas.height = 960;
+  _agentCtx = _agentCanvas.getContext('2d');
+  _agentCaption = 'Tap the input below — talk to ' + agent.display_name + '.';
+  _agentAnim = 0;
+  _drawAgentFrame();
+  _agentStream = _agentCanvas.captureStream(30);
+  const rv = $('call-remote');
+  rv.srcObject = _agentStream;
+  rv.muted = true;
+  // Show the agent input strip and clear prior log
+  $('agent-input-wrap').classList.add('on');
+  $('agent-log').innerHTML = '';
+  showCallStage();
+}
+
+function _drawAgentFrame() {
+  if (!currentCall || currentCall.role !== 'agent' || !_agentCtx) return;
+  _agentAnim += 0.025;
+  const c = _agentCanvas, ctx = _agentCtx;
+  const persona = currentCall.persona;
+  const w = c.width, h = c.height;
+  // Background gradient
+  const g = ctx.createRadialGradient(w/2, h*0.45, 30, w/2, h*0.45, Math.max(w, h));
+  g.addColorStop(0, '#0a1730'); g.addColorStop(1, '#020613');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+  // Animated multi-band waveform
+  ctx.lineWidth = 2.5; ctx.shadowColor = persona.color; ctx.shadowBlur = 14;
+  for (let band = 0; band < 3; band++) {
+    ctx.beginPath();
+    const off = band * 0.7;
+    for (let x = 0; x <= w; x += 4) {
+      const y = h*0.5
+        + Math.sin(x/40 + _agentAnim + off) * 60 * (1 - band*0.15)
+        + Math.cos(x/26 + _agentAnim*1.3 + off) * 30;
+      x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = persona.color + (band === 0 ? '' : band === 1 ? 'aa' : '55');
+    ctx.stroke();
+  }
+  ctx.shadowBlur = 0;
+  // Header
+  ctx.fillStyle = '#cde7ff';
+  ctx.font = '700 38px Quicksand, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('◈ ' + currentCall.peerName, w/2, 110);
+  ctx.font = '500 14px Quicksand, sans-serif';
+  ctx.fillStyle = persona.color;
+  ctx.fillText(persona.remit, w/2, 140);
+  // Caption block (the agent's last reply, or prompt)
+  if (_agentCaption) {
+    ctx.fillStyle = 'rgba(207,226,255,0.92)';
+    ctx.font = '500 22px Quicksand, sans-serif';
+    _wrapText(ctx, _agentCaption, w/2, h*0.78, w - 80, 30);
+  }
+  requestAnimationFrame(_drawAgentFrame);
+}
+
+function _wrapText(ctx, text, x, y, maxWidth, lineHeight) {
+  const words = String(text).split(/\s+/);
+  let line = '', lines = [];
+  for (const word of words) {
+    const test = line ? line + ' ' + word : word;
+    if (ctx.measureText(test).width > maxWidth && line) { lines.push(line); line = word; }
+    else line = test;
+  }
+  if (line) lines.push(line);
+  lines = lines.slice(-6);
+  const top = y - (lines.length - 1) * lineHeight / 2;
+  for (let i = 0; i < lines.length; i++) ctx.fillText(lines[i], x, top + i * lineHeight);
+}
+
+async function agentSend(rawText) {
+  if (!currentCall || currentCall.role !== 'agent') return;
+  const text = (rawText || '').trim();
+  if (!text) return;
+  const log = $('agent-log');
+  log.insertAdjacentHTML('beforeend',
+    `<div class="ag-line ag-you">you · ${escapeHtml(text)}</div>`);
+  log.scrollTop = log.scrollHeight;
+  _agentCaption = 'thinking…';
+  const out = await callBrain(text, null, {
+    persona: currentCall.persona.sys,
+    history: [],
+  });
+  const reply = out.reply || '(no reply)';
+  _agentCaption = reply;
+  log.insertAdjacentHTML('beforeend',
+    `<div class="ag-line ag-agent">${escapeHtml(currentCall.peerName)} · ${escapeHtml(reply)}` +
+    (out.meta ? `<span class="ag-meta"> · ${escapeHtml(out.meta)}</span>` : '') + `</div>`);
+  log.scrollTop = log.scrollHeight;
+  if ('speechSynthesis' in window && !out.failed) {
+    try {
+      const u = new SpeechSynthesisUtterance(reply);
+      u.rate = 1.0; u.pitch = 1.0;
+      speechSynthesis.cancel(); speechSynthesis.speak(u);
+    } catch (_) {}
+  }
+}
+
+// Single-device self-test (still useful for camera/mic verification).
 async function startSelfCallTest() {
   if (currentCall) return toast('Already on a call', 'err');
   try {
@@ -1401,15 +1601,18 @@ async function diveToVendors(keyword) {
   if (!ok) return;
   toast('Searching nearby…');
   let places = await fetchNearbyVendors(_userLat, _userLng, keyword);
-  // If the world's empty around the user, auto-fire the crawler so they
-  // see SOMETHING on the globe instead of an empty panel.
   if (!places.length) {
-    toast('Crawler dispatched — sweeping the area…');
+    toast('Crawler sweeping the area…');
     try {
-      await sb.functions.invoke('vendor-crawler', {
+      const { data, error } = await sb.functions.invoke('vendor-crawler', {
         body: { lat: _userLat, lng: _userLng, radius: 2500 },
       });
-    } catch (_) {}
+      if (error) throw error;
+      if (data?.ok === false) throw new Error(data.error || 'crawler failed');
+      toast('Crawler found ' + (data?.count ?? 0) + ' places', 'ok');
+    } catch (e) {
+      toast('Crawler error: ' + (e.message || e), 'err');
+    }
     places = await fetchNearbyVendors(_userLat, _userLng, keyword);
   }
   if (!places.length) {
@@ -1941,26 +2144,34 @@ function appendThinking() {
   return div;
 }
 
-async function callBrain(prompt, stub) {
+async function callBrain(prompt, stub, opts) {
+  // LAW §10/§13 — our brain (aicycle) is the only voice. We never
+  // silently route the user's words elsewhere. On failure, surface
+  // the actual error and let the architect decide what to do next.
   if (!sb) return { reply: 'AstranoV is offline. Reload the page.', meta: '' };
-  const history = aicycleHistory.slice(-6);
+  const history = (opts?.history) || aicycleHistory.slice(-6);
+  const persona = opts?.persona;
+  const payload = persona
+    ? { prompt: '[' + persona + ']\n\n' + prompt, history, engine: 'astranov', persona }
+    : { prompt, history, engine: 'astranov' };
   try {
     $('chat').classList.add('thinking');
     const t0 = Date.now();
-    const { data, error } = await sb.functions.invoke('aicycle', {
-      body: { prompt, history, engine: 'astranov' },
-    });
+    const { data, error } = await sb.functions.invoke('aicycle', { body: payload });
     if (error) throw error;
+    if (data && data.error) throw new Error(data.error);
     const reply = (data && (data.response || data.text)) || '(no reply)';
     const ms   = Number(data?.latencyMs) || (Date.now() - t0);
     const label= data?.engineLabel || data?.engine || 'brain';
     const model= data?.model ? String(data.model).split('/').pop() : '';
     const meta = `via ${label}${model ? ' · ' + model : ''} · ${(ms/1000).toFixed(1)}s`;
-    aicycleHistory.push({ role: 'user', content: prompt });
-    aicycleHistory.push({ role: 'assistant', content: reply });
-    return { reply, meta };
+    if (!persona) {
+      aicycleHistory.push({ role: 'user', content: prompt });
+      aicycleHistory.push({ role: 'assistant', content: reply });
+    }
+    return { reply, meta, raw: data };
   } catch (e) {
-    return { reply: 'Brain unreachable: ' + (e.message || e) + '. Try again in a moment.', meta: '' };
+    return { reply: '◈ Brain unreachable — ' + (e.message || e), meta: '', failed: true, err: e };
   } finally {
     $('chat').classList.remove('thinking');
     if (stub) stub.classList.remove('thinking-stub');
@@ -1975,19 +2186,43 @@ $('chat-form').addEventListener('submit', async (e) => {
   appendMsg('user', text);
   input.value = '';
   if (routeLocal(text)) return;
-  // Show a thinking stub the user can SEE so silence never reads as a
-  // dead app. Replace its text with the actual reply when it lands.
   const stub = appendThinking();
-  const { reply, meta } = await callBrain(text, stub);
-  stub.textContent = reply;
-  if (meta) {
+  const out = await callBrain(text, stub);
+  stub.textContent = out.reply;
+  if (out.meta) {
     const m = document.createElement('div');
     m.className = 'msg-meta';
-    m.textContent = meta;
+    m.textContent = out.meta;
     stub.appendChild(m);
+  }
+  // LAW §13 — on brain failure, never silently fall back. Surface the
+  // failure with a single visible retry control. The architect chooses.
+  if (out.failed) {
+    const r = document.createElement('div');
+    r.className = 'msg-meta';
+    r.innerHTML = '<button class="pbtn ok" style="padding:4px 10px;font-size:11px" onclick="_retryBrain(this)">Retry</button>'
+                + '<span style="margin-left:8px;color:rgba(168,200,238,0.55)">our brain only — no silent fallback</span>';
+    r._brainPrompt = text;
+    stub.appendChild(r);
   }
   const msgs = $('chat-msgs'); msgs.scrollTop = msgs.scrollHeight;
 });
+
+async function _retryBrain(btn) {
+  const wrap = btn.closest('.msg-meta');
+  const stubMsg = wrap?.parentElement;
+  const text = wrap?._brainPrompt;
+  if (!text || !stubMsg) return;
+  wrap.remove();
+  stubMsg.textContent = '…';
+  stubMsg.classList.add('thinking-stub');
+  const out = await callBrain(text, stubMsg);
+  stubMsg.textContent = out.reply;
+  if (out.meta) {
+    const m = document.createElement('div'); m.className = 'msg-meta'; m.textContent = out.meta;
+    stubMsg.appendChild(m);
+  }
+}
 
 $('chat-reopen').addEventListener('click', openChat);
 

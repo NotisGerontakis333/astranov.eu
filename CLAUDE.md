@@ -226,18 +226,42 @@ Earth thumbnail labelled GLOBE appears bottom-right. Tap = warp camera
 to global view at 28 000 km. At global view it dematerialises.
 
 **Peer orbs.** Every discoverable peer (`map_visibility public`, not a
-bot, with a `home_location`) renders as a pulsing aegean-blue ◈
-Cesium entity at their coordinates, labelled with their display
-name. Tap a peer orb = ring them. Refreshed every 25 s. Peer orbs
-replace the floating chrome test-call orb — testing happens against a
-real peer on the globe, not a chrome shortcut.
+bot, with a `home_location`) renders as a pulsing ◈ Cesium entity at
+their coordinates, labelled with their display name. Humans glow
+aegean blue. AGENTS glow violet and carry their remit (Tactics,
+Wisdom, …) in the label. Tap = ring them. Refreshed every 25 s.
 
-**Test peer.** A seeded account `astranov@astranov.eu / astranov2026`
-named "Astranov Test" sits on the globe at a real point. Default
-seed is Athens (37.9755, 23.7348). When the architect's GPS
-resolves, his client calls `architect_set_peer_home` to pin the test
-peer ~150 m next to him so the orb is in his city, not stuck on
-Athens.
+**Test peer + council agents.** A seeded human peer
+`astranov@astranov.eu / astranov2026` sits at Athens for real
+person-to-person testing. The six council agents (Leonidas,
+Onasis, Athena, Myrmidons, Spartans, Krypteia) live as auth users
+with `is_agent = true`, scattered across Greece — Sparta, Athens,
+Thessaly, Delphi, Thermopylae. Each has the password
+`astranov2026` and is discoverable like any peer.
+
+**Agent calls.** Tapping a peer with `is_agent = true` does not open
+WebRTC — there is nobody to answer the SDP. Instead the call stage
+opens with a SYNTHESIZED canvas video: a multi-band coloured
+waveform in the seat's tint (orange Tactics, green Business Intel,
+blue Wisdom, red Storming, violet Enforcement, pale Overlook), the
+seat's name + remit in a header, and a live caption block carrying
+the agent's latest reply. The architect types in the call stage's
+agent-input strip; every line goes to OUR BRAIN (`aicycle`) with the
+seat's persona prepended as a `[bracketed]` system tag. Replies are
+shown in the caption AND spoken via `speechSynthesis` when
+available. End ✕ tears down the canvas stream and any TTS.
+
+**Staged descent.** The dive sequence is always three flyTo legs,
+never one teleport: national altitude (~1 400 000 m, top-down),
+city altitude (~35 000 m, 75° pitch), street altitude (~1 200 m,
+65° pitch). The architect must never see the camera "go above the
+planet" — the dive lands with the user's neighbourhood actually
+visible.
+
+**Vendor seed.** Four real Athens vendors with priced menus
+(`seed:athens-*`) are present in the `vendors` table so the
+marketplace has bright pins the moment search runs in Greece. The
+crawler fills in the rest of the city on first empty search.
 
 **Login orb.** On every cold boot the client calls
 `sb.auth.getSession()` to try to restore a session. If none is found,
@@ -261,6 +285,13 @@ State this honestly; do not pretend it could be otherwise.
 **Brain visibility.** Every AI reply shows which model answered, in
 the form `via {provider} · {model} · {latency}s` under the message.
 Model accountability is not optional.
+
+**Brain is OURS, no silent fallback.** Every prompt — chat, agent
+call, anywhere — goes through `aicycle`. If it fails, the chat
+shows the actual error string and a single visible Retry button.
+The programmer NEVER routes the user's words to a different brain
+on its own. If a switch is unavoidable, ask the architect first
+and write the new route into this law before shipping.
 
 **Push, don't preempt.** When a panel or drawer opens, it never
 covers what the user is touching or watching. Always recompute the
@@ -289,7 +320,12 @@ to menu + cart + order.
 food keyword) returns zero nearby vendors, the client invokes
 `vendor-crawler` for the user's GPS at 2.5 km radius, then re-fetches.
 The architect must never see a bare "nothing here" with no path
-forward.
+forward. The crawler must NEVER swallow an error as `[object Object]`
+— failures return their real message and the upsert chunks rows so
+one bad row does not nuke the run. Overpass has three fallback
+endpoints (`overpass-api.de`, `overpass.kumi.systems`,
+`overpass.openstreetmap.fr`). The unique constraint on
+`vendors.osm_id` is non-partial so PostgREST upsert always works.
 
 **Publish, outside Google.** Vendors finish their menus through us:
 name + price rows, saved into `vendors.items`. Photos and details
