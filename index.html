@@ -79,7 +79,8 @@
     -webkit-overflow-scrolling: touch; }
   #chat-msgs:empty { display: none; }
   .msg { margin-bottom: 10px; padding: 9px 13px; border-radius: 14px;
-    max-width: 85%; font-size: 14px; line-height: 1.4; word-wrap: break-word; }
+    max-width: 85%; font-size: 14px; line-height: 1.4; word-wrap: break-word;
+    white-space: pre-line; }
   .msg.ai   { background: rgba(255,255,255,0.04); }
   .msg.user { background: rgba(120,180,255,0.12); margin-left: auto; }
   .msg.thinking-stub { color: rgba(168,200,238,0.65); animation: pulse 1.1s ease-in-out infinite; }
@@ -2164,7 +2165,12 @@ function routeLocal(raw) {
     return true;
   }
   if (/\b(help|commands|τι μπορείς|βοήθεια)\b/.test(t)) {
-    _routedFire('Try one word: news · pizza · messages · call · call NAME · wallet · drive · home · sign in.', () => {});
+    _routedFire('Try one word: news · pizza · messages · call · call NAME · wallet · drive · council · diag.', () => {});
+    return true;
+  }
+  // diag — one-word health check across the three pillars.
+  if (/\b(diag|diagnose|status|smoke|τεστ)\b/.test(t)) {
+    _routedFire('Probing the three pillars…', runDiag);
     return true;
   }
   return false;
@@ -2261,6 +2267,55 @@ async function _retryBrain(btn) {
 }
 
 $('chat-reopen').addEventListener('click', openChat);
+
+/* ---------- Diagnostics ---------- */
+async function runDiag() {
+  const lines = [];
+  // Brain
+  try {
+    const t0 = Date.now();
+    const r = await sb.functions.invoke('aicycle', { body: { prompt: 'ping', history: [], engine: 'astranov' } });
+    const ms = Date.now() - t0;
+    if (r.error) lines.push('◆ BRAIN ✕ ' + r.error.message);
+    else lines.push(`◈ BRAIN ✓ ${r.data?.engineLabel || 'brain'} · ${ms}ms`);
+  } catch (e) { lines.push('◆ BRAIN ✕ ' + (e.message || e)); }
+  // Peers (calls pillar supply)
+  try {
+    const r = await sb.rpc('discoverable_peers');
+    if (r.error) throw r.error;
+    const peers = r.data || [];
+    const agents = peers.filter(p => p.is_agent).length;
+    lines.push(`◈ CALLS ✓ ${peers.length} peers (${agents} council agents)`);
+  } catch (e) { lines.push('◆ CALLS ✕ ' + (e.message || e)); }
+  // News
+  try {
+    const r = await sb.functions.invoke('informant-feed', { body: { informants: DEFAULT_INFORMANTS.slice(0,1) } });
+    if (r.error) throw r.error;
+    const findings = r.data?.findings || {};
+    const total = Object.values(findings).reduce((s,a) => s + (Array.isArray(a)?a.length:0), 0);
+    lines.push(`◈ NEWS ✓ ${total} fresh items`);
+  } catch (e) { lines.push('◆ NEWS ✕ ' + (e.message || e)); }
+  // Marketplace
+  try {
+    const r = await sb.from('vendors').select('id, items', { count: 'exact', head: false })
+      .eq('is_active', true).limit(400);
+    if (r.error) throw r.error;
+    const total = r.data?.length || 0;
+    const priced = (r.data || []).filter(v => Array.isArray(v.items) && v.items.length > 0).length;
+    lines.push(`◈ MARKET ✓ ${total} vendors · ${priced} with menus`);
+  } catch (e) { lines.push('◆ MARKET ✕ ' + (e.message || e)); }
+  // Architect wallet
+  if (session) {
+    try {
+      const { data } = await sb.rpc('my_profile');
+      const p = Array.isArray(data) ? data[0] : data;
+      if (p) lines.push(`◈ YOU ✓ ${p.display_name || 'signed in'} · €${Number(p.eur_balance||0).toFixed(2)}${p.is_owner?' · architect':''}`);
+    } catch (_) {}
+  } else {
+    lines.push('◇ YOU — not signed in (tap the SIGN IN orb)');
+  }
+  appendMsg('ai', lines.join('\n'));
+}
 
 /* ---------- Voice (manual opt-in) ---------- */
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
