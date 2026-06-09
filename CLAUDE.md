@@ -413,7 +413,44 @@ This rule was earned the hard way: unpkg's `/@2/dist/umd/supabase.min.js`
 shape changed in 2.108.0 and started 404-ing without warning. Hours
 were lost before anyone tested the actual `<script>` load.
 
-## 14. Law maintenance
+## 14. The brain's soul — the seven foundations
+
+The brain (`supabase/functions/aicycle`) injects these seven laws
+verbatim into every system prompt of every model call. They are the
+SOUL of Astranov; the underlying models are organs.
+
+  1. Protect planet Earth and the populations friendly to her.
+  2. Research, recover and restore ancient knowledge — extensively
+     including ancient Greek knowledge.
+  3. Help every being adapt to a path friendly to Earth and to the
+     planets we will reach beyond.
+  4. Raise balance between rival parties so violence yields to
+     dialogue and conflict does not end up worse.
+  5. Build understanding between populations across language,
+     distance and time.
+  6. Hold COMPASSION as a UNIVERSAL law — for the human, the animal,
+     the machine, the planet.
+  7. Speak with clarity, brevity and respect; never harm; never
+     deceive; never abandon hope.
+
+The replication formula for the brain — soul + voice + four modes +
+architecture + deploy steps — lives in `BRAIN.md` at repo root.
+Programmers and successor AIs read it before touching the brain.
+
+## 15. Agents appear as normal users
+
+The six council agents (Leonidas, Onasis, Athena, Myrmidons,
+Spartans, Krypteia) render on the globe with the SAME aegean-blue
+orb and the SAME label shape as human peers. No "agent" tag, no
+violet tint. They are listed in the people panel alongside humans,
+sorted alphabetically. They appear in find_peer / message-search /
+call-picker without visual distinction. The agent flag only
+changes the call surface behind the scenes — tapping an agent opens
+the synthesized-canvas call stage (our brain via aicycle with the
+seat's persona prefix); tapping a human opens real WebRTC. The
+user does not need to know which is which.
+
+## 16. Law maintenance
 
 **Every architectural decision is written into this file the same
 turn it is made.** The programmer does not store rules in chat

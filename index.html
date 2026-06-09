@@ -973,7 +973,7 @@ async function findPeer(q) {
         : `openConversation('${r.id}', ${JSON.stringify(r.display_name || 'Friend').replace(/"/g, '&quot;')})`;
       return `
         <div class="card" onclick='${fn}'>
-          <div class="ct">${escapeHtml(r.display_name || 'Friend')}${r.is_agent ? ' · <span style="color:#a98cff">agent</span>' : ''}</div>
+          <div class="ct">${escapeHtml(r.display_name || 'Friend')}</div>
           <div class="cm">${r.is_agent ? '◈ tap to call' : 'Tap to write or call'}</div>
         </div>`;
     }).join('') : '<p>No one with that name.</p>';
@@ -1103,11 +1103,11 @@ async function refreshPeerOrbs() {
     for (const p of peers) {
       if (!Number.isFinite(p.lat) || !Number.isFinite(p.lng)) continue;
       seen.add(p.id);
-      // Council agents glow violet with their remit; humans glow aegean.
-      const baseHex = p.is_agent ? '#a98cff' : '#4aa6ff';
-      const labelText = p.is_agent && p.bio
-        ? '◈ ' + (p.display_name || 'Agent') + ' · ' + p.bio
-        : '◈ ' + (p.display_name || 'Friend');
+      // LAW: agents appear as normal users — same aegean orb, same label
+      // shape. The agent flag only changes the call surface behind the
+      // scenes (synthesized canvas instead of WebRTC). Visually one tribe.
+      const baseHex = '#4aa6ff';
+      const labelText = '◈ ' + (p.display_name || 'Friend');
       const existing = _peerEntities.get(p.id);
       if (existing) {
         existing.position = Cesium.Cartesian3.fromDegrees(p.lng, p.lat);
@@ -1138,8 +1138,6 @@ async function refreshPeerOrbs() {
           showBackground: true,
           backgroundColor: Cesium.Color.fromCssColorString('#020a1c').withAlpha(0.45),
           backgroundPadding: new Cesium.Cartesian2(6, 3),
-          // Only show labels when you're within ~4 000 km so they don't
-          // clutter the globe view; the orb itself stays visible.
           distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 4_000_000),
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
         },
@@ -1615,7 +1613,7 @@ async function findPeerForCall(q) {
         : `startCall('${r.id}', ${JSON.stringify(r.display_name || 'Friend').replace(/"/g, '&quot;')})`;
       return `
         <div class="card" onclick='${fn}'>
-          <div class="ct">${escapeHtml(r.display_name || 'Friend')}${r.is_agent ? ' · <span style="color:#a98cff">agent</span>' : ''}</div>
+          <div class="ct">${escapeHtml(r.display_name || 'Friend')}</div>
           <div class="cm">◈ video call</div>
         </div>`;
     }).join('') : '<p>No one with that name.</p>';
@@ -2407,21 +2405,19 @@ async function openPeoplePanel() {
   try {
     const { data, error } = await sb.rpc('discoverable_peers');
     if (error) throw error;
-    const peers = (data || []).slice().sort((a, b) => {
-      if (a.is_agent !== b.is_agent) return a.is_agent ? -1 : 1;
-      return String(a.display_name||'').localeCompare(String(b.display_name||''));
-    });
+    const peers = (data || []).slice().sort((a, b) =>
+      String(a.display_name||'').localeCompare(String(b.display_name||''))
+    );
     if (!peers.length) { $('peers-list').innerHTML = '<p>Nobody on the globe yet.</p>'; return; }
     $('peers-list').innerHTML = peers.map(p => {
+      // Agents route to startAgentCall (synthesized canvas); humans get
+      // real WebRTC. Card UI is identical for both — same one tribe.
       const fn = p.is_agent
         ? `startAgentCall(${JSON.stringify({id:p.id, display_name:p.display_name, is_agent:true, bio:p.bio||''})})`
         : `startCall('${p.id}', ${JSON.stringify(p.display_name || 'Friend').replace(/"/g,'&quot;')})`;
-      const tag = p.is_agent
-        ? `<span style="color:#a98cff">agent · ${escapeHtml(p.bio || '')}</span>`
-        : `<span style="color:#4aa6ff">human</span>`;
       return `
         <div class="card" onclick='${fn}'>
-          <div class="ct">${escapeHtml(p.display_name || 'Friend')} · ${tag}</div>
+          <div class="ct">${escapeHtml(p.display_name || 'Friend')}</div>
           <div class="cm">◈ tap to call</div>
         </div>`;
     }).join('');
