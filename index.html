@@ -1037,46 +1037,144 @@ try {
   if (!localStorage.getItem('astranov.sid')) localStorage.setItem('astranov.sid', crypto.randomUUID());
 } catch (_) {}
 
-// Detect Greek in user input so we can choose the right TTS voice AND
-// switch SpeechRecognition language for the NEXT turn.
-function _isGreek(s) { return /[Ͱ-Ͽἀ-῿]/.test(String(s || '')); }
-let _userLang = 'en';   // 'en' | 'el', updated on every user turn
+/* ============================== Voice — single state machine ==============================
+   ONE source of truth: VOICE = { state, recognition, langOverride, greeted, currentTurn }.
+   States: 'idle' | 'listening' | 'speaking'. Transitions enforced.
+   Rules earned the hard way:
+   - Tap mic ALWAYS works: cancels any TTS, stops any listening, starts
+     fresh recognition with the right language. No "stuck" states.
+   - User typing or focusing the input cancels TTS immediately. The brain
+     never talks over the user.
+   - Stale replies don't speak: only the LATEST turn's reply triggers TTS.
+   - Greek is detected from the user's browser locale AND from text input;
+     SpeechRecognition is REBUILT each start because iOS Safari ignores
+     post-construction lang changes.
+   - One greeting, ever. _speakReply is the only path for chat replies.
+*/
+const VOICE = { state: 'idle', recognition: null, langOverride: null, greeted: false, currentTurn: 0 };
 
-function _speakReply(text) {
-  if (!('speechSynthesis' in window) || !text) return;
-  try {
-    const u = new SpeechSynthesisUtterance(text);
-    // Pick a voice matching the detected language. Greek users get a
-    // Greek voice when one is available; otherwise we still speak,
-    // honest about the fallback.
-    const all = speechSynthesis.getVoices() || [];
-    const want = _isGreek(text) ? /^el[-_]/i : /^en[-_]/i;
-    const pool = all.filter(v => want.test(v.lang || ''));
-    const ranked = (pool.length ? pool : all).slice().sort((a,b) => {
-      const score = v => {
-        const n = String(v.name || ''); let s = 0;
-        if (/premium|enhanced|neural|natural/i.test(n)) s += 10;
-        if (/siri/i.test(n)) s += 8; if (/google/i.test(n)) s += 6;
-        return s;
-      };
-      return score(b) - score(a);
-    });
-    if (ranked[0]) u.voice = ranked[0];
-    u.lang = _isGreek(text) ? 'el-GR' : (u.voice?.lang || 'en-US');
-    u.rate = 1.0; u.pitch = 1.0; u.volume = 1.0;
-    speechSynthesis.cancel(); speechSynthesis.speak(u);
-  } catch (_) {}
+function _isGreek(s) { return /[Ͱ-Ͽἀ-῿]/.test(String(s || '')); }
+function _pickLang() {
+  if (VOICE.langOverride) return VOICE.langOverride;
+  const nav = (navigator.language || '').toLowerCase();
+  return /^el/.test(nav) ? 'el' : 'en';
 }
+
+function ttsCancel() { try { speechSynthesis.cancel(); } catch (_) {} if (VOICE.state === 'speaking') VOICE.state = 'idle'; }
+
+function _voiceForLang(lang) {
+  const voices = speechSynthesis.getVoices() || [];
+  const want   = lang === 'el' ? /^el/i : /^en/i;
+  const pool   = voices.filter(v => want.test(v.lang || ''));
+  const list   = pool.length ? pool : voices;
+  return list.slice().sort((a, b) => {
+    const score = v => {
+      const n = String(v.name || ''); let s = 0;
+      if (/premium|enhanced|neural|natural/i.test(n)) s += 10;
+      if (/siri/i.test(n))   s += 8;
+      if (/google/i.test(n)) s += 6;
+      if (/samantha|alex|daniel|karen|tessa|stefanos|melina/i.test(n)) s += 4;
+      return s;
+    };
+    return score(b) - score(a);
+  })[0] || null;
+}
+
+function ttsSpeak(text) {
+  if (!('speechSynthesis' in window) || !text) return;
+  ttsCancel();
+  const lang = _isGreek(text) ? 'el' : _pickLang();
+  const u = new SpeechSynthesisUtterance(text);
+  const v = _voiceForLang(lang); if (v) u.voice = v;
+  u.lang = lang === 'el' ? 'el-GR' : (u.voice?.lang || 'en-US');
+  u.rate = 1.0; u.pitch = 1.0; u.volume = 1.0;
+  u.onstart = () => { VOICE.state = 'speaking'; };
+  u.onend   = () => { if (VOICE.state === 'speaking') VOICE.state = 'idle'; };
+  u.onerror = () => { if (VOICE.state === 'speaking') VOICE.state = 'idle'; };
+  try { speechSynthesis.speak(u); } catch (_) {}
+}
+
+function _srBuild() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return null;
+  const r = new SR();
+  r.continuous = false; r.interimResults = false;
+  const lang = _pickLang();
+  r.lang = lang === 'el' ? 'el-GR' : (navigator.language || 'en-US');
+  r.onresult = (evt) => {
+    const t = evt.results?.[0]?.[0]?.transcript?.trim();
+    if (t) {
+      $('chat-input').value = t;
+      $('chat-form').dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+    }
+  };
+  r.onend   = () => { VOICE.state = 'idle'; $('btn-mic').classList.remove('listening'); };
+  r.onerror = () => { VOICE.state = 'idle'; $('btn-mic').classList.remove('listening'); };
+  return r;
+}
+
+function micToggle() {
+  // First law of the mic: tap = user wants to speak. Shut TTS up NOW.
+  ttsCancel();
+  // If we were already listening, stop. Clean idle.
+  if (VOICE.state === 'listening' && VOICE.recognition) {
+    try { VOICE.recognition.stop(); } catch (_) {}
+    VOICE.state = 'idle';
+    $('btn-mic').classList.remove('listening');
+    return;
+  }
+  // Build a FRESH recognition object so the language change is honored
+  // (iOS Safari ignores lang updates on an existing instance).
+  VOICE.recognition = _srBuild();
+  if (!VOICE.recognition) { toast('Voice input not supported on this device', 'err'); return; }
+  try {
+    VOICE.recognition.start();
+    VOICE.state = 'listening';
+    $('btn-mic').classList.add('listening');
+    toast('Listening · ' + VOICE.recognition.lang);
+  } catch (e) {
+    // Recognition was stuck — abort and rebuild once.
+    try { VOICE.recognition.abort(); } catch (_) {}
+    setTimeout(() => {
+      VOICE.recognition = _srBuild();
+      try { VOICE.recognition.start(); VOICE.state = 'listening'; $('btn-mic').classList.add('listening'); }
+      catch (e2) { toast('Mic stuck: ' + (e2.message || e.message), 'err'); VOICE.state = 'idle'; }
+    }, 200);
+  }
+}
+
+function speakGreeting(text) {
+  if (VOICE.greeted) return;
+  VOICE.greeted = true;
+  const go = () => ttsSpeak(text);
+  // Three possible activation paths — first one to fire wins because
+  // ttsSpeak cancels any prior utterance. None duplicates.
+  if (speechSynthesis.getVoices().length) go();
+  else {
+    speechSynthesis.onvoiceschanged = () => { speechSynthesis.onvoiceschanged = null; go(); };
+    setTimeout(go, 1200);
+  }
+  // Mobile policy can mute pre-gesture TTS — first tap anywhere unlocks.
+  window.addEventListener('pointerdown', () => {
+    if (!speechSynthesis.speaking && !speechSynthesis.pending) go();
+  }, { once: true });
+}
+
+// Cancel TTS the moment the user starts to type or focuses the input.
+// The brain never talks over the user.
+['focus','input','keydown'].forEach(ev => $('chat-input').addEventListener(ev, ttsCancel));
+$('btn-mic').addEventListener('click', micToggle);
 
 $('chat-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const input = $('chat-input');
   const text = input.value.trim();
   if (!text) return;
-  // Detect the user's language for THIS turn and remember it for
-  // SpeechRecognition's next start.
-  _userLang = _isGreek(text) ? 'el' : 'en';
-  if (recognition) recognition.lang = _userLang === 'el' ? 'el-GR' : (navigator.language || 'en-US');
+  // Bump the turn counter so any in-flight stale reply will NOT speak.
+  const turn = ++VOICE.currentTurn;
+  // Detect language THIS turn for downstream TTS + next SR start.
+  if (_isGreek(text)) VOICE.langOverride = 'el';
+  ttsCancel();   // silence any prior reply the moment the user submits
   appendMsg('user', text);
   input.value = '';
   if (routeLocal(text)) return;
@@ -1094,10 +1192,11 @@ $('chat-form').addEventListener('submit', async (e) => {
     r._brainPrompt = text;
     stub.appendChild(r);
   }
-  // SPEAK every brain reply, not just the greeting. Architect's order:
-  // voice continuity. If TTS is muted by browser policy, the first tap
-  // anywhere re-arms it (see speakGreeting's pointerdown handler).
-  if (!out.failed) _speakReply(out.reply);
+  // Speak ONLY if this is still the latest turn AND the chat is open
+  // AND the brain succeeded. Stale replies stay silent.
+  if (!out.failed && turn === VOICE.currentTurn && $('chat').classList.contains('open')) {
+    ttsSpeak(out.reply);
+  }
   const msgs = $('chat-msgs'); msgs.scrollTop = msgs.scrollHeight;
 });
 
@@ -2465,6 +2564,9 @@ function routeLocal(raw) {
   }
   const foodMatch = t.match(/\b(pizza|burger|sushi|kebab|gyros|souvlaki|coffee|tea|wine|beer|food|eat|hungry|order|drink|πίτσα|σουβλάκι|καφέ|μπύρα|φαγητ|πεινάω)\b/);
   if (foodMatch) { _routedFire('Looking for ' + foodMatch[1] + ' nearby.', () => diveToVendors(foodMatch[1])); return true; }
+  if (/^\s*(ελληνικά|μίλα ελληνικά|greek)\s*$/i.test(t))                            { VOICE.langOverride = 'el'; _routedFire('Μιλάμε ελληνικά τώρα.', () => ttsSpeak('Μιλάμε ελληνικά τώρα.')); return true; }
+  if (/^\s*(english|αγγλικά|μίλα αγγλικά)\s*$/i.test(t))                            { VOICE.langOverride = 'en'; _routedFire('Switching to English.', () => ttsSpeak('Switching to English.')); return true; }
+  if (/^\s*(σκάσε|σώπασε|σιωπή|stop talking|shut up|quiet)\s*$/i.test(t))           { ttsCancel(); _routedFire('Σιωπή.', () => {}); return true; }
   if (/\b(help|commands|τι μπορείς)\b/.test(t)) {
     _routedFire('Try: news · pizza · people · circles · council · call NAME · wallet · drive · diag.', () => {});
     return true;
@@ -2472,29 +2574,7 @@ function routeLocal(raw) {
   return false;
 }
 
-/* ============================== Voice (manual opt-in) ============================== */
-const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-let recognition = null, listening = false;
-if (SR) {
-  recognition = new SR();
-  recognition.continuous = false; recognition.interimResults = false;
-  // Default to the browser locale; if the architect speaks Greek the
-  // first time, we flip to el-GR for the next start. Some browsers
-  // auto-detect, others need the explicit hint — we provide it.
-  const navLang = navigator.language || 'en-US';
-  recognition.lang = /^el/i.test(navLang) ? 'el-GR' : navLang;
-  recognition.onresult = (evt) => {
-    const t = evt.results?.[0]?.[0]?.transcript?.trim();
-    if (t) { $('chat-input').value = t; $('chat-form').dispatchEvent(new Event('submit', { cancelable: true, bubbles: true })); }
-  };
-  recognition.onend = () => { listening = false; $('btn-mic').classList.remove('listening'); };
-  recognition.onerror = () => { listening = false; $('btn-mic').classList.remove('listening'); };
-}
-$('btn-mic').addEventListener('click', () => {
-  if (!recognition) return toast('Voice not supported on this device', 'err');
-  if (listening) { try { recognition.stop(); } catch (_) {} listening = false; $('btn-mic').classList.remove('listening'); return; }
-  try { recognition.start(); listening = true; $('btn-mic').classList.add('listening'); } catch (_) {}
-});
+/* Voice — handled by the VOICE state machine higher in this script. */
 
 /* ============================== Alive at boot — senses + voice ============================== */
 // Ask for the app's SENSES up front (architect's order): microphone +
