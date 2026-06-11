@@ -2071,6 +2071,75 @@ async function openPeoplePanel() {
   } catch (e) { $('peers-list').textContent = e.message; }
 }
 
+/* ============================== Stellar Navigation — sextant / celestial fix ============================== */
+// LAW §5 #5: dematerialised by default. Type 'stellar' or 'sextant' to
+// summon. Real captains use it; the rest of us learn from it.
+async function openStellarPanel() {
+  if (_userLat == null) await locateMe();
+  const now = new Date();
+  const jd  = _julianDate(now);
+  const sun = _sunPosition(jd);
+  const lst = _localSiderealTime(jd, _userLng ?? 0);
+  // Apparent altitude/azimuth of the Sun at the user's location.
+  const ha  = lst - sun.ra;   // hour angle
+  const alt = _altitude(sun.dec, ha, _userLat ?? 0);
+  const az  = _azimuth(sun.dec, ha, _userLat ?? 0);
+  openPanel(`
+    <h2>Stellar Navigation</h2>
+    <p>The sextant the ancient sailors used, in your pocket. Sun + sidereal fix from your current GPS and the live UTC clock.</p>
+    <h3>Now</h3>
+    <div class="row"><span>UTC</span><span>${now.toISOString().replace('T',' ').slice(0,19)}</span></div>
+    <div class="row"><span>Local position</span><span>${_userLat != null ? _userLat.toFixed(4) + '°, ' + _userLng.toFixed(4) + '°' : '—'}</span></div>
+    <div class="row"><span>Julian date</span><span>${jd.toFixed(4)}</span></div>
+    <div class="row"><span>Local sidereal time</span><span>${(lst*12/Math.PI).toFixed(3)} h</span></div>
+    <h3>Sun</h3>
+    <div class="row"><span>Right ascension</span><span>${(sun.ra*12/Math.PI).toFixed(3)} h</span></div>
+    <div class="row"><span>Declination</span><span>${(sun.dec*180/Math.PI).toFixed(2)}°</span></div>
+    <div class="row"><span>Altitude (apparent)</span><span>${(alt*180/Math.PI).toFixed(2)}°</span></div>
+    <div class="row"><span>Azimuth (true N)</span><span>${(az*180/Math.PI).toFixed(2)}°</span></div>
+    <p style="font-size:11px;color:rgba(168,200,238,0.55);margin-top:14px">
+      Honest gap: this is a simplified sun-only fix (no refraction, no nutation, no parallax
+      correction). For real ocean navigation, cross with a full almanac and at least two more
+      bodies. Future work in the queue: Moon, Polaris, star catalog, intercept method.
+    </p>
+  `);
+}
+function _julianDate(d) {
+  return d.getTime() / 86400000 + 2440587.5;
+}
+function _sunPosition(jd) {
+  // Low-precision sun: NOAA / Meeus chapter 25.
+  const T = (jd - 2451545.0) / 36525;
+  const L = (280.46646 + T * (36000.76983 + T * 0.0003032)) % 360;
+  const M = (357.52911 + T * (35999.05029 - T * 0.0001537)) * Math.PI / 180;
+  const e = 0.016708634 - T * (0.000042037 + T * 0.0000001267);
+  const C = (1.914602 - T * (0.004817 + T * 0.000014)) * Math.sin(M)
+          + (0.019993 - 0.000101 * T) * Math.sin(2 * M)
+          + 0.000289 * Math.sin(3 * M);
+  const trueLong = (L + C) * Math.PI / 180;
+  const eps = (23.439291 - 0.0130042 * T) * Math.PI / 180;
+  const ra = Math.atan2(Math.cos(eps) * Math.sin(trueLong), Math.cos(trueLong));
+  const dec = Math.asin(Math.sin(eps) * Math.sin(trueLong));
+  return { ra, dec };
+}
+function _localSiderealTime(jd, lngDeg) {
+  const T = (jd - 2451545.0) / 36525;
+  let gmst = 280.46061837 + 360.98564736629 * (jd - 2451545.0)
+           + T*T * 0.000387933 - T*T*T / 38710000;
+  gmst = ((gmst % 360) + 360) % 360;
+  return (gmst + lngDeg) * Math.PI / 180;
+}
+function _altitude(dec, ha, latDeg) {
+  const lat = latDeg * Math.PI / 180;
+  return Math.asin(Math.sin(lat)*Math.sin(dec) + Math.cos(lat)*Math.cos(dec)*Math.cos(ha));
+}
+function _azimuth(dec, ha, latDeg) {
+  const lat = latDeg * Math.PI / 180;
+  const y = -Math.cos(dec) * Math.sin(ha);
+  const x = Math.sin(dec) * Math.cos(lat) - Math.cos(dec) * Math.sin(lat) * Math.cos(ha);
+  return (Math.atan2(y, x) + 2 * Math.PI) % (2 * Math.PI);
+}
+
 /* ============================== Agora — ancient knowledge ============================== */
 async function openAgoraPanel(q) {
   openPanel(`
@@ -2287,6 +2356,7 @@ function routeLocal(raw) {
   if (/\b(own\s*mind|own\s*brain|local\s*brain|μυαλό)\b/.test(t))                  { enableLocalBrain(false); return true; }
   if (/\b(crawl|sweep|grow|populate|σάρωσ)\b/.test(t))                              { _routedFire('Brain steering the crawler…', () => brainCrawl(raw)); return true; }
   if (/\b(develop|roadmap|queue|build next|ανάπτυξη)\b/.test(t))                    { _routedFire('Opening the development queue.', openDevelopPanel); return true; }
+  if (/\b(stellar|sextant|navigation|αστερισμ|ναυτιλ)\b/.test(t))                   { _routedFire('Stellar navigation — summoned.', openStellarPanel); return true; }
   // AGORA — Foundation #2: ancient Greek gods, mythology, philosophy, science.
   if (/\b(agora|gods?|θεοί|θεός|mythology|μυθολογ|philosophy|φιλοσοφ|αρχαί|αγορά|hellenic|ελλην)\b/.test(t)) {
     const m = t.match(/\b(?:about|on|for|tell me about|πες μου για|για)\s+([a-zà-ÿα-ω][a-zà-ÿα-ω\s]{1,40})$/i);
