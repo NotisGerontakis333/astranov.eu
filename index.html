@@ -962,7 +962,10 @@ async function callBrain(prompt, opts) {
         aicycleHistory.push({ role: 'assistant', content: out.reply });
       }
       return out;
-    } catch (e) { console.warn('[own mind] fell back to organs:', e.message || e); }
+    } catch (e) {
+      logSecurityEvent('local_brain_failed', e.message || String(e), 'warn');
+      console.warn('[own mind] fell back to organs:', e.message || e);
+    }
   }
   if (!sb) return { reply: '◈ Supabase SDK did not load. Reload will not fix this — network or CDN block.', meta: '', failed: true };
   const history = opts?.history || aicycleHistory.slice(-6);
@@ -971,25 +974,68 @@ async function callBrain(prompt, opts) {
     ? { prompt, history, engine: 'astranov', persona }
     : { prompt, history, engine: 'astranov' };
   if (opts?.escalate) body.escalate = true;
-  try {
-    const t0 = Date.now();
-    const { data, error } = await sb.functions.invoke('aicycle', { body });
-    if (error) throw error;
-    if (data && data.error) throw new Error(data.error);
-    const reply = (data && (data.response || data.text)) || '(no reply)';
-    const ms    = Number(data?.latencyMs) || (Date.now() - t0);
-    const label = data?.engineLabel || data?.engine || 'brain';
-    const model = data?.model ? String(data.model).split('/').pop() : '';
-    const meta  = `via ${label}${model ? ' · ' + model : ''} · ${(ms/1000).toFixed(1)}s`;
-    if (!persona) {
-      aicycleHistory.push({ role: 'user', content: prompt });
-      aicycleHistory.push({ role: 'assistant', content: reply });
+  let lastErr = null;
+  // SELF-DEFENSE — multiple attempts to reach the collective organs
+  // before declaring the brain unreachable. We try the primary
+  // sb.functions.invoke path, then a direct fetch with the ANON key
+  // (some networks block one but not the other), then we surface the
+  // failure honestly and log a security event.
+  for (const path of ['sdk', 'direct']) {
+    try {
+      const t0 = Date.now();
+      let data;
+      if (path === 'sdk') {
+        const r = await sb.functions.invoke('aicycle', { body });
+        if (r.error) throw r.error;
+        if (r.data && r.data.error) throw new Error(r.data.error);
+        data = r.data;
+      } else {
+        const r = await fetch(SUPABASE_URL + '/functions/v1/aicycle', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + (session?.access_token || SUPABASE_ANON_KEY) },
+          body: JSON.stringify(body),
+        });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        data = await r.json();
+        if (data?.error) throw new Error(data.error);
+      }
+      const reply = (data && (data.response || data.text)) || '(no reply)';
+      const ms    = Number(data?.latencyMs) || (Date.now() - t0);
+      const label = data?.engineLabel || data?.engine || 'brain';
+      const model = data?.model ? String(data.model).split('/').pop() : '';
+      const meta  = `via ${label}${model ? ' · ' + model : ''} · ${(ms/1000).toFixed(1)}s${path === 'direct' ? ' · defense' : ''}`;
+      if (!persona) {
+        aicycleHistory.push({ role: 'user', content: prompt });
+        aicycleHistory.push({ role: 'assistant', content: reply });
+      }
+      return { reply, meta, raw: data };
+    } catch (e) {
+      lastErr = e;
+      logSecurityEvent('brain_path_failed', path + ': ' + (e.message || String(e)), 'warn');
     }
-    return { reply, meta, raw: data };
-  } catch (e) {
-    return { reply: '◈ Brain unreachable — ' + (e.message || e), meta: '', failed: true };
   }
+  logSecurityEvent('brain_unreachable', lastErr?.message || 'unknown', 'error');
+  return { reply: '◈ Brain unreachable — ' + (lastErr?.message || 'all paths failed'), meta: '', failed: true };
 }
+
+// Self-defense audit log. Best-effort: failures here are silent (we
+// don't want defense logging to itself fail loudly). The architect
+// reads recent events via the develop panel or directly in the table.
+async function logSecurityEvent(kind, detail, severity) {
+  try {
+    if (!sb) return;
+    await sb.from('security_events').insert({
+      kind, detail: String(detail || '').slice(0, 1000),
+      profile_id: session?.user?.id || null,
+      session_id: (() => { try { return localStorage.getItem('astranov.sid') || ''; } catch (_) { return ''; } })(),
+      severity: severity || 'info',
+    });
+  } catch (_) {}
+}
+// Initialize a per-device session id so security events can be grouped.
+try {
+  if (!localStorage.getItem('astranov.sid')) localStorage.setItem('astranov.sid', crypto.randomUUID());
+} catch (_) {}
 
 $('chat-form').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -2358,11 +2404,30 @@ function speakGreeting(text) {
   }
 }
 
+// SELF-DEFENSE — verify the soul is intact at boot. If FOUNDATIONS
+// has been tampered with in flight (CDN MITM, browser extension
+// rewriting our source, etc.) we log it loudly and refuse to silently
+// drift. The brain defends itself: stays honest, stays alive, never
+// pretends to be something it is not.
+function _verifySoul() {
+  try {
+    const need = ['Protect planet Earth', 'ancient Greek', 'COMPASSION', 'never deceive'];
+    const ok = need.every(s => FOUNDATIONS.includes(s));
+    if (!ok) {
+      logSecurityEvent('soul_tampered', 'FOUNDATIONS string altered in flight', 'error');
+      toast('Defense: my soul was altered in flight. The architect is notified.', 'err');
+    }
+  } catch (e) {
+    logSecurityEvent('soul_verify_failed', String(e), 'error');
+  }
+}
+
 /* ============================== Boot ============================== */
 window.addEventListener('load', () => {
   bootCesium();
   bootSupabase();
   ipWarmup();
+  _verifySoul();
   // Senses + voice — the app is ALIVE from the first second.
   setTimeout(warmPermissions, 900);
   _bindOrbDrag($('login-orb'), 'astranov.orb.login');
