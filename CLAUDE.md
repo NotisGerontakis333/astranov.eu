@@ -348,6 +348,17 @@ useless advertising and empty listings waste map space. The crawler
 may still populate `vendors` rows, but those rows wait silently
 until a real menu with photos is published.
 
+**NO FABRICATED INVENTORY.** The programmer NEVER seeds, invents,
+mocks, or synthesises vendor names, menus, prices, or photos.
+Every vendor on the globe is REAL — either crawled from OSM with
+real metadata, or published by its real owner inside AstranoV. If
+the map is empty in a city, the map is honestly empty until a real
+vendor publishes. Stock photos attached to invented business names
+are a violation of Foundation #7 (never deceive). Earned the hard
+way: a previous turn seeded four fabricated Athens vendors with
+Unsplash photos; the architect saw fakes; they were purged. Never
+again.
+
 **Royalty.** 3% on every transaction (delivery orders, top-ups,
 vendor settlements). `PRICING.platform_fee_pct = 0.03`. The number
 appears once in the client and once server-side; the architect is

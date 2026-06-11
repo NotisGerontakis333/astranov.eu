@@ -1037,11 +1037,46 @@ try {
   if (!localStorage.getItem('astranov.sid')) localStorage.setItem('astranov.sid', crypto.randomUUID());
 } catch (_) {}
 
+// Detect Greek in user input so we can choose the right TTS voice AND
+// switch SpeechRecognition language for the NEXT turn.
+function _isGreek(s) { return /[Ͱ-Ͽἀ-῿]/.test(String(s || '')); }
+let _userLang = 'en';   // 'en' | 'el', updated on every user turn
+
+function _speakReply(text) {
+  if (!('speechSynthesis' in window) || !text) return;
+  try {
+    const u = new SpeechSynthesisUtterance(text);
+    // Pick a voice matching the detected language. Greek users get a
+    // Greek voice when one is available; otherwise we still speak,
+    // honest about the fallback.
+    const all = speechSynthesis.getVoices() || [];
+    const want = _isGreek(text) ? /^el[-_]/i : /^en[-_]/i;
+    const pool = all.filter(v => want.test(v.lang || ''));
+    const ranked = (pool.length ? pool : all).slice().sort((a,b) => {
+      const score = v => {
+        const n = String(v.name || ''); let s = 0;
+        if (/premium|enhanced|neural|natural/i.test(n)) s += 10;
+        if (/siri/i.test(n)) s += 8; if (/google/i.test(n)) s += 6;
+        return s;
+      };
+      return score(b) - score(a);
+    });
+    if (ranked[0]) u.voice = ranked[0];
+    u.lang = _isGreek(text) ? 'el-GR' : (u.voice?.lang || 'en-US');
+    u.rate = 1.0; u.pitch = 1.0; u.volume = 1.0;
+    speechSynthesis.cancel(); speechSynthesis.speak(u);
+  } catch (_) {}
+}
+
 $('chat-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const input = $('chat-input');
   const text = input.value.trim();
   if (!text) return;
+  // Detect the user's language for THIS turn and remember it for
+  // SpeechRecognition's next start.
+  _userLang = _isGreek(text) ? 'el' : 'en';
+  if (recognition) recognition.lang = _userLang === 'el' ? 'el-GR' : (navigator.language || 'en-US');
   appendMsg('user', text);
   input.value = '';
   if (routeLocal(text)) return;
@@ -1059,6 +1094,10 @@ $('chat-form').addEventListener('submit', async (e) => {
     r._brainPrompt = text;
     stub.appendChild(r);
   }
+  // SPEAK every brain reply, not just the greeting. Architect's order:
+  // voice continuity. If TTS is muted by browser policy, the first tap
+  // anywhere re-arms it (see speakGreeting's pointerdown handler).
+  if (!out.failed) _speakReply(out.reply);
   const msgs = $('chat-msgs'); msgs.scrollTop = msgs.scrollHeight;
 });
 
@@ -1800,8 +1839,33 @@ async function brainCrawl(userPrompt) {
   refreshPeerOrbs();
 }
 
+// LAW: when the brain searches, the GLOBE shows the work. Camera dives
+// (staged), the search radius draws on the surface, pins land — THEN the
+// panel opens. Never narrate by text while the globe stays still.
+let _searchRing = null;
+function _drawSearchRing(lat, lng, radiusMeters) {
+  if (!viewer) return;
+  if (_searchRing) { try { viewer.entities.remove(_searchRing); } catch (_) {} _searchRing = null; }
+  _searchRing = viewer.entities.add({
+    position: Cesium.Cartesian3.fromDegrees(lng, lat),
+    ellipse: {
+      semiMajorAxis: radiusMeters, semiMinorAxis: radiusMeters,
+      material: Cesium.Color.fromCssColorString('#4aa6ff').withAlpha(0.10),
+      outline: true, outlineColor: Cesium.Color.fromCssColorString('#4aa6ff').withAlpha(0.6),
+      height: 0,
+    },
+  });
+}
+function _killSearchRing() {
+  if (_searchRing && viewer) { try { viewer.entities.remove(_searchRing); } catch (_) {} }
+  _searchRing = null;
+}
+
 async function diveToVendors(keyword) {
+  closePanel();
   const ok = await diveToMe(); if (!ok) return;
+  // Draw the search radius on the surface — the user SEES the brain working.
+  _drawSearchRing(_userLat, _userLng, 2500);
   toast('Searching nearby…');
   let places = await fetchNearbyVendors(_userLat, _userLng, keyword);
   if (!places.length) {
@@ -1815,15 +1879,24 @@ async function diveToVendors(keyword) {
     places = await fetchNearbyVendors(_userLat, _userLng, keyword);
   }
   if (!places.length) {
-    openPanel(`<h2>Nothing nearby</h2><p>Crawler empty. List your business to be the first pin.</p>`);
+    // HONEST empty — no fabrication, no fake fallback. Real OSM places
+    // (no menus) stay dim and waiting; published vendors are the only
+    // bright pins, and there are none yet. The user must be told this.
+    openPanel(`
+      <h2>Nothing for sale yet</h2>
+      <p>Crawler found nearby places, but none have published a menu with prices and photos through us. I never invent listings. List your business to be the first real pin here.</p>
+      <button class="pbtn ok" onclick="openAuthPanel()">List my business</button>
+    `);
+    setTimeout(_killSearchRing, 3500);
     return;
   }
   renderVendorPins(places);
-  const pub = places.filter(p => p._published).length;
-  toast(`${places.length} nearby · ${pub} with menus`, 'ok');
+  const pub = places.length;
+  toast(`${pub} nearby with real menus`, 'ok');
+  setTimeout(_killSearchRing, 6000);
   if (keyword && session) {
     const k = keyword.toLowerCase();
-    const match = places.find(p => p._published && JSON.stringify(p).toLowerCase().includes(k)) || places.find(p => JSON.stringify(p).toLowerCase().includes(k));
+    const match = places.find(p => JSON.stringify(p).toLowerCase().includes(k));
     if (match) setTimeout(() => openVendorPanel(match), 1400);
   }
 }
@@ -2405,7 +2478,11 @@ let recognition = null, listening = false;
 if (SR) {
   recognition = new SR();
   recognition.continuous = false; recognition.interimResults = false;
-  recognition.lang = navigator.language || 'en-US';
+  // Default to the browser locale; if the architect speaks Greek the
+  // first time, we flip to el-GR for the next start. Some browsers
+  // auto-detect, others need the explicit hint — we provide it.
+  const navLang = navigator.language || 'en-US';
+  recognition.lang = /^el/i.test(navLang) ? 'el-GR' : navLang;
   recognition.onresult = (evt) => {
     const t = evt.results?.[0]?.[0]?.transcript?.trim();
     if (t) { $('chat-input').value = t; $('chat-form').dispatchEvent(new Event('submit', { cancelable: true, bubbles: true })); }
