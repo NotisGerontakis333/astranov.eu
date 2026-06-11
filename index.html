@@ -1572,13 +1572,13 @@ let vendorPins = null;
 const vendorIndex = new Map();
 let _currentVendor = null, _menu = [], _cart = [];
 
-// Pricing constants — base €1/km + multipliers (LAW: delivery algorithm)
+// Pricing — base €1/km + multipliers (LAW §11) and 3% royalty (architect's order).
 const PRICING = {
-  base_per_km: 1.0,     // €1 per kilometer floor
-  min_fee:     3.0,     // €3 minimum fee
+  base_per_km: 1.0,     // €1/km floor
+  min_fee:     3.0,     // €3 minimum delivery fee
   night_multiplier:    1.30,   // 22:00 – 06:00
   long_haul_multiplier:1.15,   // > 5 km
-  platform_fee_pct:    0.05,   // 5% on subtotal
+  platform_fee_pct:    0.03,   // 3% on every transaction — the architect's royalty
 };
 
 function _isNightLocal() {
@@ -1635,9 +1635,14 @@ async function fetchNearbyVendors(lat, lng, keyword) {
   try {
     const r = await sb.from('vendors').select('*').eq('is_active', true).limit(400);
     if (r.error) throw r.error;
-    let list = (r.data || []).filter(v => v.lat && v.lng).map(v => ({
-      ...v, _published: Array.isArray(v.items) && v.items.some(i => Number(i?.price) > 0),
-    }));
+    // LAW: vendors with PRICE + PHOTO only. Useless listings waste map
+    // space and confuse users — architect's order. The crawler can still
+    // populate vendors with empty items; they simply do not render until
+    // they publish a real menu with photos.
+    let list = (r.data || []).filter(v =>
+      v.lat && v.lng && Array.isArray(v.items) &&
+      v.items.some(i => Number(i?.price) > 0 && (i?.photo || i?.image_url))
+    );
     if (lat != null && lng != null) {
       list = list.map(v => ({ ...v, _dist: distMeters(lat, lng, v.lat, v.lng) }))
         .filter(v => v._dist <= 5000)
@@ -1665,7 +1670,7 @@ function renderVendorPins(places) {
       position: Cesium.Cartesian3.fromDegrees(p.lng, p.lat),
       image: _makePinCanvas(_pinEmoji(p), _pinColor(p.category)),
       width: 30, height: 30,
-      color: p._published ? Cesium.Color.WHITE : Cesium.Color.WHITE.withAlpha(0.45),
+      // Only published-with-photos reach this code path — render bright.
       scaleByDistance: new Cesium.NearFarScalar(200, 1.0, 1.2e6, 0.2),
       translucencyByDistance: new Cesium.NearFarScalar(7e5, 1.0, 1.8e6, 0),
       disableDepthTestDistance: Number.POSITIVE_INFINITY,
@@ -1673,6 +1678,31 @@ function renderVendorPins(places) {
     bb.__vendorId = p.id; vendorIndex.set(p.id, p);
   }
   viewer.scene.requestRender();
+}
+
+// LAW: crawlers evolve the system through OUR brain. The user names a
+// goal; the brain decides where + how wide to sweep; the crawler fills
+// the vendors table. Whatever the brain adds, the strict "price + photo"
+// filter still gates what becomes visible — so growth means real
+// inventory, not noise.
+async function brainCrawl(userPrompt) {
+  if (!session) return openAuthPanel();
+  if (_userLat == null) await locateMe();
+  if (_userLat == null) return toast('Need your location', 'err');
+  const out = await callBrain(
+    'The user said: "' + userPrompt + '". Reply ONLY with a JSON object {"radius_m":<int 500-5000>,"why":"<one sentence>"}. Pick the radius wide enough to be useful but small enough to be fast.',
+    { history: [] }
+  );
+  let radius = 2500, why = 'default sweep';
+  try { const j = JSON.parse((out.reply || '').match(/\{[\s\S]*\}/)?.[0] || '{}'); if (j.radius_m) radius = Math.max(500, Math.min(5000, +j.radius_m)); if (j.why) why = j.why; } catch (_) {}
+  appendMsg('ai', '◈ ' + why + ' — sweeping ' + radius + ' m around you.', out.meta);
+  try {
+    const { data, error } = await sb.functions.invoke('vendor-crawler', { body: { lat: _userLat, lng: _userLng, radius } });
+    if (error) throw error;
+    if (data?.ok === false) throw new Error(data.error || 'crawler failed');
+    appendMsg('ai', '◈ Crawler returned ' + (data?.count ?? 0) + ' places. Vendors with PRICE + PHOTO publish themselves into your map; the rest wait to be claimed.');
+  } catch (e) { appendMsg('ai', '◆ Crawler error: ' + (e.message || e)); }
+  refreshPeerOrbs();
 }
 
 async function diveToVendors(keyword) {
@@ -1729,13 +1759,16 @@ async function openVendorPanel(p) {
 }
 function renderMenu() {
   if (!_menu.length) { $('vendor-menu').textContent = 'No menu items.'; return; }
-  $('vendor-menu').innerHTML = _menu.map((m, i) => `
+  $('vendor-menu').innerHTML = _menu.map((m, i) => {
+    const photo = m.photo || m.image_url || '';
+    return `
     <div class="mi" onclick="addToCart(${i})">
-      <div class="mi-name">${escapeHtml(m.name)}</div>
+      ${photo ? `<img src="${escapeHtml(photo)}" style="width:54px;height:54px;border-radius:8px;object-fit:cover;flex:0 0 auto" loading="lazy" onerror="this.style.display='none'">` : ''}
+      <div class="mi-name">${escapeHtml(m.name)}${m.desc ? `<br><span style="font-size:11px;color:rgba(168,200,238,0.55)">${escapeHtml(m.desc)}</span>` : ''}</div>
       <div class="mi-price">€${m.price}</div>
       <div class="mi-add">＋</div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 }
 function addToCart(i) {
   const m = _menu[i]; if (!m) return;
@@ -2008,6 +2041,7 @@ function routeLocal(raw) {
   }
   if (/\b(diag|diagnose|status|smoke|τεστ)\b/.test(t))                            { _routedFire('Probing the pillars…', runDiag); return true; }
   if (/\b(own\s*mind|own\s*brain|local\s*brain|μυαλό)\b/.test(t))                  { enableLocalBrain(false); return true; }
+  if (/\b(crawl|sweep|grow|populate|σάρωσ)\b/.test(t))                              { _routedFire('Brain steering the crawler…', () => brainCrawl(raw)); return true; }
   const callMatch = t.match(/\b(?:call|ring|video|κάλεσε)\s+([a-zà-ÿα-ω][a-zà-ÿα-ω\s']{1,40}?)(?:[.,!?]|$)/i);
   if (callMatch) {
     const name = callMatch[1].trim();

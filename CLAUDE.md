@@ -333,12 +333,26 @@ These rules govern the food / goods / delivery pillar. Same standing
 as §10: they survive every nuke and the architect does not re-state
 them.
 
-**Vendors with menus.** A vendor pin renders BRIGHT on the globe only
-if its `vendors.items` JSONB contains at least one entry with a real
-`price > 0`. Vendors without a published menu render DIM (alpha 0.45)
-so the user can still see them — tap a dim pin opens "Publish menu on
-their behalf" or "This is my business" (claim). Bright pins go straight
-to menu + cart + order.
+**Vendors with menus AND PHOTOS.** A vendor pin appears on the globe
+only when its `vendors.items` JSONB carries at least one entry with
+BOTH `price > 0` AND a `photo` (or `image_url`) URL. Vendors that
+fail this rule do not render at all — the architect's order:
+useless advertising and empty listings waste map space. The crawler
+may still populate `vendors` rows, but those rows wait silently
+until a real menu with photos is published.
+
+**Royalty.** 3% on every transaction (delivery orders, top-ups,
+vendor settlements). `PRICING.platform_fee_pct = 0.03`. The number
+appears once in the client and once server-side; the architect is
+the only one who may change it.
+
+**Crawlers evolve through the brain.** The user names a goal in plain
+language; OUR BRAIN (own mind first, organs second) decides the
+crawl scope (radius, category) and returns a JSON spec; the
+`vendor-crawler` / `crawl` Edge fns execute. New rows arrive but stay
+invisible until the strict "price + photo" rule is met — growth
+means real inventory, not noise. Chat command: `crawl` or `sweep`
+or `populate`.
 
 **Crawler auto-fires on empty.** When a search ("pizza", "coffee", any
 food keyword) returns zero nearby vendors, the client invokes
