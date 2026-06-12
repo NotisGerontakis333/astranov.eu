@@ -842,11 +842,16 @@ function openPanel(html) {
   document.body.classList.add('panel-open');
   requestAnimationFrame(_pushOrbsAboveDrawers);
   setTimeout(_pushOrbsAboveDrawers, 360);
+  // Clear Agora anchors on every panel swap; agoraSearch repaints them
+  // when the Agora itself is opened. Prevents stale bone pins lingering
+  // after the user moves to wallet, driver, etc.
+  try { _agoraClearAnchors?.(); } catch (_) {}
 }
 function closePanel() {
   $('panel').classList.remove('open');
   document.body.classList.remove('panel-open');
   setTimeout(_pushOrbsAboveDrawers, 360);
+  try { _agoraClearAnchors?.(); } catch (_) {}
 }
 function openChat() {
   $('chat').classList.add('open');
@@ -3464,6 +3469,100 @@ function _azimuth(dec, ha, latDeg) {
 }
 
 /* ============================== Agora — ancient knowledge ============================== */
+// Canonical archaeological / biographical anchors. These are REAL
+// coordinates (Acropolis, Delphi, Olympia, the philosopher's birth city)
+// — never fabricated. §11 NO FABRICATED INVENTORY applies here too:
+// if we don't know a topic's anchor, we don't pin it.
+const AGORA_ANCHORS = {
+  // Sanctuaries + city anchors
+  'athens':       { lat: 37.9715, lng: 23.7267, place: 'Acropolis' },
+  'athena':       { lat: 37.9715, lng: 23.7267, place: 'Acropolis · Athens' },
+  'delphi':       { lat: 38.4824, lng: 22.5010, place: 'Delphi' },
+  'apollo':       { lat: 38.4824, lng: 22.5010, place: 'Sanctuary at Delphi' },
+  'olympia':      { lat: 37.6376, lng: 21.6300, place: 'Olympia' },
+  'zeus':         { lat: 37.6376, lng: 21.6300, place: 'Sanctuary at Olympia' },
+  'sparta':       { lat: 37.0810, lng: 22.4232, place: 'Sparta' },
+  'leonidas':     { lat: 37.0810, lng: 22.4232, place: 'Sparta' },
+  'thebes':       { lat: 38.3220, lng: 23.3242, place: 'Thebes' },
+  'olympus':      { lat: 40.0850, lng: 22.3585, place: 'Mt Olympus · peak Mytikas' },
+  'epidaurus':    { lat: 37.5961, lng: 23.0793, place: 'Epidaurus' },
+  'delos':        { lat: 37.3939, lng: 25.2715, place: 'Delos' },
+  'knossos':      { lat: 35.2980, lng: 25.1631, place: 'Knossos · Crete' },
+  'alexandria':   { lat: 31.2001, lng: 29.9187, place: 'Alexandria' },
+  'eleusis':      { lat: 38.0408, lng: 23.5430, place: 'Eleusis' },
+  'mycenae':      { lat: 37.7306, lng: 22.7558, place: 'Mycenae' },
+  // Birth / school cities of philosophers + scientists
+  'plato':        { lat: 37.9905, lng: 23.7176, place: 'Akademia · Athens' },
+  'aristotle':    { lat: 40.5494, lng: 23.7406, place: 'Stagira' },
+  'socrates':     { lat: 37.9715, lng: 23.7267, place: 'Athens' },
+  'pythagoras':   { lat: 37.7548, lng: 26.9772, place: 'Samos' },
+  'hippocrates':  { lat: 36.8918, lng: 27.2876, place: 'Kos' },
+  'archimedes':   { lat: 37.0755, lng: 15.2866, place: 'Syracuse' },
+  'euclid':       { lat: 31.2001, lng: 29.9187, place: 'Alexandria' },
+  'sappho':       { lat: 39.1041, lng: 26.5550, place: 'Lesbos' },
+  'democritus':   { lat: 40.9341, lng: 24.9755, place: 'Abdera' },
+  'thales':       { lat: 37.5300, lng: 27.2774, place: 'Miletus' },
+  'heraclitus':   { lat: 37.9395, lng: 27.3417, place: 'Ephesus' },
+  'epicurus':     { lat: 37.7548, lng: 26.9772, place: 'Samos' },
+  'homer':        { lat: 38.3667, lng: 26.1333, place: 'Chios (traditional)' },
+  'hermes':       { lat: 38.4824, lng: 22.5010, place: 'Delphi' },
+  'poseidon':     { lat: 37.6502, lng: 24.0263, place: 'Sounion' },
+  'artemis':      { lat: 37.9395, lng: 27.3417, place: 'Ephesus · Artemision' },
+  'hera':         { lat: 37.6700, lng: 21.6325, place: 'Heraion · Olympia' },
+  'demeter':      { lat: 38.0408, lng: 23.5430, place: 'Eleusis' },
+  'dionysus':     { lat: 37.9706, lng: 23.7280, place: 'Athens · Theatre of Dionysus' },
+  'hephaestus':   { lat: 37.9756, lng: 23.7240, place: 'Hephaisteion · Athens' },
+  'ares':         { lat: 37.9712, lng: 23.7240, place: 'Areopagus · Athens' },
+};
+function _agoraAnchorFor(topic) {
+  if (!topic) return null;
+  const t = topic.toLowerCase();
+  for (const [key, a] of Object.entries(AGORA_ANCHORS)) {
+    if (t.includes(key)) return { key, ...a };
+  }
+  return null;
+}
+const _agoraEntities = []; // Cesium entities to clear when panel closes
+function _agoraClearAnchors() {
+  if (!viewer) return;
+  for (const e of _agoraEntities) { try { viewer.entities.remove(e); } catch (_) {} }
+  _agoraEntities.length = 0;
+}
+async function _agoraAnchorsShow(rows) {
+  if (!viewer) return;
+  _agoraClearAnchors();
+  const seen = new Set();
+  for (const r of rows) {
+    const a = _agoraAnchorFor(r.topic) || _agoraAnchorFor(r.title);
+    if (!a) continue;
+    const dedupe = `${a.lat.toFixed(4)},${a.lng.toFixed(4)},${r.title || r.topic}`;
+    if (seen.has(dedupe)) continue;
+    seen.add(dedupe);
+    const ent = viewer.entities.add({
+      position: Cesium.Cartesian3.fromDegrees(a.lng, a.lat),
+      point: {
+        pixelSize: new Cesium.CallbackProperty(() => 10 + 3 * (0.5 + 0.5 * Math.sin(Date.now()/420)), false),
+        color: Cesium.Color.fromCssColorString('#f4ead8').withAlpha(0.92),
+        outlineColor: Cesium.Color.fromCssColorString('#f4ead8').withAlpha(0.35),
+        outlineWidth: 6,
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+      },
+      label: {
+        text: '◈ ' + (r.title || r.topic),
+        font: '600 11px Inter, sans-serif',
+        fillColor: Cesium.Color.fromCssColorString('#f4ead8'),
+        outlineColor: Cesium.Color.fromCssColorString('#020a1c'), outlineWidth: 2,
+        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+        pixelOffset: new Cesium.Cartesian2(0, -20),
+        distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 4_000_000),
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+      },
+      description: `${escapeHtml(r.title || r.topic)} — ${escapeHtml(a.place)}`,
+    });
+    ent._agoraId = r.id;
+    _agoraEntities.push(ent);
+  }
+}
 async function openAgoraPanel(q) {
   openPanel(`
     <h2>Agora — Ancient Greek knowledge</h2>
@@ -3471,10 +3570,18 @@ async function openAgoraPanel(q) {
     <input id="agora-search" placeholder="Search: Plato, Athena, Πυθαγόρας…" value="${escapeHtml(q || '')}" oninput="agoraSearch(this.value)">
     <div style="margin-top:6px">
       <button class="pbtn ok" onclick="agoraAddTopic()">＋ Add a topic to the agora</button>
+      <button class="pbtn" onclick="_agoraFlyToGreece()">↗ Fly to Greece</button>
     </div>
     <div id="agora-list" style="margin-top:10px">Loading…</div>
   `);
   agoraSearch(q || '');
+}
+function _agoraFlyToGreece() {
+  if (!viewer) return;
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(23.5, 38.5, 1_400_000),
+    duration: 1.8,
+  });
 }
 async function agoraSearch(q) {
   const out = $('agora-list'); if (!out) return;
@@ -3488,6 +3595,9 @@ async function agoraSearch(q) {
         <div class="cm">${escapeHtml((r.summary || '').slice(0, 160))}${(r.summary || '').length > 160 ? '…' : ''}</div>
       </div>
     `).join('') : (q ? '<p>No entry yet. Tap "Add a topic" to crawl it.</p>' : '<p>Empty agora.</p>');
+    // Drop bone-tinted anchors on the globe for every row with a known
+    // canonical place. Foundation #2 made visible without a panel.
+    _agoraAnchorsShow(rows);
   } catch (e) { out.textContent = e.message; }
 }
 async function agoraOpen(id) {
