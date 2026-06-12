@@ -2549,14 +2549,25 @@ function _killDriverTrack(orderId) {
 // DRIVER side — every time advanceDelivery fires the driver's GPS is
 // captured and broadcast on the per-order channel so the customer sees
 // the pin move. We broadcast continuously while there's an active run.
-let _driverPingInterval = 0;
+let _driverPingInterval = 0, _driverWatchId = 0;
 function _driverPingsStart() {
   if (_driverPingInterval) return;
+  // Continuous GPS while running — drivers move; the customer should see it.
+  if (navigator.geolocation?.watchPosition && !_driverWatchId) {
+    try {
+      _driverWatchId = navigator.geolocation.watchPosition(
+        pos => { _userLat = pos.coords.latitude; _userLng = pos.coords.longitude; _driverPingsTick(); },
+        () => {},
+        { enableHighAccuracy: true, maximumAge: 4000, timeout: 12000 }
+      );
+    } catch (_) {}
+  }
   _driverPingInterval = setInterval(_driverPingsTick, 8_000);
   _driverPingsTick();
 }
 function _driverPingsStop() {
   clearInterval(_driverPingInterval); _driverPingInterval = 0;
+  if (_driverWatchId) { try { navigator.geolocation.clearWatch(_driverWatchId); } catch (_) {} _driverWatchId = 0; }
 }
 async function _driverPingsTick() {
   if (!session || !profile?.is_owner) return;
