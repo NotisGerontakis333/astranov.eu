@@ -1059,6 +1059,24 @@ function appendThinking() {
   return div;
 }
 
+// Stream a reply word-by-word so it ARRIVES, not dumps. Skips streaming
+// when the user has started typing a new turn (currentTurn changed) —
+// stale replies finish instantly and stay silent.
+async function _streamReplyIntoStub(stub, reply) {
+  stub.textContent = '';
+  const turnAtStart = VOICE.currentTurn;
+  const tokens = String(reply || '').split(/(\s+)/);
+  const msgs = $('chat-msgs');
+  for (let i = 0; i < tokens.length; i++) {
+    if (VOICE.currentTurn !== turnAtStart) { stub.textContent = reply; return; }
+    stub.textContent += tokens[i];
+    if ((i & 1) === 0) {
+      msgs.scrollTop = msgs.scrollHeight;
+      await new Promise(r => setTimeout(r, 18));
+    }
+  }
+}
+
 async function callBrain(prompt, opts) {
   // LAW: OUR OWN MIND first — on-device weights, no external AI. The
   // aicycle Edge fn (collective organs) is the fallback for devices
@@ -1410,7 +1428,11 @@ $('chat-form').addEventListener('submit', async (e) => {
   $('chat').classList.remove('thinking');
   document.body.classList.remove('brain-thinking');
   stub.classList.remove('thinking-stub');
-  stub.textContent = out.reply;
+  // Stream the reply word-by-word so the user SEES the brain land in
+  // real time. Voice TTS waits for the whole reply (we want one
+  // utterance, not a stutter). Skip streaming on failure messages.
+  if (out.failed) stub.textContent = out.reply;
+  else await _streamReplyIntoStub(stub, out.reply);
   if (out.meta) {
     const badge = _renderBrainBadge(out.meta, out.raw);
     if (badge) stub.appendChild(badge);
