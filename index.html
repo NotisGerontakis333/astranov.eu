@@ -3993,7 +3993,36 @@ async function openDevelopPanel() {
     <button class="pbtn ok" onclick="submitRoadmap()">Submit</button>
     <h3>The queue — what the brain builds next</h3>
     <div id="dev-queue">Loading…</div>
+    <h3>What users actually do — 7-day usage</h3>
+    <p style="font-size:11px;color:rgba(168,200,238,0.5)">§19 #4: usage statistics steer priority during council governance. The brain reads this when ranking the queue.</p>
+    <div id="dev-usage">Loading…</div>
   `);
+  // Usage statistics — surfaces analytics_events so the queue is grounded
+  // in what users actually reach for, not what we guess they reach for.
+  (async () => {
+    try {
+      const u = await sb.rpc('usage_stats', { days: 7 });
+      if (u.error) throw u.error;
+      const rows = (u.data || []).slice(0, 12);
+      const out = $('dev-usage'); if (!out) return;
+      if (!rows.length) { out.innerHTML = '<p style="font-size:12px;color:rgba(168,200,238,0.55)">No events logged this week.</p>'; return; }
+      const max = Math.max(1, ...rows.map(r => Number(r.hits) || 0));
+      out.innerHTML = rows.map(r => {
+        const w = Math.max(2, Math.round(100 * (Number(r.hits) || 0) / max));
+        return `<div class="row" style="padding:6px 0;border-bottom:1px solid rgba(74,166,255,0.08)">
+          <span style="flex:1">
+            <div style="font-size:12px;color:var(--selene)">${escapeHtml(r.event)}</div>
+            <div style="height:5px;background:rgba(74,166,255,0.10);border-radius:3px;margin-top:4px;overflow:hidden">
+              <div style="height:100%;width:${w}%;background:var(--aegean);opacity:0.85"></div>
+            </div>
+          </span>
+          <span style="font-variant-numeric:tabular-nums;color:var(--selene);font-size:12px">${r.hits}</span>
+        </div>`;
+      }).join('');
+    } catch (e) {
+      const out = $('dev-usage'); if (out) out.innerHTML = `<p style="font-size:12px;color:var(--crimson)">${escapeHtml(e.message || String(e))}</p>`;
+    }
+  })();
   try {
     const g = await sb.rpc('governance_state');
     const st = (g.data || [])[0];
