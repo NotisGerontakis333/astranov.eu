@@ -2104,27 +2104,54 @@ const vendorIndex = new Map();
 let _currentVendor = null, _menu = [], _cart = [];
 
 // Pricing — base €1/km + multipliers (LAW §11) and 3% royalty (architect's order).
+// LAW §11 supply-demand: when open orders outnumber available runners in a
+// city, both the vendor price (subtle) AND the delivery fee (stronger) get
+// a surge multiplier so the fleet attracts drivers. When supply outstrips
+// demand, the multipliers ease toward 1.0. Architect overrules.
 const PRICING = {
   base_per_km: 1.0,     // €1/km floor
   min_fee:     3.0,     // €3 minimum delivery fee
   night_multiplier:    1.30,   // 22:00 – 06:00
   long_haul_multiplier:1.15,   // > 5 km
   platform_fee_pct:    0.03,   // 3% on every transaction — the architect's royalty
+  surge_max:           2.50,   // never above 2.5×
+  surge_vendor_pct:    0.30,   // vendor price feels 30% of the delivery surge
 };
+
+// Compute live surge from open orders + free drivers in a radius. Returns
+// {delivery, vendor} multipliers in [1.0, surge_max].
+async function _liveSurge(lat, lng) {
+  if (!sb || lat == null || lng == null) return { delivery: 1.0, vendor: 1.0, note: 'no GPS' };
+  try {
+    const open = await sb.rpc('nearby_deliveries', { lat, lng, radius_meters: 12000, max_results: 100 });
+    const orders = (open.data || []).filter(d => d.status === 'requested').length;
+    // Drivers actively running in the same radius (proxy for "free" fleet)
+    const drivers = await sb.from('deliveries').select('runner_id').in('status', ['accepted','en_route','picked_up']);
+    const activeRunners = new Set((drivers.data || []).map(d => d.runner_id).filter(Boolean)).size;
+    // Demand / Supply ratio — softened so quiet hours stay 1.0
+    const ratio = orders / Math.max(1, activeRunners + 1);
+    const raw   = 1 + Math.min(1.5, Math.max(0, ratio - 1) * 0.6);
+    const delivery = Math.min(PRICING.surge_max, Math.max(1.0, raw));
+    const vendor   = 1 + (delivery - 1) * PRICING.surge_vendor_pct;
+    return { delivery, vendor, note: orders + ' open · ' + activeRunners + ' running · x' + delivery.toFixed(2) };
+  } catch (_) { return { delivery: 1.0, vendor: 1.0, note: 'surge unknown' }; }
+}
 
 function _isNightLocal() {
   const h = new Date().getHours();
   return h >= 22 || h < 6;
 }
 
-// Delivery fee — Haversine × €1/km × multipliers. Returns { km, fee, breakdown }
-function computeDeliveryFee(pickup, dropoff) {
+// Delivery fee — Haversine × €1/km × multipliers (night, long-haul,
+// optional live demand surge). Returns { km, fee, breakdown }.
+function computeDeliveryFee(pickup, dropoff, surgeMul) {
   if (!pickup || !dropoff || pickup.lat == null || dropoff.lat == null) return { km: 0, fee: PRICING.min_fee, breakdown: ['min'] };
   const km = distMeters(pickup.lat, pickup.lng, dropoff.lat, dropoff.lng) / 1000;
   let fee = Math.max(PRICING.min_fee, km * PRICING.base_per_km);
   const breakdown = [`${km.toFixed(2)} km × €${PRICING.base_per_km}/km`];
   if (_isNightLocal())    { fee *= PRICING.night_multiplier;     breakdown.push('night ×' + PRICING.night_multiplier); }
   if (km > 5)             { fee *= PRICING.long_haul_multiplier; breakdown.push('long-haul ×' + PRICING.long_haul_multiplier); }
+  if (surgeMul && surgeMul > 1.01) { fee *= surgeMul;            breakdown.push('demand surge ×' + surgeMul.toFixed(2)); }
   return { km, fee: Math.round(fee * 100) / 100, breakdown };
 }
 
@@ -2376,7 +2403,7 @@ function addToCart(i) {
 }
 function removeFromCart(i) { _cart.splice(i, 1); renderCart(); }
 
-function renderCart() {
+async function renderCart() {
   const c = $('vendor-cart'), t = $('vendor-total'), b = $('btn-place');
   if (!c) return;
   if (!_cart.length) { c.innerHTML = '<p>Tap menu items to add.</p>'; t.innerHTML = ''; b.disabled = true; return; }
@@ -2386,18 +2413,23 @@ function renderCart() {
       <span>€${(it.qty * it.price).toFixed(2)} <span class="cart-x" onclick="removeFromCart(${i})">✕</span></span>
     </div>
   `).join('');
-  const sub  = _cart.reduce((s, it) => s + it.qty * it.price, 0);
+  // LAW §11 — pull live surge from open orders vs active drivers nearby.
+  // Vendor sub gets the soft slice; delivery gets the stronger one.
+  const surge = await _liveSurge(_userLat, _userLng);
+  const baseSub = _cart.reduce((s, it) => s + it.qty * it.price, 0);
+  const sub  = surge.vendor > 1.01 ? baseSub * surge.vendor : baseSub;
   const plat = Math.max(1, Math.round(sub * PRICING.platform_fee_pct));
   const pickup  = { lat: _currentVendor.lat, lng: _currentVendor.lng };
   const dropoff = { lat: _userLat, lng: _userLng };
-  const fee = computeDeliveryFee(pickup, dropoff);
+  const fee = computeDeliveryFee(pickup, dropoff, surge.delivery);
   const total = sub + fee.fee + plat;
   const bal = Number(profile?.eur_balance || 0);
   t.innerHTML = `
-    <div class="row"><span>Subtotal</span><span>€${sub.toFixed(2)}</span></div>
+    <div class="row"><span>Subtotal</span><span>€${sub.toFixed(2)}${surge.vendor > 1.01 ? ' <span style="color:var(--amber);font-size:10px">×' + surge.vendor.toFixed(2) + '</span>' : ''}</span></div>
     <div class="row"><span>Delivery</span><span>€${fee.fee.toFixed(2)}</span></div>
     <div class="row" style="color:rgba(168,200,238,0.6);font-size:11px"><span>${escapeHtml(fee.breakdown.join(' · '))}</span><span></span></div>
-    <div class="row"><span>Platform fee</span><span>€${plat}</span></div>
+    <div class="row" style="color:rgba(168,200,238,0.5);font-size:10px"><span>${escapeHtml(surge.note)}</span><span></span></div>
+    <div class="row"><span>Platform fee · 3%</span><span>€${plat}</span></div>
     <div class="row" style="font-weight:700"><span>Total</span><span>€${total.toFixed(2)}</span></div>
     <div class="row" style="color:${bal >= total ? '#7eebb4' : '#ff9e9e'}"><span>Your balance</span><span>€${bal.toFixed(2)}</span></div>
   `;
