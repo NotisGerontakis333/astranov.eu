@@ -2362,17 +2362,22 @@ async function openVendorPanel(p) {
   if (!session) return openAuthPanel();
   _currentVendor = p; _cart = []; _menu = Array.isArray(p.items) ? p.items.slice() : [];
   const subtitle = [p.tags?.cuisine, p.address?.street, p.address?.city].filter(Boolean).join(' · ');
+  const isMine = p.owner_id === session.user.id || profile?.is_owner;
   if (!p._published) {
     openPanel(`
       <h2>${escapeHtml(p.name)}</h2>
       <p>${escapeHtml(subtitle)}</p>
-      <p>No menu published. The first menu we add becomes the listing.</p>
+      ${isMine
+        ? `<p style="color:var(--bone)">No menu published yet. Add your first item.</p>
+           <button class="pbtn ok" onclick="openVendorMenuEditor('${p.id}')">Edit my menu</button>`
+        : `<p>No menu published. Useless to render until owner publishes a real menu with prices and photos.</p>`}
     `);
     return;
   }
   openPanel(`
     <h2>${escapeHtml(p.name)}</h2>
     <p>${escapeHtml(subtitle)}</p>
+    ${isMine ? `<button class="pbtn muted" style="margin-bottom:8px" onclick="openVendorMenuEditor('${p.id}')">Edit menu</button>` : ''}
     <h3>Menu</h3>
     <div id="vendor-menu"></div>
     <h3>Cart</h3>
@@ -2638,12 +2643,69 @@ async function vendorCreate() {
       items: [],
     }).select().single();
     if (error) throw error;
-    toast(name + ' created. Now publish your menu.', 'ok');
-    openPanel(`
-      <h2>${escapeHtml(name)} created</h2>
-      <p style="color:var(--bone)">Your pin is on the globe. It stays DIM until you publish at least one item with a real price + photo.</p>
-      <p style="color:rgba(168,200,238,0.7)">Vendor editor lands in the next cycle. For now, sit tight; you're #1 in this area.</p>
-    `);
+    toast(name + ' created. Publish your first item.', 'ok');
+    openVendorMenuEditor(data.id);
+  } catch (e) { toast(e.message, 'err'); }
+}
+
+// Vendor menu editor — owners publish items with real price + photo.
+// Only the owner of the vendor (and the architect) may edit. Items
+// land in vendors.items as a JSONB array. The strict filter then
+// promotes the pin to BRIGHT the moment one priced+photoed item lands.
+async function openVendorMenuEditor(vendorId) {
+  if (!session) return openAuthPanel();
+  let v;
+  try {
+    const r = await sb.from('vendors').select('*').eq('id', vendorId).single();
+    if (r.error) throw r.error; v = r.data;
+  } catch (e) { return toast(e.message, 'err'); }
+  if (v.owner_id !== session.user.id && !profile?.is_owner) return toast('Not your business', 'err');
+  const items = Array.isArray(v.items) ? v.items : [];
+  openPanel(`
+    <h2>${escapeHtml(v.name)} — menu</h2>
+    <p style="color:var(--bone);opacity:0.8">Add items with real name, real price (EUR), real photo URL. The pin goes bright the moment one item has both.</p>
+    <h3>Items</h3>
+    <div id="vm-items">${items.map((it, i) => `
+      <div class="cart-row" style="gap:10px;align-items:center">
+        ${it.photo ? `<img src="${escapeHtml(it.photo)}" style="width:40px;height:40px;border-radius:6px;object-fit:cover">` : '<div style="width:40px;height:40px;border-radius:6px;background:rgba(255,170,51,0.18);border:1px dashed rgba(255,170,51,0.6)"></div>'}
+        <span style="flex:1">${escapeHtml(it.name)}</span>
+        <span class="mi-price">€${it.price}</span>
+        <span class="cart-x" onclick="vendorMenuRemove('${vendorId}', ${i})">✕</span>
+      </div>
+    `).join('')}</div>
+    <h3>Add a new item</h3>
+    <input id="vm-name"  placeholder="Item name (e.g. Margherita pizza)">
+    <input id="vm-price" type="number" min="0.5" step="0.5" placeholder="Price in EUR">
+    <input id="vm-photo" placeholder="Photo URL (real photo of YOUR product)">
+    <button class="pbtn ok" onclick="vendorMenuAdd('${vendorId}')">Publish item</button>
+    <p style="font-size:11px;color:rgba(168,200,238,0.55);margin-top:14px">Honesty law (§11): photos must be real images of the actual goods. Stock images attached to invented names violate Foundation #7.</p>
+  `);
+}
+async function vendorMenuAdd(vendorId) {
+  const name  = $('vm-name').value.trim();
+  const price = Number($('vm-price').value);
+  const photo = $('vm-photo').value.trim();
+  if (!name || !(price > 0)) return toast('Need name + price', 'err');
+  try {
+    const r = await sb.from('vendors').select('items').eq('id', vendorId).single();
+    if (r.error) throw r.error;
+    const items = Array.isArray(r.data?.items) ? r.data.items.slice() : [];
+    items.push({ name, price, photo: photo || null });
+    const u = await sb.from('vendors').update({ items, updated_at: new Date().toISOString() }).eq('id', vendorId);
+    if (u.error) throw u.error;
+    toast('Published', 'ok');
+    openVendorMenuEditor(vendorId);
+  } catch (e) { toast(e.message, 'err'); }
+}
+async function vendorMenuRemove(vendorId, idx) {
+  try {
+    const r = await sb.from('vendors').select('items').eq('id', vendorId).single();
+    if (r.error) throw r.error;
+    const items = Array.isArray(r.data?.items) ? r.data.items.slice() : [];
+    items.splice(idx, 1);
+    const u = await sb.from('vendors').update({ items, updated_at: new Date().toISOString() }).eq('id', vendorId);
+    if (u.error) throw u.error;
+    openVendorMenuEditor(vendorId);
   } catch (e) { toast(e.message, 'err'); }
 }
 
