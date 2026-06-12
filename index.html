@@ -2635,6 +2635,62 @@ function _renderOrder(o) {
   `);
 }
 
+/* ============================== Profile editor ============================== */
+// Your face on the globe. Display name + bio + map visibility +
+// availability status. Edits land in public.profiles via direct UPDATE
+// (auth.uid() must equal id by RLS).
+async function openProfilePanel() {
+  if (!session) return openAuthPanel();
+  await loadProfile();
+  const name = profile?.display_name || '';
+  const bio  = profile?.bio || '';
+  const vis  = profile?.map_visibility || 'public';
+  const av   = profile?.availability_status || 'available';
+  openPanel(`
+    <h2>Your profile</h2>
+    <p style="color:var(--bone);opacity:0.85">Your name on the globe and how visible you are. Update any time.</p>
+    <label style="font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:var(--aegean)">Display name</label>
+    <input id="pr-name" placeholder="What others see when they ring you" value="${escapeHtml(name)}">
+    <label style="font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:var(--aegean)">Bio · one line</label>
+    <input id="pr-bio" placeholder="A line about you (visible on the call orb)" value="${escapeHtml(bio)}">
+    <label style="font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:var(--aegean)">Map visibility</label>
+    <select id="pr-vis">
+      <option value="public"   ${vis === 'public'   ? 'selected' : ''}>public — anyone can find me</option>
+      <option value="global"   ${vis === 'global'   ? 'selected' : ''}>global — discoverable, no city detail</option>
+      <option value="private"  ${vis === 'private'  ? 'selected' : ''}>private — not on the globe to others</option>
+    </select>
+    <label style="font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:var(--aegean)">Availability</label>
+    <select id="pr-avail">
+      <option value="available"     ${av === 'available'     ? 'selected' : ''}>available</option>
+      <option value="busy"          ${av === 'busy'          ? 'selected' : ''}>busy</option>
+      <option value="do-not-disturb" ${av === 'do-not-disturb' ? 'selected' : ''}>do not disturb</option>
+    </select>
+    <div style="margin-top:14px">
+      <button class="pbtn ok" onclick="saveProfile()">Save</button>
+      <button class="pbtn muted" onclick="closePanel()">Cancel</button>
+    </div>
+    <div id="pr-status" style="font-size:11px;color:rgba(168,200,238,0.55);margin-top:10px"></div>
+  `);
+}
+async function saveProfile() {
+  const display_name = $('pr-name').value.trim();
+  const bio          = $('pr-bio').value.trim();
+  const map_visibility = $('pr-vis').value;
+  const availability_status = $('pr-avail').value;
+  if (!display_name) return toast('Display name required', 'err');
+  try {
+    const { error } = await sb.from('profiles').update({
+      display_name, bio, map_visibility, availability_status, updated_at: new Date().toISOString(),
+    }).eq('id', session.user.id);
+    if (error) throw error;
+    profile = { ...profile, display_name, bio, map_visibility, availability_status };
+    try { localStorage.setItem('astranov.lastName', display_name); } catch (_) {}
+    toast('Profile saved', 'ok');
+    refreshPeerOrbs();
+    closePanel();
+  } catch (e) { $('pr-status').textContent = 'Failed: ' + e.message; }
+}
+
 /* ============================== Vendor onboarding ============================== */
 async function openVendorClaim() {
   if (!session) return openAuthPanel();
@@ -3173,6 +3229,7 @@ function routeLocal(raw) {
   }
   if (/\b(diag|diagnose|status|smoke|τεστ)\b/.test(t))                            { _routedFire('Probing the pillars…', runDiag); return true; }
   if (/\b(krypteia|audit|surveillance|κρυπτεία)\b/.test(t))                        { _routedFire('Silent audit · §26 single-provider cap.', openKrypteiaPanel); return true; }
+  if (/\b(profile|me|myself|προφίλ|προφιλ)\b/.test(t))                              { _routedFire('Your profile.', openProfilePanel); return true; }
   if (/\b(own\s*mind|own\s*brain|local\s*brain|μυαλό)\b/.test(t))                  { enableLocalBrain(false); return true; }
   if (/\b(crawl|sweep|grow|populate|σάρωσ)\b/.test(t))                              { _routedFire('Brain steering the crawler…', () => brainCrawl(raw)); return true; }
   if (/\b(develop|roadmap|queue|build next|ανάπτυξη)\b/.test(t))                    { _routedFire('Opening the development queue.', openDevelopPanel); return true; }
