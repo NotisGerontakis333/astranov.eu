@@ -810,10 +810,24 @@ azimuth. The SVG planisphere also plots the Moon (Meeus chapter 47
 simplified, illumination by phase), Polaris (the two-line true-north
 check: altitude ≈ latitude, azimuth ≈ 0°) and, at night, 20
 navigational stars (J2000 RA/Dec, sized by magnitude) with a "Best
-stars for a fix — now" table of the top 6 by altitude. Honest gap
-printed in the panel — low-precision, no refraction / nutation /
-parallax (~1°); the Sumner-line intercept method is the remaining
-queued piece.
+stars for a fix — now" table of the top 6 by altitude.
+
+**Sumner-line intercept (Marcq Saint-Hilaire).** A captain picks a
+body (Sun · Moon · Polaris · any of the 10 brightest visible
+nav-stars), enters the observed altitude (Ho, deg + arc-min) and
+the UTC second of the shot. Astranov computes Hc from the body's
+geocentric position at that instant, the body's true azimuth from
+the assumed position, and the intercept p = Ho − Hc (1 arc-min =
+1 nm). The result card shows: Ho, Hc, Az, intercept with
+TOWARD/AWAY sense in emerald/crimson, and the foot of the LOP.
+Multiple shots accumulate in `_SUMNER_SHOTS`; once ≥2 exist
+`_sumnerFixFromShots()` solves the LOPs as lines in the local
+tangent plane via least-squares normal equations and reports
+the FIX in lat/lng with the offset from AP in nautical miles.
+Honest gap printed in the panel — no refraction / dip /
+parallax correction (the captain pre-corrects Ho for ocean
+grade); ~1° low-precision ephemeris; everything else is now
+present and the pillar closes.
 
 ## 26. The collective-substrate doctrine
 
