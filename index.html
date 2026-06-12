@@ -3143,6 +3143,7 @@ async function openVendorMenuEditor(vendorId) {
     </div>
     <div id="vm-photo-status" style="font-size:11px;color:rgba(168,200,238,0.7);min-height:14px"></div>
     <button class="pbtn ok" onclick="vendorMenuAdd('${vendorId}')">Publish item</button>
+    <button class="pbtn" onclick="openVendorOrders()">◈ Order desk</button>
     <p style="font-size:11px;color:rgba(168,200,238,0.55);margin-top:14px">Honesty law (§11): photos must be real images of the actual goods. Stock images attached to invented names violate Foundation #7.</p>
   `);
 }
@@ -3216,6 +3217,86 @@ async function vendorMenuAdd(vendorId) {
     toast('Published', 'ok');
     openVendorMenuEditor(vendorId);
   } catch (e) { toast(e.message, 'err'); }
+}
+// Vendor order desk — the missing third corner of the order loop
+// (customer panel and driver panel already exist). Lists open orders
+// across every vendor the signed-in user owns; Accept / Preparing /
+// Cancel call the SECURITY DEFINER vendor_advance_order RPC, which
+// verifies ownership and lawful transitions server-side. After every
+// advance we broadcast 'status' on the order channel so the customer's
+// tracker repaints live.
+let _vendorOrdersTimer = 0;
+async function openVendorOrders() {
+  if (!session) return openAuthPanel();
+  openPanel(`
+    <h2>Order desk</h2>
+    <p style="color:var(--bone);opacity:0.8">Incoming orders for your business. Accept, prepare, hand to the driver.</p>
+    <div id="vo-list">Loading…</div>
+  `);
+  clearInterval(_vendorOrdersTimer);
+  _vendorOrdersTimer = setInterval(() => {
+    if (document.getElementById('vo-list')) _vendorOrdersRefresh();
+    else clearInterval(_vendorOrdersTimer);
+  }, 20_000);
+  _vendorOrdersRefresh();
+}
+async function _vendorOrdersRefresh() {
+  const out = document.getElementById('vo-list'); if (!out) return;
+  try {
+    const mv = await sb.from('vendors').select('id,name').eq('owner_id', session.user.id);
+    if (mv.error) throw mv.error;
+    const mine = mv.data || [];
+    if (!mine.length) {
+      out.innerHTML = `<p>No business listed yet.</p>
+        <button class="pbtn ok" onclick="openVendorClaim()">List my business</button>`;
+      return;
+    }
+    const byId = Object.fromEntries(mine.map(v => [String(v.id), v.name]));
+    const r = await sb.from('orders').select('*')
+      .in('vendor_id', mine.map(v => String(v.id)))
+      .in('status', ['pending', 'accepted', 'preparing'])
+      .order('created_at', { ascending: true });
+    if (r.error) throw r.error;
+    const rows = r.data || [];
+    out.innerHTML = rows.length ? rows.map(o => {
+      const total = Number(o.calc?.total ?? 0);
+      const items = (o.items || []).map(it => `${it.qty}× ${escapeHtml(it.name)}`).join(' · ');
+      const age = Math.max(0, Math.round((Date.now() - new Date(o.created_at).getTime()) / 60000));
+      const next = o.status === 'pending'
+        ? `<button class="pbtn ok" onclick="vendorOrderAdvance('${o.id}','accepted')">Accept</button>`
+        : o.status === 'accepted'
+          ? `<button class="pbtn ok" onclick="vendorOrderAdvance('${o.id}','preparing')">Start preparing</button>`
+          : `<span style="color:var(--emerald);font-size:12px">PREPARING — driver picks up</span>`;
+      return `
+      <div class="card">
+        <div class="ct">#${escapeHtml(o.short_id || o.id.slice(0,8))} · ${escapeHtml(byId[o.vendor_id] || '')} ·
+          <span style="color:${o.status === 'pending' ? 'var(--gold)' : 'var(--emerald)'}">${escapeHtml(o.status.toUpperCase())}</span>
+          <span style="opacity:0.5;font-variant-numeric:tabular-nums"> · ${age} min ago</span></div>
+        <div class="cm">${items}</div>
+        <div class="row"><span>Total</span><span>€${total.toFixed(2)}</span></div>
+        <div style="margin-top:6px;display:flex;gap:8px">${next}
+          ${(o.status === 'pending' || o.status === 'accepted')
+            ? `<button class="pbtn danger" onclick="vendorOrderAdvance('${o.id}','cancelled')">Cancel</button>` : ''}
+        </div>
+      </div>`;
+    }).join('') : '<p>No open orders. They will appear here the moment a customer pays.</p>';
+  } catch (e) { out.textContent = 'Failed: ' + (e.message || e); }
+}
+async function vendorOrderAdvance(orderId, st) {
+  try {
+    const { data, error } = await sb.rpc('vendor_advance_order', { p_order_id: orderId, p_new_status: st });
+    if (error) throw error;
+    if (data?.ok === false) throw new Error(data.error || 'rejected');
+    toast(st === 'cancelled' ? 'Order cancelled' : 'Order ' + st, st === 'cancelled' ? 'err' : 'ok');
+    // Wake the customer's tracker.
+    try {
+      const ch = sb.channel('order-' + orderId);
+      await ch.subscribe();
+      await ch.send({ type: 'broadcast', event: 'status', payload: { order_id: orderId, status: st } });
+      ch.unsubscribe();
+    } catch (_) {}
+    _vendorOrdersRefresh();
+  } catch (e) { toast(e.message || String(e), 'err'); }
 }
 async function vendorMenuRemove(vendorId, idx) {
   try {
@@ -3929,6 +4010,7 @@ function routeLocal(raw) {
   if (/\b(wallet|balance|money|euros|πορτοφόλι)\b/.test(t))                       { _routedFire(session ? 'Opening wallet.' : 'Sign in first.', () => session ? openWalletPanel() : openAuthPanel()); return true; }
   if (/\b(top\s*up|add money|αγορά ευρώ)\b/.test(t))                              { _routedFire(session ? 'Top up.' : 'Sign in first.', () => session ? openBuyPanel() : openAuthPanel()); return true; }
   if (/\b(drive|delivery|deliver|driver|courier|οδηγός|παράδοση)\b/.test(t))      { _routedFire(session ? 'Opening driver.' : 'Sign in first.', () => session ? openDriverPanel() : openAuthPanel()); return true; }
+  if (/\b(order desk|my business|my shop|incoming orders|παραγγελίες μου|μαγαζί μου)\b/.test(t)) { _routedFire(session ? 'Opening your order desk.' : 'Sign in first.', () => session ? openVendorOrders() : openAuthPanel()); return true; }
   if (/\b(home|globe|world|earth|σπίτι|κόσμος)\b/.test(t))                         { _routedFire('Warping home.', pilotHome); return true; }
   if (/\b(sign\s*in|log\s*in|sign\s*up|register|εγγραφή|σύνδεση)\b/.test(t))      { _routedFire('Sign-in.', openAuthPanel); return true; }
   if (/\b(sign\s*out|log\s*out|αποσύνδεση)\b/.test(t) && session)                  { _routedFire('Signing out.', signOut); return true; }
