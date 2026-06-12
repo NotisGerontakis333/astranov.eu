@@ -203,6 +203,26 @@
   #listen-orb.muted::after   { content: 'MIC OFF'; color: rgba(255,180,180,0.85); }
   #listen-orb.speaking::after{ content: 'SPEAKING'; color: rgba(207,226,255,0.9); }
 
+  /* Interim-transcript preview — floats above the LISTEN orb showing
+     what the recognizer is hearing in real time. Disappears the moment
+     a final transcript lands. */
+  #interim-bubble { position: fixed; left: 86px;
+    bottom: calc(var(--orb-bottom, 80px) + env(safe-area-inset-bottom) + 60px);
+    z-index: 260; max-width: min(70vw, 360px);
+    padding: 8px 14px; border-radius: 14px;
+    background: rgba(10,19,52,0.75);
+    border: 1px solid rgba(126,235,180,0.45);
+    color: var(--selene); font-size: 13px; line-height: 1.4;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.55);
+    display: none; pointer-events: none;
+    backdrop-filter: blur(8px); }
+  #interim-bubble.on { display: block; }
+  #interim-bubble::after { content: ''; position: absolute; left: 16px; bottom: -6px;
+    width: 12px; height: 12px; background: rgba(10,19,52,0.75);
+    border-right: 1px solid rgba(126,235,180,0.45);
+    border-bottom: 1px solid rgba(126,235,180,0.45);
+    transform: rotate(45deg); }
+
   #pilot-orb { position: fixed; right: 16px;
     bottom: calc(var(--orb-bottom, 80px) + env(safe-area-inset-bottom));
     z-index: 250; width: 54px; height: 54px; border-radius: 50%;
@@ -357,6 +377,7 @@ Architect: Notis Astranov. Pre-nuke tag: pre-nuke-2026-06-11-1200.
 <div id="chat-reopen" title="Open Astranov"></div>
 <div id="login-orb" title="Sign in" onclick="openAuthPanel()">◈</div>
 <div id="listen-orb" title="Tap to mute / unmute the listener">◉</div>
+<div id="interim-bubble"></div>
 <div id="pilot-orb" title="Back to the globe" onclick="pilotHome()"></div>
 
 <div id="chat">
@@ -1272,6 +1293,15 @@ function ttsSpeak(text) {
 
 function _ttsBusy() { return speechSynthesis.speaking || speechSynthesis.pending; }
 
+function _interimShow(text) {
+  const el = $('interim-bubble'); if (!el) return;
+  el.textContent = text;
+  el.classList.add('on');
+  clearTimeout(_interimShow._t);
+  _interimShow._t = setTimeout(() => el.classList.remove('on'), 2200);
+}
+function _interimHide() { const el = $('interim-bubble'); if (el) el.classList.remove('on'); }
+
 function _srBuild() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) return null;
@@ -1290,13 +1320,18 @@ function _srBuild() {
   r.onresult = (evt) => {
     // Same rule for results: if our TTS is playing, the recognizer is
     // hearing US. Drop the transcript silently.
-    if (VOICE.state === 'speaking' || _ttsBusy()) return;
-    let finalText = '';
+    if (VOICE.state === 'speaking' || _ttsBusy()) { _interimHide(); return; }
+    let finalText = '', interimText = '';
     for (let i = evt.resultIndex; i < evt.results.length; i++) {
       const res = evt.results[i];
-      if (res.isFinal) finalText += res[0].transcript;
+      if (res.isFinal) finalText  += res[0].transcript;
+      else             interimText += res[0].transcript;
     }
     finalText = (finalText || '').trim();
+    // Show interim text floating above the LISTEN orb so the user SEES
+    // what the recognizer is hearing in real time. Disappears on final.
+    if (interimText && !finalText) _interimShow(interimText);
+    else _interimHide();
     if (finalText.length < 2) return;
     // Auto-toggle language for the NEXT start based on what the user
     // actually said: Greek script → flip to el-GR; Latin → en-US.
