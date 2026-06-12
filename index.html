@@ -3478,13 +3478,51 @@ async function openWalletPanel() {
   const eur = Number(profile?.eur_balance || 0);
   openPanel(`
     <h2>Wallet</h2>
-    <div class="row" style="font-size:24px;color:#ffd47e"><span>Balance</span><span>€${eur.toFixed(2)}</span></div>
+    <div class="row" style="font-size:24px;color:var(--gold)"><span>Balance</span><span class="wallet-balance">€${eur.toFixed(2)}</span></div>
     <div style="margin:14px 0">
       <button class="pbtn ok" onclick="openBuyPanel()">Top up</button>
       <button class="pbtn" onclick="openDriverPanel()">Drive (earn)</button>
       <button class="pbtn danger" onclick="signOut()">Sign out</button>
     </div>
+    <h3>Recent activity</h3>
+    <div id="wal-ledger">Loading…</div>
   `);
+  // Real ledger — top-ups, order debits, driver earnings, royalties.
+  // The wallet stops being a placeholder once you can see your own money move.
+  try {
+    const { data, error } = await sb.rpc('my_avc_transactions', { max_results: 25 });
+    if (error) throw error;
+    const rows = data || [];
+    if (!rows.length) {
+      $('wal-ledger').innerHTML = '<p style="color:rgba(168,200,238,0.55);font-size:12px">No transactions yet. Top up to start.</p>';
+      return;
+    }
+    const fmt = (kind, amount) => {
+      const a = Number(amount) || 0;
+      const sign = a >= 0 ? '+' : '−';
+      const color = a >= 0 ? 'var(--emerald)' : 'var(--crimson)';
+      return `<span style="color:${color};font-variant-numeric:tabular-nums">${sign}€${Math.abs(a).toFixed(2)}</span>`;
+    };
+    const label = (k) => ({
+      topup:    'Top-up',
+      order:    'Order',
+      refund:   'Refund',
+      reward:   'Driver reward',
+      royalty:  'Royalty (3%)',
+      transfer: 'Transfer',
+    }[String(k || '').toLowerCase()] || (k || 'Move'));
+    $('wal-ledger').innerHTML = rows.map(r => `
+      <div class="row" style="padding:8px 0;border-bottom:1px solid rgba(93,178,255,0.08)">
+        <span>
+          <span style="display:block;font-size:13px">${escapeHtml(label(r.kind))}</span>
+          <span style="display:block;font-size:11px;color:rgba(168,200,238,0.5)">${escapeHtml(r.note || '')}${r.note ? ' · ' : ''}${formatRelative(r.created_at)}</span>
+        </span>
+        ${fmt(r.kind, r.amount)}
+      </div>
+    `).join('');
+  } catch (e) {
+    $('wal-ledger').innerHTML = `<p style="color:var(--crimson);font-size:12px">Ledger error: ${escapeHtml(e.message || String(e))}</p>`;
+  }
 }
 async function openBuyPanel() {
   openPanel(`
