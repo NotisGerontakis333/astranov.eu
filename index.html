@@ -11,7 +11,7 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Quicksand:wght@500;600;700&display=swap" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Quicksand:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap&subset=greek,greek-ext,latin,latin-ext" />
 
 <link rel="stylesheet" href="https://cesium.com/downloads/cesiumjs/releases/1.119/Build/Cesium/Widgets/widgets.css" />
 <script src="https://cesium.com/downloads/cesiumjs/releases/1.119/Build/Cesium/Cesium.js"></script>
@@ -20,23 +20,47 @@
         onerror="document.write('<script src=&quot;https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js&quot;><\/script>')"></script>
 
 <style>
-  :root { --t-quick: 0.18s; --ease: cubic-bezier(0.32, 0.72, 0, 1); --aegean: #4aa6ff; }
+  /* SELENE palette (LAW §29) — moon-silver on cosmic black, aegean for
+     action, gold for wealth, deep red for emergency, bone for ancient. */
+  :root {
+    --t-quick: 0.18s; --ease: cubic-bezier(0.32, 0.72, 0, 1);
+    --cosmic:  #02060d;
+    --astral:  #0a1334;
+    --selene:  #cde3ff;
+    --aegean:  #4aa6ff;
+    --electric:#1e6cff;
+    --gold:    #ffd47e;
+    --amber:   #ffaa33;
+    --emerald: #7eebb4;
+    --violet:  #a98cff;
+    --crimson: #d96e6e;
+    --bone:    #f4ead8;
+  }
   *, *::before, *::after { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; height: 100%; background: #010615; overflow: hidden;
-    color: #cde7ff; font-family: 'Quicksand', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  html, body { margin: 0; padding: 0; height: 100%; background: var(--cosmic); overflow: hidden;
+    color: var(--selene); -webkit-font-smoothing: antialiased;
+    font-family: 'Inter', system-ui, sans-serif;
+    font-feature-settings: "ss01","cv11"; }
   body { position: fixed; inset: 0; }
   button, input, textarea, select { font-family: inherit; }
+  .num, .price, .mi-price, .wallet-balance, .row span:last-child { font-variant-numeric: tabular-nums; }
 
   #cesiumContainer { position: absolute; inset: 0; }
   .cesium-widget-credits, .cesium-viewer-bottom { display: none !important; }
 
-  /* WORDMARK */
+  /* WORDMARK — Selene breathing glow */
   #app-name { position: fixed; top: max(10px, env(safe-area-inset-top)); left: 50%;
     transform: translateX(-50%); z-index: 200; cursor: pointer;
-    font-weight: 700; font-size: 21px; letter-spacing: 0.34em; text-indent: 0.34em;
-    color: #cde7ff; user-select: none;
-    text-shadow: 0 0 4px #fff, 0 0 10px #4aa6ff, 0 0 22px #1e6cff, 0 0 40px #0040d8, 0 0 70px #001a66;
+    font-family: 'Quicksand', sans-serif; font-weight: 700; font-size: 22px;
+    letter-spacing: 0.36em; text-indent: 0.36em;
+    color: #ffffff; user-select: none;
+    animation: wordmark-breathe 4.2s ease-in-out infinite;
     transition: transform var(--t-quick) var(--ease); }
+  @keyframes wordmark-breathe {
+    0%, 100% { text-shadow: 0 0 4px #fff, 0 0 10px var(--aegean), 0 0 22px var(--electric), 0 0 40px #0040d8, 0 0 70px #001a66; }
+    50%      { text-shadow: 0 0 5px #fff, 0 0 14px var(--aegean), 0 0 30px var(--electric), 0 0 56px #0040d8, 0 0 96px #001a66; }
+  }
+  body.brain-thinking #app-name { animation-duration: 1.8s; }
   #app-name:active { transform: translateX(-50%) scale(0.96); }
 
   /* BOOT */
@@ -56,11 +80,15 @@
   /* CHAT */
   #chat { position: fixed; left: 0; right: 0; bottom: 0; z-index: 60;
     max-height: 60vh; display: flex; flex-direction: column;
-    background: linear-gradient(180deg, rgba(8,18,38,0.42), rgba(2,6,18,0.56));
-    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-    border-top: 1px solid rgba(93,178,255,0.55); border-radius: 22px 22px 0 0;
-    box-shadow: 0 -10px 28px rgba(45,108,196,0.18), inset 0 1px 0 rgba(207,226,255,0.18);
+    background: linear-gradient(180deg, rgba(10,19,52,0.55), rgba(2,6,13,0.78));
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border-top: 1px solid rgba(74,166,255,0.45); border-radius: 28px 28px 0 0;
+    box-shadow: 0 -10px 36px rgba(45,108,196,0.22), inset 0 1px 0 rgba(207,226,255,0.22);
     transform: translateY(100%); transition: transform 0.4s var(--ease); overflow: hidden; }
+  /* Constitutional gold→aegean hairline along the drawer's top edge */
+  #chat::before { content: ''; position: absolute; top: -1px; left: 12%; right: 12%; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--gold) 30%, var(--aegean) 70%, transparent);
+    opacity: 0.55; pointer-events: none; }
   #chat.open { transform: translateY(0); }
   #chat-handle { padding: 8px 14px; display: flex; align-items: center; justify-content: center;
     gap: 10px; cursor: grab; user-select: none; position: relative; touch-action: none; }
@@ -76,8 +104,26 @@
   .msg.user { background: rgba(120,180,255,0.12); margin-left: auto; }
   .msg.thinking-stub { color: rgba(168,200,238,0.65); animation: pulse 1.1s ease-in-out infinite; }
   @keyframes pulse { 0%,100%{opacity:0.4} 50%{opacity:1} }
-  .msg-meta { margin-top: 6px; font-size: 10px; letter-spacing: 0.06em;
-    color: rgba(120,180,255,0.55); text-transform: uppercase; }
+  @keyframes selene-pulse { 0%,100%{transform: scale(1)} 50%{transform: scale(1.05)} }
+  .msg-meta { margin-top: 6px; font-size: 10px; letter-spacing: 0.10em;
+    color: rgba(120,180,255,0.55); text-transform: uppercase;
+    display: inline-flex; align-items: center; gap: 6px; }
+  /* The brain badge — constellation of provider · model · latency */
+  .msg-meta .dot { width: 7px; height: 7px; border-radius: 50%;
+    background: var(--aegean); box-shadow: 0 0 6px var(--aegean); display: inline-block; }
+  .msg-meta .dot.groq      { background: #ffaa33; box-shadow: 0 0 6px #ffaa33; }
+  .msg-meta .dot.anthropic { background: #d96e6e; box-shadow: 0 0 6px #d96e6e; }
+  .msg-meta .dot.openrouter{ background: #a98cff; box-shadow: 0 0 6px #a98cff; }
+  .msg-meta .dot.gemini    { background: #7eebb4; box-shadow: 0 0 6px #7eebb4; }
+  .msg-meta .dot.astranov  { background: var(--gold);    box-shadow: 0 0 6px var(--gold); }
+  .msg-meta .dot.deepseek  { background: #ffd47e; box-shadow: 0 0 6px #ffd47e; }
+  .msg-meta .dot.mistral   { background: #ff7878; box-shadow: 0 0 6px #ff7878; }
+  .msg-meta .dot.perplexity{ background: #4aa6ff; box-shadow: 0 0 6px #4aa6ff; }
+  .msg-meta .meter { display: inline-block; width: 2px; height: 10px; margin-left: 2px;
+    background: linear-gradient(to top, var(--emerald), var(--gold), var(--crimson));
+    border-radius: 1px; opacity: 0.6; }
+  .msg-meta .model { color: rgba(207,226,255,0.85); }
+  .msg-meta .lat   { color: rgba(168,200,238,0.65); }
   #chat-form { display: flex; gap: 10px; padding: 10px 14px calc(12px + env(safe-area-inset-bottom));
     align-items: center; }
   #chat-input { flex: 1; min-width: 0; padding: 10px 14px; font-size: 16px;
@@ -174,11 +220,14 @@
   /* PANEL */
   #panel { position: fixed; left: 0; right: 0; bottom: 0; z-index: 70;
     max-height: 75vh; overflow-y: auto; padding: 0 18px calc(28px + env(safe-area-inset-bottom));
-    background: linear-gradient(180deg, rgba(8,18,38,0.55), rgba(2,6,18,0.72));
-    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-    border-top: 1px solid rgba(93,178,255,0.55); border-radius: 22px 22px 0 0;
-    box-shadow: 0 -10px 32px rgba(45,108,196,0.22);
+    background: linear-gradient(180deg, rgba(10,19,52,0.62), rgba(2,6,13,0.84));
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border-top: 1px solid rgba(74,166,255,0.45); border-radius: 28px 28px 0 0;
+    box-shadow: 0 -10px 36px rgba(45,108,196,0.24);
     transform: translateY(100%); transition: transform 0.4s var(--ease); }
+  #panel::before { content: ''; position: absolute; top: -1px; left: 12%; right: 12%; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--gold) 30%, var(--aegean) 70%, transparent);
+    opacity: 0.55; pointer-events: none; }
   #panel.open { transform: translateY(0); }
   #panel-handle { position: sticky; top: 0; padding: 10px 14px 8px;
     display: flex; align-items: center; justify-content: center; cursor: grab;
@@ -188,7 +237,8 @@
     background: rgba(120,180,255,0.45); }
   #panel-body { padding-top: 8px; }
   #panel h2 { margin: 0 0 4px; font-size: 18px; letter-spacing: 0.18em;
-    text-transform: uppercase; color: #cde7ff; }
+    text-transform: uppercase; color: var(--selene);
+    font-family: 'Quicksand', sans-serif; font-weight: 700; }
   #panel h3 { margin: 18px 0 6px; font-size: 11px; letter-spacing: 0.22em;
     text-transform: uppercase; color: rgba(120,180,255,0.7); }
   #panel p { margin: 4px 0; font-size: 13px; line-height: 1.5; color: #a8c8ee; }
@@ -968,6 +1018,28 @@ async function localBrainReply(prompt, opts) {
   return { reply, meta: `via Astranov · own mind on-device · ${((Date.now()-t0)/1000).toFixed(1)}s` };
 }
 
+// Render the brain badge as a SMALL CONSTELLATION: a colored provider
+// dot (semantically meaningful — each organ gets its own color), the
+// model name in selene-silver, the latency as a tabular number with a
+// thin pulse-meter alongside. Replaces the boilerplate text line.
+function _renderBrainBadge(meta, raw) {
+  if (!meta) return null;
+  const engine = (raw?.engine || raw?.engineLabel || '').toLowerCase().replace(/[^a-z]/g,'');
+  const model  = (raw?.model || '').toString().split('/').pop().slice(0, 32);
+  const ms     = Number(raw?.latencyMs);
+  const sec    = Number.isFinite(ms) ? (ms / 1000).toFixed(1) + 's' : '';
+  const wrap = document.createElement('div'); wrap.className = 'msg-meta';
+  const dotCls = ['groq','anthropic','openrouter','gemini','astranov','deepseek','mistral','perplexity']
+                  .find(k => engine.includes(k)) || '';
+  wrap.innerHTML =
+    '<span class="dot ' + dotCls + '"></span>' +
+    '<span>' + escapeHtml((raw?.engineLabel || raw?.engine || 'brain').toUpperCase()) + '</span>' +
+    (model ? '<span class="model">· ' + escapeHtml(model) + '</span>' : '') +
+    (sec   ? '<span class="lat">· ' + escapeHtml(sec) + '</span>' : '') +
+    '<span class="meter"></span>';
+  return wrap;
+}
+
 function appendMsg(role, text, meta) {
   const div = document.createElement('div'); div.className = 'msg ' + role; div.textContent = text;
   if (meta) {
@@ -1126,22 +1198,41 @@ function _listenOrbState() {
   if (VOICE.state === 'speaking') orb.classList.add('speaking');
 }
 
+// SELENE voice picker — pursues the BEST neural voice the device has,
+// ranking explicitly for English + Greek. The architect's standard:
+// no robotic Atari sound. We never pretend; if no neural voice exists
+// we still speak with the best available, honest about the fallback.
 function _voiceForLang(lang) {
   const voices = speechSynthesis.getVoices() || [];
-  const want   = lang === 'el' ? /^el/i : /^en/i;
-  const pool   = voices.filter(v => want.test(v.lang || ''));
-  const list   = pool.length ? pool : voices;
-  return list.slice().sort((a, b) => {
-    const score = v => {
-      const n = String(v.name || ''); let s = 0;
-      if (/premium|enhanced|neural|natural/i.test(n)) s += 10;
-      if (/siri/i.test(n))   s += 8;
-      if (/google/i.test(n)) s += 6;
-      if (/samantha|alex|daniel|karen|tessa|stefanos|melina/i.test(n)) s += 4;
-      return s;
-    };
-    return score(b) - score(a);
-  })[0] || null;
+  const wantBase = lang === 'el' ? 'el' : 'en';
+  const matches = voices.filter(v => (v.lang || '').toLowerCase().startsWith(wantBase));
+  const pool = matches.length ? matches : voices;
+  const score = (v) => {
+    const n = String(v.name || ''); const lc = n.toLowerCase(); let s = 0;
+    // EXPLICITLY named neural voices the OS ships with — these are real upgrades.
+    // English neural (Apple / Google / Microsoft / Amazon)
+    if (/aria.*online.*natural|jenny.*natural|guy.*natural|ana.*natural/i.test(n)) s += 50;
+    if (/google\s*uk\s*english.*female|google\s*us\s*english.*female|google\s*english.*natural/i.test(n)) s += 45;
+    if (/eloquence|siri.*premium|siri.*enhanced/i.test(n)) s += 42;
+    if (/karen.*premium|samantha.*premium|daniel.*premium|moira.*premium/i.test(n)) s += 40;
+    // Greek neural
+    if (/nestoras.*natural|stefanos.*natural|melina.*natural/i.test(n)) s += 50;
+    if (/google\s*greek/i.test(n)) s += 45;
+    if (/melina|stefanos/i.test(n)) s += 30;
+    // Generic markers — still much better than no signal
+    if (/premium/i.test(n))  s += 14;
+    if (/enhanced/i.test(n)) s += 12;
+    if (/neural|natural/i.test(n)) s += 12;
+    if (/online/i.test(n))   s += 6;
+    if (/siri/i.test(n))     s += 8;
+    if (/google/i.test(n))   s += 6;
+    if (/microsoft/i.test(n))s += 4;
+    if (/compact/i.test(n))  s -= 6;   // compact = robotic; deprioritize
+    if (/(novelty|whisper|bahh|bells|cellos|deranged|hysterical|junior|kathy|pipe|princess|trinoids|whisper|zarvox)/i.test(lc)) s -= 30;
+    return s;
+  };
+  pool.sort((a, b) => score(b) - score(a));
+  return pool[0] || null;
 }
 
 function ttsSpeak(text) {
@@ -1314,11 +1405,17 @@ $('chat-form').addEventListener('submit', async (e) => {
   const isVoiceTurn = VOICE.voiceTurnPending; VOICE.voiceTurnPending = false;
   const stub = appendThinking();
   $('chat').classList.add('thinking');
+  document.body.classList.add('brain-thinking');
   const out = await callBrain(text, isVoiceTurn ? { mode: 'spartan' } : undefined);
   $('chat').classList.remove('thinking');
+  document.body.classList.remove('brain-thinking');
   stub.classList.remove('thinking-stub');
   stub.textContent = out.reply;
-  if (out.meta) { const m = document.createElement('div'); m.className = 'msg-meta'; m.textContent = out.meta; stub.appendChild(m); }
+  if (out.meta) {
+    const badge = _renderBrainBadge(out.meta, out.raw);
+    if (badge) stub.appendChild(badge);
+    else { const m = document.createElement('div'); m.className = 'msg-meta'; m.textContent = out.meta; stub.appendChild(m); }
+  }
   if (out.failed) {
     const r = document.createElement('div'); r.className = 'msg-meta';
     r.innerHTML = '<button class="pbtn ok" style="padding:4px 10px;font-size:11px" onclick="_retryBrain(this)">Retry</button>'
@@ -1986,15 +2083,32 @@ function _pinEmoji(p) {
   if (/hotel/.test(c))                      return '🏨';
   return '◍';
 }
+// SELENE hexagonal vendor pin — six-sided plate reads "structure", not
+// "balloon". Slight tilt suggests it sits on the globe surface; inner
+// radial fill keeps the category color; emoji centered for legibility.
 function _makePinCanvas(emoji, color) {
-  const c = document.createElement('canvas'); c.width = 64; c.height = 64;
+  const c = document.createElement('canvas'); c.width = 72; c.height = 72;
   const ctx = c.getContext('2d');
-  const g = ctx.createRadialGradient(32, 28, 4, 32, 32, 28);
-  g.addColorStop(0, '#fff'); g.addColorStop(0.45, color); g.addColorStop(1, '#08163c');
-  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(32, 32, 26, 0, Math.PI * 2); ctx.fill();
+  // Hexagon path (pointy-top, slightly squashed for ground perspective)
+  ctx.save();
+  ctx.translate(36, 36);
+  const r = 28, sy = 0.88;
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const a = -Math.PI / 2 + i * Math.PI / 3;
+    const x = Math.cos(a) * r, y = Math.sin(a) * r * sy;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+  const g = ctx.createRadialGradient(0, -4, 4, 0, 0, r);
+  g.addColorStop(0, '#ffffff'); g.addColorStop(0.4, color); g.addColorStop(1, '#08163c');
+  ctx.fillStyle = g; ctx.fill();
+  ctx.strokeStyle = 'rgba(207,226,255,0.55)'; ctx.lineWidth = 1.2; ctx.stroke();
+  ctx.restore();
+  // Emoji on top
   ctx.font = '24px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",serif';
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText(emoji, 32, 34);
+  ctx.fillText(emoji, 36, 38);
   return c;
 }
 
@@ -2112,13 +2226,29 @@ async function diveToVendors(keyword) {
     places = await fetchNearbyVendors(_userLat, _userLng, keyword);
   }
   if (!places.length) {
-    // HONEST empty — no fabrication, no fake fallback. Real OSM places
-    // (no menus) stay dim and waiting; published vendors are the only
-    // bright pins, and there are none yet. The user must be told this.
+    // SELENE empty-state. Honest, beautiful, not a bug screen.
     openPanel(`
-      <h2>Nothing for sale yet</h2>
-      <p>Crawler found nearby places, but none have published a menu with prices and photos through us. I never invent listings. List your business to be the first real pin here.</p>
-      <button class="pbtn ok" onclick="openAuthPanel()">List my business</button>
+      <h2>Be the first real pin here</h2>
+      <p style="color:var(--bone);opacity:0.85;font-size:13.5px;line-height:1.55">
+        I never invent listings — every vendor on this globe is REAL. Right now your area is honestly empty.
+        Sweep brought back nearby places, but none have published a menu through us yet. You can be the first.
+      </p>
+      <div style="display:flex;gap:10px;margin:14px 0;flex-wrap:wrap">
+        <div style="flex:1;min-width:140px;padding:14px;border-radius:14px;background:linear-gradient(160deg,rgba(255,212,126,0.10),rgba(255,170,51,0.03));border:1px solid rgba(255,212,126,0.35)">
+          <div style="font-family:'Quicksand',sans-serif;font-weight:700;letter-spacing:0.16em;font-size:11px;color:var(--gold);text-transform:uppercase">3% royalty</div>
+          <div style="font-size:13px;color:var(--selene);margin-top:6px">Per transaction · the only fee we take</div>
+        </div>
+        <div style="flex:1;min-width:140px;padding:14px;border-radius:14px;background:linear-gradient(160deg,rgba(74,166,255,0.12),rgba(30,108,255,0.04));border:1px solid rgba(74,166,255,0.35)">
+          <div style="font-family:'Quicksand',sans-serif;font-weight:700;letter-spacing:0.16em;font-size:11px;color:var(--aegean);text-transform:uppercase">Own your menu</div>
+          <div style="font-size:13px;color:var(--selene);margin-top:6px">Prices + photos · outside Google</div>
+        </div>
+        <div style="flex:1;min-width:140px;padding:14px;border-radius:14px;background:linear-gradient(160deg,rgba(126,235,180,0.10),rgba(46,130,90,0.03));border:1px solid rgba(126,235,180,0.35)">
+          <div style="font-family:'Quicksand',sans-serif;font-weight:700;letter-spacing:0.16em;font-size:11px;color:var(--emerald);text-transform:uppercase">Real-time</div>
+          <div style="font-size:13px;color:var(--selene);margin-top:6px">€1/km drivers, on-globe tracking</div>
+        </div>
+      </div>
+      <button class="pbtn ok" onclick="${session ? 'openVendorClaim()' : 'openAuthPanel()'}">${session ? 'List my business' : 'Sign in to list my business'}</button>
+      <button class="pbtn muted" onclick="closePanel()">Maybe later</button>
     `);
     setTimeout(_killSearchRing, 3500);
     return;
@@ -2268,6 +2398,45 @@ function _renderOrder(o) {
     <div class="row"><span>Paid</span><span>€${Number(o.calc?.total ?? 0).toFixed(2)}</span></div>
     <p style="margin-top:14px;font-size:11px;color:rgba(168,200,238,0.55)">Live updates as vendor + driver advance the order.</p>
   `);
+}
+
+/* ============================== Vendor onboarding ============================== */
+async function openVendorClaim() {
+  if (!session) return openAuthPanel();
+  if (_userLat == null) await locateMe();
+  openPanel(`
+    <h2>List my business</h2>
+    <p style="color:var(--bone);opacity:0.8">Drop a real pin at your real location. Then publish your menu with real prices and real photos. That's the law.</p>
+    <input id="vc-name"     placeholder="Business name">
+    <input id="vc-category" placeholder="Category: restaurant · cafe · bar · bakery · shop" value="restaurant">
+    <input id="vc-address"  placeholder="Street + city (optional)">
+    <button class="pbtn ok" onclick="vendorCreate()">Create my business</button>
+    <p style="font-size:11px;color:rgba(168,200,238,0.5);margin-top:14px">Your pin lands at your current GPS. You can move it later from the vendor panel.</p>
+  `);
+}
+async function vendorCreate() {
+  const name     = $('vc-name').value.trim();
+  const category = $('vc-category').value.trim().toLowerCase() || 'shop';
+  const street   = $('vc-address').value.trim();
+  if (!name) return toast('Name required', 'err');
+  if (_userLat == null) return toast('Need your location', 'err');
+  try {
+    const { data, error } = await sb.from('vendors').insert({
+      name, category, lat: _userLat, lng: _userLng,
+      emoji: _pinEmoji({ category }),
+      address: { street: street || null },
+      owner_id: session.user.id,
+      is_active: true,
+      items: [],
+    }).select().single();
+    if (error) throw error;
+    toast(name + ' created. Now publish your menu.', 'ok');
+    openPanel(`
+      <h2>${escapeHtml(name)} created</h2>
+      <p style="color:var(--bone)">Your pin is on the globe. It stays DIM until you publish at least one item with a real price + photo.</p>
+      <p style="color:rgba(168,200,238,0.7)">Vendor editor lands in the next cycle. For now, sit tight; you're #1 in this area.</p>
+    `);
+  } catch (e) { toast(e.message, 'err'); }
 }
 
 /* ============================== Driver — architect only (LAW §11) ============================== */

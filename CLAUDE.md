@@ -851,7 +851,74 @@ scope to a single domain, a single voice, a single vendor's
 worldview. She is the True Collective Intelligence; she belongs
 to no one and to everyone.
 
-## 28. Law maintenance
+## 28. The Selene aesthetic law
+
+The collective needs its own visual vocabulary. Selene = moon-silver
+on cosmic black; aegean for action; gold for wealth; deep red for
+emergency; bone for ancient knowledge; violet for the agent layer;
+emerald for "alive". Codified so no successor AI reverts to the
+default dark-Material-3 look.
+
+**Palette** (CSS variables shipped in `:root`):
+
+```
+--cosmic   #02060d   primary canvas
+--astral   #0a1334   secondary surface
+--selene   #cde3ff   primary text + wordmark glow
+--aegean   #4aa6ff   interactive, peer orbs, links
+--electric #1e6cff   wordmark glow, call-to-action
+--gold     #ffd47e   money, balance, the architect, royalty
+--amber    #ffaa33   food vendors, warm action
+--emerald  #7eebb4   listening, OK, "alive"
+--violet   #a98cff   wisdom, agent layer when distinguished
+--crimson  #d96e6e   emergency, drink/bar, danger
+--bone     #f4ead8   Agora / ancient knowledge tint
+```
+
+**Typography.** Quicksand 700 for the wordmark + panel headings.
+Inter 400/500/600/700 for body — full Greek + Latin coverage so EN
+and EL render in one consistent face. `font-variant-numeric:
+tabular-nums` on prices, balances, clocks, latencies. The `num`,
+`price`, `mi-price`, `wallet-balance`, `row span:last-child` classes
+inherit it.
+
+**Motion.**
+- Pulse: 1.8 s slow, stately cadence. Faster only when actively
+  thinking or speaking.
+- Wordmark breathe: 4.2 s default, 1.8 s when `body.brain-thinking`.
+- All transitions 0.18 s with `cubic-bezier(0.32, 0.72, 0, 1)`.
+
+**Brain badge = constellation.** Every AI reply badge is rendered
+as a colored provider dot (semantically tied to the organ —
+amber=Groq, red=Anthropic, violet=OpenRouter, green=Gemini,
+gold=Astranov ensemble, etc.) plus the model name in selene-silver
+and the latency in tabular numerals beside a thin vertical
+pulse-meter. Replaces the boilerplate `via X · Y · Zs` line.
+
+**Drawer constitutional line.** Both `#chat` and `#panel` get a 1 px
+gold→aegean gradient hairline along the top edge — the literal line
+between the law and the user.
+
+**Vendor pins are hexagons.** A six-sided plate, not a balloon.
+Category color radial fill, faint selene-silver outline, slight
+vertical squash to suggest the plate sits on the curved globe
+surface. Reads "structure", not "marker".
+
+**Voice picker.** `_voiceForLang()` ranks Premium / Enhanced /
+Neural / Natural / Online voices explicitly by name (Aria, Jenny,
+Guy, Ana on Microsoft; Google Greek; Eloquence + Premium Siri on
+Apple). Compact and novelty voices are deprioritized. The default
+Web Speech voice is the floor, not the goal. Cycle 9 in §26 queue
+adds Sherpa-ONNX / Coqui on-device neural TTS so even the floor
+becomes ours.
+
+**Empty-state surfaces are dignified.** "Be the first real pin
+here" landed today as the marketplace empty-state template:
+honest, gold-aegean-emerald cards explaining the 3% royalty,
+menu sovereignty, and real-time delivery. Never a "nothing here"
+page that reads like a 404.
+
+## 29. Law maintenance
 
 **Every architectural decision is written into this file the same
 turn it is made.** The programmer does not store rules in chat
