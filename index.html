@@ -1453,6 +1453,37 @@ function speakGreeting(text) {
 // The chat-input mic button is a SHORTCUT for the floating LISTEN orb.
 $('btn-mic').addEventListener('click', micToggle);
 
+// §20 — Agora reach. When the user's question looks like an ancient-
+// knowledge query (Greek figure, classical theme, EL script trigger),
+// pull the top knowledge rows BEFORE we ask the brain and inject them
+// as a [SOURCES] context block. Astranov then synthesises grounded in
+// real entries; the citation chips render under the reply with a tap
+// straight to the Agora entry. Foundation #2 made executable in chat.
+const _AGORA_RX = /\b(plato|πλάτων|aristotle|αριστοτέλ|socrates|σωκράτ|pythagor|πυθαγόρ|epicur|επίκουρ|heraclit|ηράκλειτ|democrit|δημόκριτ|athena|αθηνά|zeus|δίας|apollo|απόλλων|hermes|ερμής|poseidon|ποσειδών|artemis|άρτεμις|hera|ήρα|hephaest|ήφαιστ|ares|άρης|demeter|δήμητρ|dionysus|διόνυσ|odysse|οδυσσ|achill|αχιλλ|homer|όμηρ|sparta|σπάρτη|leonidas|λεωνίδα|delphi|δελφ|olymp|όλυμπ|ancient\s+greek|αρχαία\s+ελλην|mythology|μυθολογ|philosoph|φιλοσοφ|stoic|στωικ|cyni[ck]|κυνικ|sextant|σέξταντ)/i;
+async function _agoraReachForChat(text) {
+  if (!text || !_AGORA_RX.test(text)) return null;
+  try {
+    const { data, error } = await sb.rpc('knowledge_search', { q: text, max_results: 3 });
+    if (error) return null;
+    const rows = (data || []).filter(r => (r.summary || '').length > 40);
+    if (!rows.length) return null;
+    const lines = rows.map((r, i) =>
+      `[${i+1}] ${r.title || r.topic} (${r.subject}, ${r.source_name || 'source'}): ${(r.summary || '').slice(0, 380)}`
+    ).join('\n');
+    return {
+      contextBlock:
+`[AGORA CONTEXT — quote conservatively, name the source numbers, never launder]
+${lines}
+
+[QUESTION]
+${text}`,
+      sources: rows.map((r, i) => ({
+        n: i + 1, id: r.id, title: r.title || r.topic, url: r.source_url || '',
+        subject: r.subject, source: r.source_name || '',
+      })),
+    };
+  } catch (_) { return null; }
+}
 $('chat-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const input = $('chat-input');
@@ -1470,7 +1501,11 @@ $('chat-form').addEventListener('submit', async (e) => {
   const stub = appendThinking();
   $('chat').classList.add('thinking');
   document.body.classList.add('brain-thinking');
-  const out = await callBrain(text, isVoiceTurn ? { mode: 'spartan' } : undefined);
+  // Reach for Agora context BEFORE the brain call. The injected prompt
+  // grounds the reply in real entries; citations render under it.
+  const agora = await _agoraReachForChat(text);
+  const promptForBrain = agora ? agora.contextBlock : text;
+  const out = await callBrain(promptForBrain, isVoiceTurn ? { mode: 'spartan' } : undefined);
   $('chat').classList.remove('thinking');
   document.body.classList.remove('brain-thinking');
   stub.classList.remove('thinking-stub');
@@ -1483,6 +1518,19 @@ $('chat-form').addEventListener('submit', async (e) => {
     const badge = _renderBrainBadge(out.meta, out.raw);
     if (badge) stub.appendChild(badge);
     else { const m = document.createElement('div'); m.className = 'msg-meta'; m.textContent = out.meta; stub.appendChild(m); }
+  }
+  // Citation chips under the reply — Foundation #2 + §20: every claim
+  // about the ancients carries the source one tap away.
+  if (agora && !out.failed) {
+    const cite = document.createElement('div');
+    cite.className = 'msg-cite';
+    cite.style.cssText = 'margin-top:6px;display:flex;flex-wrap:wrap;gap:6px';
+    cite.innerHTML = agora.sources.map(s => `
+      <button onclick="agoraOpen('${s.id}')" title="${escapeHtml(s.source)}"
+        style="background:rgba(244,234,216,0.10);border:1px solid rgba(244,234,216,0.35);color:var(--bone);
+        font-size:10.5px;letter-spacing:0.06em;padding:3px 8px;border-radius:999px;cursor:pointer">
+        [${s.n}] ${escapeHtml(s.title)}</button>`).join('');
+    stub.appendChild(cite);
   }
   if (out.failed) {
     const r = document.createElement('div'); r.className = 'msg-meta';
