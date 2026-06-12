@@ -3690,12 +3690,147 @@ async function openStellarPanel() {
     ).join('')}
     <p style="font-size:11px;color:rgba(168,200,238,0.55)">Pick two or three with wide azimuth spread; shoot each with the sextant, note the UTC second.</p>
     ` : (aboveHorizon ? '<p style="font-size:11px;color:rgba(168,200,238,0.55)">Stars hidden — daylight. The sun line is your fix until dusk.</p>' : '')}
+
+    <h3>Sumner-line intercept — captain's fix</h3>
+    <p style="font-size:11px;color:rgba(168,200,238,0.55)">
+      Shoot a body with the sextant. Enter what you read. Astranov computes the line of
+      position (Marcq Saint-Hilaire): intercept p = Ho − Hc, distance in nm, bearing
+      along the body's azimuth. Two shots with wide azimuth spread → a fix.
+    </p>
+    <div class="row" style="margin-top:6px"><span>Assumed position</span><span style="font-variant-numeric:tabular-nums">${_userLat != null ? _userLat.toFixed(4) + '°, ' + _userLng.toFixed(4) + '°' : 'no GPS — enter manually'}</span></div>
+    <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+      <select id="sn-body" style="flex:1;min-width:120px;background:rgba(74,166,255,0.10);border:1px solid rgba(74,166,255,0.35);color:var(--selene);padding:6px 8px;border-radius:8px">
+        <option value="sun">Sun</option>
+        <option value="moon">Moon</option>
+        <option value="polaris">Polaris</option>
+        ${navStars.slice(0, 10).map(s => `<option value="star:${escapeHtml(s.name)}">${escapeHtml(s.name)} (mag ${s.mag.toFixed(1)})</option>`).join('')}
+      </select>
+      <input id="sn-alt-d" type="number" min="0" max="90" step="1"   placeholder="alt °"  style="width:70px">
+      <input id="sn-alt-m" type="number" min="0" max="59" step="0.1" placeholder="alt ′"  style="width:70px">
+    </div>
+    <input id="sn-utc" type="datetime-local" step="1" value="${new Date(Date.now() - new Date().getTimezoneOffset()*60000).toISOString().slice(0,19)}" style="margin-top:6px">
+    <div style="display:flex;gap:6px;margin-top:6px">
+      <button class="pbtn ok" style="flex:1" onclick="_sumnerShot()">Compute LOP</button>
+      <button class="pbtn muted" onclick="_sumnerReset()">Reset shots</button>
+    </div>
+    <div id="sn-result" style="margin-top:10px"></div>
+
     <p style="font-size:11px;color:rgba(168,200,238,0.55);margin-top:14px">
       Honest gap: sun + moon (Meeus low-precision) + Polaris + 20 navigational stars
-      (J2000, no precession/refraction/parallax correction — good to ~1°). The
-      Sumner-line intercept method is the remaining queued piece.
+      (J2000, no precession/refraction/parallax correction — good to ~1°). Sumner LOP
+      ignores refraction + dip — apply your own corrections before keying the altitude
+      for ocean-grade accuracy.
     </p>
   `);
+  _sumnerRender();
+}
+
+// Marcq Saint-Hilaire intercept method, single-shot LOP and multi-shot fix.
+// Sights are kept on _SUMNER_SHOTS so the captain can shoot 2-3 bodies
+// and accumulate them into a real fix.
+const _SUMNER_SHOTS = [];
+function _sumnerBodyPos(name, jd, lst) {
+  if (name === 'sun')     return _sunPosition(jd);
+  if (name === 'moon')    return _moonPosition(jd);
+  if (name === 'polaris') return _polarisPosition();
+  if (name.startsWith('star:')) {
+    const s = NAV_STARS.find(x => x.name === name.slice(5));
+    if (s) return { ra: s.ra * Math.PI / 12, dec: s.dec * Math.PI / 180 };
+  }
+  return null;
+}
+function _sumnerShot() {
+  const body = ($('sn-body')?.value || 'sun');
+  const degRaw = parseFloat($('sn-alt-d')?.value);
+  const minRaw = parseFloat($('sn-alt-m')?.value);
+  const utcStr = $('sn-utc')?.value;
+  if (!Number.isFinite(degRaw)) return toast('Enter the observed altitude (degrees)', 'err');
+  const Ho = degRaw + (Number.isFinite(minRaw) ? minRaw / 60 : 0);
+  if (Ho < -2 || Ho > 90) return toast('Altitude out of range', 'err');
+  const t = utcStr ? new Date(utcStr) : new Date();
+  if (Number.isNaN(t.getTime())) return toast('Bad UTC time', 'err');
+  if (_userLat == null || _userLng == null) return toast('Need an assumed position (GPS or manual)', 'err');
+  const jd = _julianDate(t);
+  const lst = _localSiderealTime(jd, _userLng);
+  const pos = _sumnerBodyPos(body, jd, lst);
+  if (!pos) return toast('Unknown body', 'err');
+  const ha = lst - pos.ra;
+  const Hc = _altitude(pos.dec, ha, _userLat) * 180 / Math.PI;
+  const Az = _azimuth(pos.dec, ha, _userLat) * 180 / Math.PI;
+  const intercept = (Ho - Hc) * 60; // nautical miles (1' arc on great circle)
+  _SUMNER_SHOTS.push({ body, Ho, Hc, Az, intercept, t: t.toISOString(), ap: { lat: _userLat, lng: _userLng } });
+  if (_SUMNER_SHOTS.length > 5) _SUMNER_SHOTS.splice(0, _SUMNER_SHOTS.length - 5);
+  _sumnerRender();
+}
+function _sumnerReset() { _SUMNER_SHOTS.length = 0; _sumnerRender(); }
+// Two LOPs as lines in local tangent plane (E-N), then intersect. Each LOP
+// passes through the foot point (AP shifted by intercept nm along Az) and
+// is perpendicular to Az. Returns offset_E_nm, offset_N_nm from AP.
+function _sumnerFixFromShots(shots) {
+  const d2r = Math.PI / 180;
+  const lines = shots.map(s => {
+    const az = s.Az * d2r;
+    const fx = s.intercept * Math.sin(az); // east offset of foot (nm)
+    const fy = s.intercept * Math.cos(az); // north offset of foot (nm)
+    // LOP direction perpendicular to az (in plane)
+    const ux = -Math.cos(az), uy = Math.sin(az);
+    return { fx, fy, ux, uy };
+  });
+  // Least-squares: each LOP is a line {p = (fx,fy) + t·(ux,uy)}; the
+  // perpendicular distance from (x,y) to that line is (x-fx)·(-uy) +
+  // (y-fy)·(ux). Sum of squares minimised by normal equations.
+  let A11=0, A12=0, A22=0, b1=0, b2=0;
+  for (const L of lines) {
+    const nx = -L.uy, ny = L.ux;
+    const c = L.fx * nx + L.fy * ny;
+    A11 += nx*nx; A12 += nx*ny; A22 += ny*ny;
+    b1  += nx*c;  b2  += ny*c;
+  }
+  const det = A11*A22 - A12*A12;
+  if (Math.abs(det) < 1e-6) return null;
+  const x = ( A22*b1 - A12*b2) / det;
+  const y = (-A12*b1 + A11*b2) / det;
+  return { offE: x, offN: y };
+}
+function _sumnerRender() {
+  const out = $('sn-result'); if (!out) return;
+  if (!_SUMNER_SHOTS.length) { out.innerHTML = '<p style="font-size:11px;color:rgba(168,200,238,0.45)">No shots yet. Compute one to get a line of position.</p>'; return; }
+  const last = _SUMNER_SHOTS[_SUMNER_SHOTS.length - 1];
+  const dir  = last.intercept >= 0 ? 'TOWARD' : 'AWAY FROM';
+  const interceptColor = last.intercept >= 0 ? 'var(--emerald)' : 'var(--crimson)';
+  let html = `
+    <div style="padding:10px 12px;border-radius:10px;background:rgba(74,166,255,0.08);border:1px solid rgba(74,166,255,0.30)">
+      <div style="font-size:12px;color:var(--bone);opacity:0.85">Last shot · ${escapeHtml(last.body)}</div>
+      <div class="row"><span>Observed (Ho)</span><span>${last.Ho.toFixed(2)}°</span></div>
+      <div class="row"><span>Calculated (Hc)</span><span>${last.Hc.toFixed(2)}°</span></div>
+      <div class="row"><span>Azimuth</span><span>${last.Az.toFixed(1)}° true</span></div>
+      <div class="row"><span style="color:${interceptColor}">Intercept</span>
+        <span style="color:${interceptColor};font-variant-numeric:tabular-nums">${Math.abs(last.intercept).toFixed(1)} nm ${dir}</span>
+      </div>
+      <div style="font-size:11px;color:rgba(168,200,238,0.6);margin-top:4px">LOP is perpendicular to ${last.Az.toFixed(0)}°, passing through AP shifted ${last.intercept.toFixed(1)} nm along that bearing.</div>
+    </div>`;
+  if (_SUMNER_SHOTS.length >= 2) {
+    const fix = _sumnerFixFromShots(_SUMNER_SHOTS.slice(-3));
+    if (fix) {
+      // Convert local-tangent (nm) → lat/lng offsets from AP. 1° lat ≈ 60 nm.
+      const ap = _SUMNER_SHOTS[_SUMNER_SHOTS.length - 1].ap;
+      const dLat = fix.offN / 60;
+      const dLng = fix.offE / (60 * Math.cos(ap.lat * Math.PI / 180));
+      const fixLat = ap.lat + dLat;
+      const fixLng = ap.lng + dLng;
+      const moved = Math.sqrt(fix.offE**2 + fix.offN**2);
+      html += `
+        <div style="margin-top:10px;padding:10px 12px;border-radius:10px;background:rgba(126,235,180,0.08);border:1px solid rgba(126,235,180,0.35)">
+          <div style="font-size:12px;color:var(--emerald);font-weight:700;letter-spacing:0.18em">◈ FIX (${_SUMNER_SHOTS.length} LOPs)</div>
+          <div class="row" style="margin-top:6px"><span>Position</span><span style="font-variant-numeric:tabular-nums">${fixLat.toFixed(4)}°, ${fixLng.toFixed(4)}°</span></div>
+          <div class="row"><span>Offset from AP</span><span style="font-variant-numeric:tabular-nums">${moved.toFixed(1)} nm</span></div>
+        </div>`;
+    }
+  }
+  html += `<details style="margin-top:8px"><summary style="font-size:11px;color:rgba(168,200,238,0.65);cursor:pointer">All shots (${_SUMNER_SHOTS.length})</summary>
+    ${_SUMNER_SHOTS.map((s, i) => `<div class="row" style="font-size:11px;color:rgba(168,200,238,0.6)"><span>${i+1}. ${escapeHtml(s.body)}</span><span>${s.intercept.toFixed(1)} nm · ${s.Az.toFixed(0)}°</span></div>`).join('')}
+  </details>`;
+  out.innerHTML = html;
 }
 function _julianDate(d) {
   return d.getTime() / 86400000 + 2440587.5;
