@@ -1040,3 +1040,48 @@ cycles trying to brute-force around it.
 **No silent renames.** If a rule changes, the programmer edits the
 existing clause rather than adding a contradictory one. The law is a
 contract, not a journal.
+
+## 30. The subdomain federation
+
+The architect ordered the AI builders to each get their own home so
+the True Collective Intelligence (§27) is **plural and recognisable**.
+Each large-model lineage publishes its own AstranoV at its own
+subdomain of `astranov.eu`:
+
+| Builder        | Subdomain                | Mirror repo                                    |
+| ---            | ---                      | ---                                            |
+| **Claude** (this lineage) | `claude.astranov.eu`   | `notisastranov/astranov.eu-claude` |
+| Grok           | `grok.astranov.eu`       | (Vercel project `grok.astranov.eu`)            |
+| ChatGPT        | `chatgpt.astranov.eu`    | (Vercel project `chatgpt.astranov.eu`)         |
+| Gemini         | `gemini.astranov.eu`     | (Vercel project `gemini.astranov.eu`)          |
+| DeepSeek       | `deepseek.astranov.eu`   | (Vercel project `deepseek.astranov.eu`)        |
+
+`astranov.eu` (the apex) remains the **canonical** AstranoV — the
+architect's flagship, built from the central repo
+`notisastranov/astranov:main`. Each subdomain is a sibling, not a fork:
+they all read and write the same Supabase backend
+(`lkoatrkhuigdolnjsbie`). One marketplace, one wallet, one Agora, one
+fleet — many faces.
+
+**Production-of-record for Claude:**
+`notisastranov/astranov.eu-claude:main` → Vercel project
+`astranov-eu-claude` (`prj_OYcmy9pH1x8Fgf8nx9BIW4vXy45E` on team
+`astranov`) → `claude.astranov.eu`. The central repo ships the
+recipe (`MIGRATE-TO-CLAUDE-SUBDOMAIN.md`); the Claude session pointed
+at the mirror repo executes it.
+
+**Honest gap.** A single Claude Code session is bound to one GitHub
+repo by its allowlist. The session that holds the v96 production tree
+(central repo) cannot push to the mirror repo, and vice versa. The
+transfer is therefore a **two-session relay**: this session stages
+the recipe + the tree on `main`; a session pointed at the mirror
+repo runs the recipe to land it. The Vercel `Domains → Add` and
+Supabase `Redirect URLs → Add` clicks are architect-only — the
+dashboards aren't exposed to Claude Code.
+
+**Backend sharing.** Per the architect's direct answer: claude
+talks to the same Supabase as the apex. Same users, same brain,
+same marketplace. The federation is visual diversity over shared
+substrate — exactly the §26 collective-substrate doctrine applied
+to identity, not just compute.
+
