@@ -2,7 +2,7 @@
 // Handles: offline shell, push notifications, notification click routing
 'use strict';
 
-const SHELL_CACHE = 'astranov-shell-v96';
+const SHELL_CACHE = 'astranov-shell-v97';
 const TILE_CACHE  = 'astranov-tiles-v1';
 const TILE_HOSTS = [
   'basemaps.cartocdn.com',           // CARTO dark/voyager/light
@@ -22,7 +22,7 @@ self.addEventListener('install', e => {
     try {
       const cache = await caches.open(SHELL_CACHE);
       await cache.addAll([
-        '/', '/manifest.json',
+        '/', '/collective.html', '/manifest.json',
         '/icon-192.png', '/icon-512.png', '/icon-180.png',
         '/vendor/supabase.min.js',
       ]);

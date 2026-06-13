@@ -190,6 +190,37 @@ const FOUNDATIONS = [
 const $ = id => document.getElementById(id);
 const scroll = $('scroll');
 const history = [];   // running conversation for the brain
+const REQUEST_TIMEOUT_MS = 25_000;
+
+async function brainRequest(payload) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(SUPABASE_URL + '/functions/v1/aicycle', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: 'Bearer ' + SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data?.error || ('HTTP ' + response.status));
+    }
+    if (data?.error) throw new Error(data.error);
+    return data;
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw new Error('The brain took too long to respond. Please retry.');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 // ===== starfield =====
 (function starfield(){
@@ -252,15 +283,7 @@ async function askBrain(prompt){
   let lastErr = null;
   for (let attempt = 0; attempt < 2; attempt++){
     try {
-      const r = await fetch(SUPABASE_URL + '/functions/v1/aicycle', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', apikey: SUPABASE_ANON_KEY,
-                   Authorization: 'Bearer ' + SUPABASE_ANON_KEY },
-        body: JSON.stringify(body),
-      });
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      const data = await r.json();
-      if (data?.error) throw new Error(data.error);
+      const data = await brainRequest(body);
       const reply = (data.response || data.text || '').trim() || '(no reply)';
       const ms = Number(data.latencyMs) || (Date.now() - t0);
       const label = data.engineLabel || data.engine || 'brain';
@@ -393,22 +416,16 @@ $('composer').addEventListener('submit', e => {
 });
 $('mic').addEventListener('click', micToggle);
 
-// ===== boot: prove the brain is reachable, then greet =====
+// ===== boot =====
 (async function boot(){
   welcome();
-  try {
-    const r = await fetch(SUPABASE_URL + '/functions/v1/aicycle', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY },
-      body: JSON.stringify({ prompt: 'ping', history: [], engine: 'astranov' }),
-    });
-    const data = await r.json().catch(() => ({}));
-    const label = data?.engineLabel || data?.engine;
-    $('brain-pill-txt').textContent = label ? ('BRAIN · ' + label) : 'BRAIN ✓';
-  } catch(_) {
-    $('brain-pill-txt').textContent = 'BRAIN ◇';
-  }
+  // Do not spend an AI request just to render the page. The first real
+  // message performs the health check and reports a recoverable error.
+  $('brain-pill-txt').textContent = navigator.onLine ? 'BRAIN · READY' : 'BRAIN · OFFLINE';
 })();
+
+addEventListener('online', () => { $('brain-pill-txt').textContent = 'BRAIN · READY'; });
+addEventListener('offline', () => { $('brain-pill-txt').textContent = 'BRAIN · OFFLINE'; });
 </script>
 </body>
 </html>
