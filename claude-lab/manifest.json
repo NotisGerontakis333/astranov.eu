@@ -1,0 +1,15 @@
+{
+  "name": "AstranoV · Claude Lab",
+  "short_name": "AstranoV",
+  "description": "Globe-first Internet OS — Claude Lab face of the AstranoV federation.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#02060d",
+  "theme_color": "#02060d",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

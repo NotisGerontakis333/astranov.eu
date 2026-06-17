@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1">
+<meta name="theme-color" content="#02060d">
+<title>ASTRANOV · Claude Lab</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/icon-192.png">
+<link rel="apple-touch-icon" href="/icon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cesium.com/downloads/cesiumjs/releases/1.118/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+<style>
+  /* ── §28 Selene palette ───────────────────────────── */
+  :root{
+    --cosmic:#02060d; --astral:#0a1334; --selene:#cde3ff; --aegean:#4aa6ff;
+    --electric:#1e6cff; --gold:#ffd47e; --amber:#ffaa33; --emerald:#7eebb4;
+    --violet:#a98cff; --crimson:#d96e6e; --bone:#f4ead8;
+    --ease:cubic-bezier(0.32,0.72,0,1);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  html,body{margin:0; height:100%; overflow:hidden; background:var(--cosmic); color:var(--selene);
+    font-family:Inter,system-ui,sans-serif; font-variant-numeric:tabular-nums; overscroll-behavior:none}
+  #globe{position:fixed; inset:0; width:100%; height:100%}
+  .cesium-widget-credits,.cesium-viewer-bottom{display:none!important}
+
+  /* ── Wordmark ─────────────────────────────────────── */
+  #mark{position:fixed; top:max(18px,env(safe-area-inset-top)); left:0; right:0; text-align:center;
+    pointer-events:none; z-index:20}
+  #mark .word{font-family:Quicksand,sans-serif; font-weight:700; font-size:clamp(26px,7vw,46px);
+    letter-spacing:.34em; color:var(--selene); text-shadow:0 0 28px var(--electric),0 0 60px #1e6cff66;
+    animation:breathe 4.2s var(--ease) infinite}
+  body.thinking #mark .word{animation-duration:1.8s}
+  #mark .sub{margin-top:4px; font-size:10px; letter-spacing:.32em; color:var(--aegean); opacity:.8}
+  @keyframes breathe{0%,100%{opacity:.86}50%{opacity:1}}
+
+  /* ── Orbs ─────────────────────────────────────────── */
+  .orb{position:fixed; z-index:40; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    width:62px; height:62px; border-radius:50%; cursor:pointer; user-select:none; touch-action:none;
+    background:radial-gradient(circle at 50% 35%,#0a1334ee,#02060d); border:1px solid #4aa6ff55;
+    box-shadow:0 0 22px #1e6cff44, inset 0 0 14px #4aa6ff22; transition:transform .18s var(--ease)}
+  .orb:active{transform:scale(.93)}
+  .orb .glyph{font-size:22px; line-height:1; color:var(--aegean); text-shadow:0 0 12px var(--aegean)}
+  .orb .lbl{font-size:8px; letter-spacing:.14em; margin-top:3px; color:var(--selene); opacity:.85}
+  .orb.pulse{animation:pulse 1.8s var(--ease) infinite}
+  @keyframes pulse{0%,100%{box-shadow:0 0 22px #1e6cff44,inset 0 0 14px #4aa6ff22}
+    50%{box-shadow:0 0 40px #1e6cffaa,inset 0 0 18px #4aa6ff55}}
+  #orbSignin{top:calc(env(safe-area-inset-top) + 78px); right:18px}
+  #orbListen{bottom:calc(env(safe-area-inset-bottom) + 110px); left:18px}
+  #orbListen .glyph{color:var(--emerald); text-shadow:0 0 12px var(--emerald)}
+  #orbListen.off .glyph{color:var(--crimson); text-shadow:0 0 10px var(--crimson)}
+  #orbListen.speaking .glyph{color:var(--aegean)}
+  #orbGlobe{bottom:calc(env(safe-area-inset-bottom) + 110px); right:18px; display:none}
+
+  /* ── Chat dock ────────────────────────────────────── */
+  #dock{position:fixed; left:0; right:0; bottom:0; z-index:50; padding:10px 12px max(12px,env(safe-area-inset-bottom));
+    display:flex; gap:8px; align-items:flex-end;
+    background:linear-gradient(to top,#02060dfa,#02060d00)}
+  #dock::before{content:""; position:absolute; top:0; left:0; right:0; height:1px;
+    background:linear-gradient(90deg,var(--gold),var(--aegean))}
+  #ask{flex:1; min-height:50px; max-height:140px; resize:none; padding:14px 18px; border-radius:26px;
+    background:#0a1334cc; border:1px solid #4aa6ff44; color:var(--selene); font:inherit; font-size:16px;
+    outline:none; backdrop-filter:blur(8px)}
+  #ask::placeholder{color:#cde3ff66}
+  #send{flex:0 0 50px; height:50px; border-radius:50%; border:none; cursor:pointer; font-size:20px;
+    background:linear-gradient(135deg,var(--aegean),var(--electric)); color:#001; font-weight:700}
+
+  /* ── Bottom drawer ────────────────────────────────── */
+  #scrim{position:fixed; inset:0; z-index:55; background:#02060d88; opacity:0; pointer-events:none;
+    transition:opacity .22s var(--ease)}
+  #scrim.on{opacity:1; pointer-events:auto}
+  #drawer{position:fixed; left:0; right:0; bottom:0; z-index:60; transform:translateY(102%);
+    transition:transform .28s var(--ease); max-height:84vh; display:flex; flex-direction:column;
+    background:linear-gradient(to bottom,#0a1334,#02060d); border-radius:20px 20px 0 0;
+    border-top:1px solid; border-image:linear-gradient(90deg,var(--gold),var(--aegean)) 1;
+    box-shadow:0 -20px 60px #000a; padding-bottom:env(safe-area-inset-bottom)}
+  #drawer.on{transform:translateY(0)}
+  #handle{flex:0 0 auto; padding:10px 0 6px; display:flex; justify-content:center; cursor:grab; touch-action:none}
+  #handle i{display:block; width:42px; height:5px; border-radius:3px; background:#4aa6ff66}
+  #dTitle{font-family:Quicksand,sans-serif; font-weight:700; font-size:17px; letter-spacing:.04em;
+    padding:0 20px 10px; color:var(--selene)}
+  #dBody{overflow-y:auto; padding:0 18px 20px; -webkit-overflow-scrolling:touch}
+
+  /* ── Chat thread ──────────────────────────────────── */
+  .msg{margin:10px 0; max-width:88%; padding:11px 15px; border-radius:16px; line-height:1.5; font-size:15px;
+    white-space:pre-wrap; word-wrap:break-word}
+  .msg.me{margin-left:auto; background:#1e6cff33; border:1px solid #4aa6ff55; border-bottom-right-radius:5px}
+  .msg.ai{margin-right:auto; background:#0a1334; border:1px solid #2a3a6a; border-bottom-left-radius:5px}
+  .msg.ai.err{border-color:var(--crimson); color:#ffd9d9}
+  .badge{display:flex; align-items:center; gap:6px; margin-top:7px; font-size:11px; color:#cde3ff99}
+  .badge .dot{width:7px; height:7px; border-radius:50%}
+  .badge .lat{color:var(--selene); opacity:.7}
+  .think .badge .dot{animation:pulse 1.1s infinite}
+  .retry{margin-top:8px; padding:5px 12px; border-radius:14px; border:1px solid var(--aegean);
+    background:transparent; color:var(--aegean); font:inherit; font-size:12px; cursor:pointer}
+
+  /* ── Forms / cards ────────────────────────────────── */
+  .field{width:100%; padding:13px 15px; margin:7px 0; border-radius:12px; background:#02060d;
+    border:1px solid #2a3a6a; color:var(--selene); font:inherit; font-size:15px; outline:none}
+  .btn{width:100%; padding:13px; margin:7px 0 3px; border-radius:12px; border:none; cursor:pointer;
+    font:inherit; font-weight:600; font-size:15px; background:linear-gradient(135deg,var(--aegean),var(--electric)); color:#001}
+  .btn.ghost{background:transparent; border:1px solid #4aa6ff55; color:var(--aegean)}
+  .btn.gold{background:linear-gradient(135deg,var(--gold),var(--amber)); color:#1a1000}
+  .hint{font-size:12px; color:#cde3ff77; margin:6px 2px; line-height:1.5}
+  .vcard{display:flex; gap:12px; align-items:center; padding:12px; margin:8px 0; border-radius:14px;
+    background:#0a1334; border:1px solid #2a3a6a}
+  .vcard .em{font-size:26px; flex:0 0 auto}
+  .vcard .nm{font-weight:600}
+  .vcard .meta{font-size:12px; color:#cde3ff88}
+  .empty{text-align:center; padding:30px 16px; color:#cde3ffaa}
+  .empty b{color:var(--gold)}
+
+  #toast{position:fixed; left:50%; top:calc(env(safe-area-inset-top) + 70px); transform:translateX(-50%) translateY(-20px);
+    z-index:90; padding:10px 18px; border-radius:20px; background:#0a1334ee; border:1px solid #4aa6ff66;
+    color:var(--selene); font-size:14px; opacity:0; pointer-events:none; transition:all .25s var(--ease)}
+  #toast.on{opacity:1; transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+  <div id="globe"></div>
+
+  <div id="mark">
+    <div class="word">ASTRANOV</div>
+    <div class="sub">CLAUDE&nbsp;LAB · claude.astranov.eu</div>
+  </div>
+
+  <div class="orb pulse" id="orbSignin" onclick="openAuth()"><span class="glyph">◈</span><span class="lbl">SIGN IN</span></div>
+  <div class="orb pulse off" id="orbListen" onclick="toggleListen()"><span class="glyph">◉</span><span class="lbl">LISTEN</span></div>
+  <div class="orb" id="orbGlobe" onclick="warpGlobal()"><span class="glyph">🜨</span><span class="lbl">GLOBE</span></div>
+
+  <div id="scrim" onclick="closeDrawer()"></div>
+  <div id="drawer">
+    <div id="handle"><i></i></div>
+    <div id="dTitle"></div>
+    <div id="dBody"></div>
+  </div>
+
+  <div id="dock">
+    <textarea id="ask" rows="1" placeholder="Ask Astranov, or type a place, food, or 'help'…"
+      enterkeyhint="send" oninput="grow(this)"></textarea>
+    <button id="send" onclick="submitAsk()">↑</button>
+  </div>
+
+  <div id="toast"></div>
+
+  <script src="https://cesium.com/downloads/cesiumjs/releases/1.118/Build/Cesium/Cesium.js"></script>
+  <script src="/vendor/supabase.min.js" onerror="loadSbCdn()"></script>
+  <script>
+  // ════════════════════════════════════════════════════════════════
+  //  ASTRANOV · Claude Lab — fresh ground-up build (v1)
+  //  Single file. Globe-first. Brain via aicycle. Shared Supabase backend.
+  //  Law: CLAUDE.md (apex) + _bootstrap/labs/claude/CLAUDE.md (lab).
+  // ════════════════════════════════════════════════════════════════
+  const SUPABASE_URL  = 'https://lkoatrkhuigdolnjsbie.supabase.co';
+  const SUPABASE_ANON  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxrb2F0cmtodWlnZG9sbmpzYmllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4ODIwOTIsImV4cCI6MjA5NDQ1ODA5Mn0.qf6Kg93YLJ0coTdVQa4baU0ppOdFY5WkmVzMvEV6ejI';
+  const CESIUM_ION_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIzYTI0NjM1MC05MTAyLTQ1NjItOGI5Yi1kZTUxMWVlODA0MzQiLCJpZCI6NDMyMzAwLCJzdWIiOiJBc3RyYW5vdiIsImlzcyI6Imh0dHBzOi8vaW9uLmNlc2l1bS5jb20iLCJhdWQiOiJBTENJIiwiaWF0IjoxNzc4OTIwOTU3fQ.HPPdCQ7u_BWDoS7uK5uwqHHtmUivbU82u_bwHLhHkag';
+
+  function loadSbCdn(){ const s=document.createElement('script');
+    s.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js'; document.head.appendChild(s); }
+
+  let sb=null, session=null, viewer=null, userLat=null, userLng=null;
+  const FOOD = /pizza|coffee|caf|food|eat|burger|sushi|kebab|gyro|souvlaki|bar|drink|breakfast|lunch|dinner|bakery|φαγητ|καφ|πειν/i;
+
+  // ── Boot ────────────────────────────────────────────
+  window.addEventListener('load', async ()=>{
+    bootGlobe();
+    if(window.supabase){ initSb(); } else { setTimeout(initSb, 1200); }
+    locate();
+    if('serviceWorker' in navigator){ navigator.serviceWorker.register('/sw.js').catch(()=>{}); }
+  });
+
+  function bootGlobe(){
+    try{
+      Cesium.Ion.defaultAccessToken = CESIUM_ION_TOKEN;
+      viewer = new Cesium.Viewer('globe',{
+        baseLayer: Cesium.ImageryLayer.fromProviderAsync(
+          Cesium.IonImageryProvider.fromAssetId(3954)),   // Esri World Imagery — real satellite §10
+        baseLayerPicker:false, geocoder:false, homeButton:false, sceneModePicker:false,
+        navigationHelpButton:false, animation:false, timeline:false, fullscreenButton:false,
+        infoBox:false, selectionIndicator:false, creditContainer:document.createElement('div')
+      });
+      const c = viewer.scene.screenSpaceCameraController;       // re-assert Google-Maps grammar §10
+      c.enableInputs=true; c.enableZoom=true; c.enableRotate=true; c.enableTilt=true; c.enableTranslate=true;
+      viewer.scene.globe.enableLighting=true;
+      viewer.scene.skyAtmosphere.show=true;
+      viewer.camera.flyTo({ destination:Cesium.Cartesian3.fromDegrees(23.7,37.98,28e6), duration:0 });
+      viewer.camera.moveEnd.addEventListener(()=>{
+        const h=viewer.camera.positionCartographic.height;
+        document.getElementById('orbGlobe').style.display = h<12e6 ? 'flex':'none';
+      });
+    }catch(e){ console.warn('globe', e); document.getElementById('globe').style.background='radial-gradient(circle at 50% 40%,#0a1334,#02060d)'; }
+  }
+  function warpGlobal(){ viewer && viewer.camera.flyTo({ destination:Cesium.Cartesian3.fromDegrees(23.7,37.98,28e6), duration:1.0 }); }
+
+  function locate(){
+    if(!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(p=>{ userLat=p.coords.latitude; userLng=p.coords.longitude; },()=>{},{timeout:8000});
+  }
+
+  // ── Supabase + auth ─────────────────────────────────
+  function initSb(){
+    if(!window.supabase) return;
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON, { auth:{ persistSession:true, autoRefreshToken:true } });
+    sb.auth.getSession().then(({data})=>{ session=data.session; reflectAuth(); });
+    sb.auth.onAuthStateChange((_e,s)=>{ const was=!!session; session=s; reflectAuth();
+      if(s && !was) toast('Welcome, '+(s.user.email||'traveller').split('@')[0]); });
+  }
+  function reflectAuth(){
+    const orb=document.getElementById('orbSignin');
+    if(session){ orb.style.display='none'; } else { orb.style.display='flex'; }
+  }
+
+  function openAuth(){
+    drawer('Sign in', `
+      <input class="field" id="auEmail" type="email" placeholder="you@email.com" autocomplete="email">
+      <input class="field" id="auPass" type="password" placeholder="password" autocomplete="current-password">
+      <button class="btn" onclick="emailAuth()">Enter</button>
+      <button class="btn gold" onclick="architectMagic()">Architect magic link</button>
+      <button class="btn ghost" onclick="testCreds()">Use test credentials</button>
+      <div class="hint">One backend across the federation — your AstranoV account works here, at the apex, and on every sibling subdomain.</div>`);
+  }
+  async function emailAuth(){
+    const email=val('auEmail'), password=val('auPass'); if(!email||!password) return toast('Email + password');
+    let {error}=await sb.auth.signInWithPassword({email,password});
+    if(error && /invalid/i.test(error.message)){ const r=await sb.auth.signUp({email,password}); error=r.error; }
+    if(error) return toast(error.message); closeDrawer();
+  }
+  async function architectMagic(){
+    const {error}=await sb.auth.signInWithOtp({email:'notisastranov@gmail.com',options:{emailRedirectTo:location.origin}});
+    toast(error?error.message:'Magic link sent to the architect.');
+  }
+  function testCreds(){ setVal('auEmail','astranov@astranov.eu'); setVal('auPass','astranov2026'); emailAuth(); }
+
+  // ── The brain — every prompt goes to aicycle (§14, no silent fallback) ──
+  async function callBrain(prompt, mode){
+    const headers={ 'Content-Type':'application/json', 'apikey':SUPABASE_ANON,
+      'Authorization':'Bearer '+((session&&session.access_token)?session.access_token:SUPABASE_ANON) };
+    const body=JSON.stringify({ message:prompt, mode:mode||'normal' });
+    const t0=performance.now();
+    // multi-path defense §21: invoke → direct fetch
+    let r;
+    try{
+      r = await fetch(SUPABASE_URL+'/functions/v1/aicycle',{method:'POST',headers,body});
+    }catch(e){ throw new Error('Brain unreachable: '+e.message); }
+    if(!r.ok){ throw new Error('Brain '+r.status+': '+(await r.text()).slice(0,200)); }
+    const j = await r.json().catch(()=>({}));
+    const reply = j.reply || j.message || j.text || j.content || (typeof j==='string'?j:'');
+    if(!reply) throw new Error('Brain returned empty');
+    return { reply, provider:j.provider||'astranov', model:j.model||'ensemble', latency:((performance.now()-t0)/1000).toFixed(1) };
+  }
+
+  const PROV={ anthropic:'#d96e6e', groq:'#ffaa33', openrouter:'#a98cff', gemini:'#7eebb4', astranov:'#ffd47e' };
+
+  async function submitAsk(){
+    const ta=document.getElementById('ask'); const q=ta.value.trim(); if(!q) return;
+    ta.value=''; grow(ta);
+    const low=q.toLowerCase();
+    // chat shortcuts §10
+    if(/^(globe|home)$/.test(low)) return warpGlobal();
+    if(/^(sign ?in|login)$/.test(low)) return openAuth();
+    if(FOOD.test(low)) return marketplace(low);
+
+    openChat();
+    addMsg(q,'me');
+    const stub=addMsg('','ai think'); stub.querySelector('.txt').textContent='…';
+    stub.querySelector('.badge').innerHTML='<span class="dot" style="background:'+PROV.astranov+'"></span> thinking';
+    document.body.classList.add('thinking');
+    try{
+      const {reply,provider,model,latency}=await callBrain(q,'normal');
+      stub.classList.remove('think'); stub.querySelector('.txt').textContent=reply;
+      stub.querySelector('.badge').innerHTML=
+        '<span class="dot" style="background:'+(PROV[provider]||PROV.astranov)+'"></span>'+
+        provider+' · '+model+' <span class="lat">'+latency+'s</span>';
+    }catch(e){
+      stub.classList.remove('think'); stub.classList.add('err');
+      stub.querySelector('.txt').textContent=e.message;
+      const b=stub.querySelector('.badge'); b.innerHTML='';
+      const rt=document.createElement('button'); rt.className='retry'; rt.textContent='Retry';
+      rt.onclick=()=>{ document.getElementById('ask').value=q; stub.remove(); submitAsk(); };
+      b.appendChild(rt);
+    }finally{ document.body.classList.remove('thinking'); }
+  }
+
+  function openChat(){
+    if(document.getElementById('dTitle').textContent!=='Astranov' || !drawerOpen()){
+      drawer('Astranov', '<div id="thread"></div>');
+    }
+  }
+  function addMsg(text,cls){
+    let th=document.getElementById('thread');
+    if(!th){ openChat(); th=document.getElementById('thread'); }
+    const m=document.createElement('div'); m.className='msg '+cls;
+    m.innerHTML='<span class="txt"></span><div class="badge"></div>';
+    m.querySelector('.txt').textContent=text;
+    th.appendChild(m); document.getElementById('dBody').scrollTop=1e7; return m;
+  }
+
+  // ── Marketplace §11 — real vendors only, never fabricated ──
+  async function marketplace(q){
+    drawer('Marketplace', '<div class="empty">Scanning the globe near you…</div>');
+    if(!sb){ return setBody('<div class="empty">Backend warming up — try again in a moment.</div>'); }
+    const lat=userLat??37.9838, lng=userLng??23.7275;       // default Athens
+    let rows=[];
+    try{
+      const {data}=await sb.rpc('nearby_signals',{p_lat:lat,p_lng:lng,radius_meters:6000,max_results:1}).catch(()=>({}));
+      const r=await sb.from('vendors').select('id,name,emoji,category,lat,lng,items').limit(60);
+      rows=(r.data||[]).filter(v=>Array.isArray(v.items) && v.items.some(it=>(it.price>0)&&(it.photo||it.image_url)));
+      rows.forEach(v=>{ v._d=haversine(lat,lng,v.lat,v.lng); }); rows.sort((a,b)=>a._d-b._d);
+    }catch(e){ return setBody('<div class="empty">Search failed: '+e.message+'</div>'); }
+    if(!rows.length){
+      return setBody(`<div class="empty"><b>Be the first real pin here.</b><br><br>
+        No vendor with a priced, photographed menu is live near you yet. AstranoV never
+        fabricates inventory — the map stays honestly empty until a real place publishes.
+        <br><br>3% royalty · menu sovereignty · real-time delivery.</div>`);
+    }
+    pinVendors(rows);
+    setBody(rows.slice(0,20).map(v=>`<div class="vcard"><div class="em">${v.emoji||'🍽️'}</div>
+      <div><div class="nm">${esc(v.name)}</div>
+      <div class="meta">${v.category||'food'} · ${(v._d/1000).toFixed(1)} km · ${v.items.filter(i=>i.price>0).length} items</div></div></div>`).join(''));
+  }
+  function pinVendors(rows){
+    if(!viewer) return;
+    viewer.entities.removeAll();
+    rows.slice(0,30).forEach(v=>{
+      viewer.entities.add({ position:Cesium.Cartesian3.fromDegrees(v.lng,v.lat),
+        point:{ pixelSize:13, color:Cesium.Color.fromCssColorString('#ffaa33'),
+          outlineColor:Cesium.Color.fromCssColorString('#cde3ff'), outlineWidth:1 },
+        label:{ text:v.name, font:'600 12px Inter', fillColor:Cesium.Color.fromCssColorString('#cde3ff'),
+          pixelOffset:new Cesium.Cartesian2(0,-22), style:Cesium.LabelStyle.FILL,
+          showBackground:true, backgroundColor:Cesium.Color.fromCssColorString('#0a1334cc') } });
+    });
+    const f=rows[0]; viewer.camera.flyTo({ destination:Cesium.Cartesian3.fromDegrees(f.lng,f.lat,35000), duration:1.2 });
+  }
+
+  // ── Voice (LISTEN orb §10/§22) ──────────────────────
+  let rec=null, listening=false;
+  function toggleListen(){
+    const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+    const orb=document.getElementById('orbListen');
+    if(!SR) return toast('Voice not supported on this browser');
+    if(listening){ listening=false; rec&&rec.stop(); orb.classList.add('off'); orb.classList.remove('speaking'); return; }
+    rec=new SR(); rec.continuous=true; rec.interimResults=true; rec.lang='en-US';
+    rec.onresult=e=>{ const r=e.results[e.results.length-1]; if(r.isFinal){
+      const t=r[0].transcript.trim(); if(t){ document.getElementById('ask').value=t; submitAsk(); }
+      rec.lang=/[Ͱ-Ͽ]/.test(r[0].transcript)?'el-GR':'en-US'; } };
+    rec.onend=()=>{ if(listening){ try{rec.start();}catch(_){} } };
+    try{ rec.start(); listening=true; orb.classList.remove('off'); }catch(_){}
+  }
+
+  // ── Drawer plumbing §10 (drag-to-dismiss, push orbs) ──
+  function drawer(title,html){
+    document.getElementById('dTitle').textContent=title;
+    document.getElementById('dBody').innerHTML=html;
+    document.getElementById('drawer').classList.add('on');
+    document.getElementById('scrim').classList.add('on');
+    pushOrbs(true);
+  }
+  function setBody(html){ document.getElementById('dBody').innerHTML=html; }
+  function closeDrawer(){
+    document.getElementById('drawer').classList.remove('on');
+    document.getElementById('scrim').classList.remove('on'); pushOrbs(false);
+  }
+  function drawerOpen(){ return document.getElementById('drawer').classList.contains('on'); }
+  function pushOrbs(up){
+    const h=up?Math.min(window.innerHeight*0.84, document.getElementById('drawer').offsetHeight)+18:0;
+    document.getElementById('orbListen').style.bottom=`calc(env(safe-area-inset-bottom) + ${110+ (up?h:0)}px)`;
+    document.getElementById('orbGlobe').style.bottom=`calc(env(safe-area-inset-bottom) + ${110+ (up?h:0)}px)`;
+  }
+  // drag handle
+  (()=>{ const h=document.getElementById('handle'), d=document.getElementById('drawer'); let y0=null;
+    const start=e=>{ y0=(e.touches?e.touches[0]:e).clientY; d.style.transition='none'; };
+    const move=e=>{ if(y0==null)return; const dy=Math.max(0,(e.touches?e.touches[0]:e).clientY-y0);
+      d.style.transform=`translateY(${dy}px)`; };
+    const end=e=>{ if(y0==null)return; const dy=(e.changedTouches?e.changedTouches[0]:e).clientY-y0;
+      d.style.transition=''; d.style.transform=''; if(dy>80) closeDrawer(); y0=null; };
+    h.addEventListener('touchstart',start); h.addEventListener('touchmove',move); h.addEventListener('touchend',end);
+    h.addEventListener('mousedown',e=>{ start(e); const mm=ev=>move(ev),mu=ev=>{end(ev);removeEventListener('mousemove',mm);removeEventListener('mouseup',mu);};
+      addEventListener('mousemove',mm); addEventListener('mouseup',mu); });
+  })();
+
+  // ── Draggable orbs (tap ≠ drag) §10 ─────────────────
+  document.querySelectorAll('.orb').forEach(orb=>{
+    let sx,sy,ox,oy,moved=false,down=false;
+    const start=e=>{ down=true; moved=false; const p=e.touches?e.touches[0]:e; sx=p.clientX; sy=p.clientY;
+      const r=orb.getBoundingClientRect(); ox=r.left; oy=r.top; };
+    const move=e=>{ if(!down)return; const p=e.touches?e.touches[0]:e; const dx=p.clientX-sx, dy=p.clientY-sy;
+      if(Math.abs(dx)+Math.abs(dy)>6){ moved=true; orb.style.left=(ox+dx)+'px'; orb.style.top=(oy+dy)+'px';
+        orb.style.right='auto'; orb.style.bottom='auto'; } };
+    const end=e=>{ down=false; if(moved){ e.preventDefault(); e.stopPropagation(); } };
+    orb.addEventListener('touchstart',start,{passive:true}); orb.addEventListener('touchmove',move,{passive:true});
+    orb.addEventListener('touchend',end); orb.addEventListener('mousedown',start);
+    addEventListener('mousemove',move); addEventListener('mouseup',end);
+    orb.addEventListener('click',e=>{ if(moved){ e.stopImmediatePropagation(); e.preventDefault(); } },true);
+  });
+
+  // ── helpers ─────────────────────────────────────────
+  function grow(t){ t.style.height='auto'; t.style.height=Math.min(140,t.scrollHeight)+'px'; }
+  document.getElementById('ask').addEventListener('keydown',e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); submitAsk(); } });
+  function val(id){ return (document.getElementById(id)||{}).value||''; }
+  function setVal(id,v){ const el=document.getElementById(id); if(el) el.value=v; }
+  function esc(s){ return String(s).replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c])); }
+  function haversine(la1,lo1,la2,lo2){ const R=6371e3,r=Math.PI/180,
+    a=Math.sin((la2-la1)*r/2)**2+Math.cos(la1*r)*Math.cos(la2*r)*Math.sin((lo2-lo1)*r/2)**2;
+    return 2*R*Math.asin(Math.sqrt(a)); }
+  let tT; function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('on');
+    clearTimeout(tT); tT=setTimeout(()=>t.classList.remove('on'),3200); }
+  </script>
+</body>
+</html>
