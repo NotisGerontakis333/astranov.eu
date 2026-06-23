@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -137,11 +137,9 @@ function focusOnGlobePoint(point) {
   cityLevel = camera.position.z < 2.2;
 }
 
-// =====================================================
 // ASTRANOV AI GRAPHICS ENGINE
 // Advanced gaming graphics - fully procedural, no 3D models
 // Uses layers, particles, canvas-generated textures, additive blending
-// =====================================================
 const AIGraphics = {
   atmosphere: null,
   clouds: null,
@@ -369,11 +367,9 @@ const AIGraphics = {
 // Initialize the engine right after Earth
 AIGraphics.init(scene);
 
-// =====================================================
 // STRONG ROUTING FALLBACK PROVIDER CYCLING ENGINE
 // For safe deliveries to users & drivers (pilot/drones)
 // Cycles providers + fallbacks on risk
-// =====================================================
 const RoutingEngine = {
   providers: ['direct', 'safeViaNorth', 'coastalDetour', 'wideSafeArc'],
   index: 0,
@@ -629,11 +625,6 @@ async function startOrbitalVideoCall(targetName = 'Αξαδίνα') {
       console.log('Offer copied to clipboard. Paste into remote (phone or another browser on orbital mesh).');
     });
 
-    // For demo in this file: if you paste an answer in console or modify, it works.
-    // In practice, exchange with phone via orbital internet for true global P2P.
-    // To complete demo here, we can wait for manual answer paste, but for now show self video and note.
-    // To make it work immediately in one file for testing, set a simple answer if needed, but this is the real API.
-
     // 5. Orbital globe visualization using real positions
     const myPos = window._meMarker ? window._meMarker.position : new THREE.Vector3();
     const targetPos = latLngToPos(36.2, 28.1, 1.04);
@@ -689,7 +680,6 @@ function reduceWirelessPollution() {
     }, 4000);
   }
 }
-
 
 function endRealOrbitalCall() {
   orbitalCallActive = false;
@@ -797,7 +787,7 @@ function handleVoiceCommand(event) {
   } else if (transcript.includes('work') || transcript.includes('δουλειά')) {
     requestLocationIfNeeded(() => {
       groupOrder();
-      speak('Ξεκινάμε δουλειά με τον ΤΗΛΕΜΑΧΟ.', () => provokeAnswer());
+      speak('Ξεκινάμε δουλειά με τον ΤΗΛΕΜΑΧΟΣ.', () => provokeAnswer());
     });
   } else if (transcript.includes('explore') || transcript.includes('εξερεύνηση')) {
     requestLocationIfNeeded(() => {
@@ -868,7 +858,6 @@ function requestLocationIfNeeded(onLocated) {
 }
 
 
-
 function placeMe(lat, lng) {
   if (window._meMarker && window._meMarker.parent) window._meMarker.parent.remove(window._meMarker);
   const pos = latLngToPos(lat, lng, 1.03);
@@ -916,7 +905,6 @@ function groupOrder() {
   earth.rotation.y = -28.1 * Math.PI / 180 + Math.PI/2;
   earth.rotation.x = -0.01;
   camera.position.z = 1.6;
-  camera.lookAt(0, 0, 0);
   
   // STRONG ROUTING FALLBACK PROVIDER CYCLING for safety
   const vendorLat = 36.8, vendorLng = 27.5;
