@@ -92,7 +92,7 @@
 ```js
 const isOfficial = host === 'astranov.eu' || host === 'grok.astranov.eu' || host.endsWith('.astranov.eu');
 const isLocal = ... || location.protocol === 'file:';
-if (host && !isOfficial && !isLocal) { block with Greek message }
+if (host && !isOfficial && !isLocal) { block with English message }
 ```
 
 ## 10. Deployment & Chat Recycling Rule (MANDATORY)
