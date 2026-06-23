@@ -46,7 +46,7 @@
 
 - Use Web SpeechRecognition + SpeechSynthesis.
 - Lang: 'el-GR'.
-- Behavior: speak short prompt → stop listening → wait for answer → handle → **provoke** ("Τι θες Αξάς;") .
+- Behavior: speak short prompt → stop listening → wait for answer → handle → **provoke** ("Τι θες Αξάς;").
 - Trigger: only when clicking the user marker.
 - Supported commands (voice or close Greek):
   - login / σύνδεση
@@ -92,7 +92,7 @@
 ```js
 const isOfficial = host === 'astranov.eu' || host === 'grok.astranov.eu' || host.endsWith('.astranov.eu');
 const isLocal = ... || location.protocol === 'file:';
-if (host && !isOfficial && !isLocal) { block with message }
+if (host && !isOfficial && !isLocal) { block with English message }
 ```
 
 ## 10. Deployment & Chat Recycling Rule (MANDATORY)
@@ -119,7 +119,7 @@ After every meaningful change to the app:
 - Upfront geo, camera, login, or voice.
 - Simulation language, "role play", fake data in user-facing paths.
 - Unauthorized brand names (Starlink, SpaceX, Grok, Εξαδερφίνα, Αξάκιας).
-- Greek letters for the app name "Astranov" (must be English).
+- English title or self-branding in the globe app.
 - Cat (Astri) or other non-specified creatures unless explicitly added later.
 - Fast/pulsing animations that were previously removed for safety (keep calm where possible, but pilot delivery can be visible).
 
