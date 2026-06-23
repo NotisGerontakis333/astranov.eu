@@ -144,9 +144,10 @@ After every meaningful change to the app:
 
 **Compliance achieved (this recycle cycle):**
 - All identified violations fixed in source (dupes removed, simulate purged, branding strings cleaned to Αστρανόβ / orbital only, showOrbitalSignal real impl, domain msg fixed, have fun removed, on-demand + provoke + globe-first confirmed).
-- Source synced to both indexes.
-- Pushed + merged to both repos (central main + feature branch).
-- Repeated audit + recycle performed.
+- Source synced to both indexes. Hashes identical.
+- Pushed + merged (git) to central main + feature branch on both repos.
+- Repeated full audit + recycle performed until zero violations.
+- Re-audit passed: no "Astranov"/"have fun"/active simulate/"satellite tech" in user paths. All rules followed.
 
 **This sheet is the contract.** When in doubt, recycle chat → update here → implement exactly. No drifting.
 
