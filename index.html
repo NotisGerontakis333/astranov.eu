@@ -77,8 +77,8 @@ const sgeo = new THREE.BufferGeometry();
 sgeo.setAttribute('position', new THREE.Float32BufferAttribute(starPos,3));
 scene.add(new THREE.Points(sgeo, new THREE.PointsMaterial({color:0xffffff, size:2.8, sizeAttenuation:false})));
 
-// Earth - bright fallback so globe is NEVER pitch black even before texture
-const earthMat = new THREE.MeshPhongMaterial({ shininess: 14, color: 0x55aaff, emissive: 0x224466 });
+// Earth - use BasicMaterial for guaranteed visibility (Phong can look black depending on lighting)
+const earthMat = new THREE.MeshBasicMaterial({ color: 0x44aaff });
 const earthTexUrl = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/earth_atmos_2048.jpg';
 new THREE.TextureLoader().load(
   earthTexUrl,
@@ -90,13 +90,21 @@ const earth = new THREE.Mesh( new THREE.SphereGeometry(1,64,64), earthMat );
 earth.rotation.y = 0.82;
 scene.add(earth);
 
-// Bright visible anchor (BasicMaterial = always lit) attached to Earth so user sees SOMETHING immediately
-const anchor = new THREE.Mesh(
-  new THREE.SphereGeometry(0.04, 10, 10),
-  new THREE.MeshBasicMaterial({ color: 0x00ffaa })
-);
-anchor.position.set(0.72, 0.28, 0.65); // surface-ish position facing initial camera
-earth.add(anchor);
+// Multiple bright visible anchors (guaranteed to show) so the globe is obviously there
+const anchor1 = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 8), new THREE.MeshBasicMaterial({ color: 0x00ffaa }));
+anchor1.position.set(0.72, 0.28, 0.65);
+earth.add(anchor1);
+
+const anchor2 = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 8), new THREE.MeshBasicMaterial({ color: 0xffaa00 }));
+anchor2.position.set(-0.6, -0.4, 0.75);
+earth.add(anchor2);
+
+// Visible equator ring - extra obvious geometry
+const ringGeo = new THREE.TorusGeometry(1.01, 0.012, 6, 48);
+const ringMat = new THREE.MeshBasicMaterial({ color: 0x00ddff, transparent: true, opacity: 0.7 });
+const equator = new THREE.Mesh(ringGeo, ringMat);
+equator.rotation.x = Math.PI / 2;
+earth.add(equator);
 
 // lat/lng to 3D sphere position
 function latLngToPos(lat, lng, r = 1) {
