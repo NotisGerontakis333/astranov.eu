@@ -110,7 +110,7 @@ serve(async (req) => {
       let raw: { id: string; content: string; profile_id: string }[] = []
       const { data: memRaw } = await sb.from('ai_memory')
         .select('id, content, profile_id')
-        .in('source', ['creator-dialogue', 'user-taught', 'cic_log'])
+        .in('source', ['creator-dialogue', 'user-taught', 'cic_log', 'field_log'])
         .eq('is_private', false).eq('distilled', false)
         .order('created_at', { ascending: true }).limit(80)
       raw = memRaw || []

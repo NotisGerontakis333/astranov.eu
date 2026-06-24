@@ -313,6 +313,9 @@ const MapDepict = {
       focusOnGlobePoint(new THREE.Vector3(fp.x, fp.y, fp.z));
     }
 
+    if (window.FieldBrain?.pulse) {
+      FieldBrain.pulse(type, detail || labels[type] || type, { role: opts.role });
+    }
     return { type, lat, lng };
   },
 

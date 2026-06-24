@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Astranov</title>
-<meta name="compliance-check" content="astranov-voice-single-queue-2026-06-24">
+<meta name="compliance-check" content="astranov-field-brain-multi-role-2026-06-24">
 <meta name="aci-session" content="Astranov Collective Intelligence">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
@@ -97,7 +97,7 @@
       <button id="aci-cli-toggle" title="Collective CLI (login required) · ` key" type="button">⌨</button>
       <button id="aci-stop" title="Stop — take control" type="button">⏹</button>
       <button id="aci-mic" title="Voice (tap while speaking to interrupt)" type="button">🎙</button>
-      <input id="aci-input" placeholder="connect · deploy · order · VHF · login G first…" />
+      <input id="aci-input" placeholder="connect · order · claim · roles · deploy · login G…" />
       <button id="aci-send" title="Send" type="button">→</button>
       <button id="aci-order" title="Order pitogyra" type="button">🥙</button>
       <button id="aci-vhf" title="EU PMR Ch11 — real mic + WebRTC (see steps)" type="button">📻</button>
@@ -511,6 +511,9 @@ const MapDepict = {
       focusOnGlobePoint(new THREE.Vector3(fp.x, fp.y, fp.z));
     }
 
+    if (window.FieldBrain?.pulse) {
+      FieldBrain.pulse(type, detail || labels[type] || type, { role: opts.role });
+    }
     return { type, lat, lng };
   },
 
@@ -627,6 +630,7 @@ const Auth = {
       }
     }
     this.updateOwnerUI();
+    if (window.FieldBrain) FieldBrain.onAuth();
     if (window.AciCli) AciCli.onAuthChange();
     if (this.isOwner && window.AciConnect && !window._aciAutoOpen) {
       window._aciAutoOpen = true;
@@ -890,6 +894,9 @@ const AciCli = {
         }
         this.print('connect | open     — link collective AI (required)');
         this.print('deploy <task>      — deployment plan (owner)');
+        this.print('roles              — your hats: client+driver+vendor');
+        this.print('claim <order_id>   — take delivery (any logged-in driver)');
+        if (Auth?.isOwner) this.print('field_stats        — field usage → brain (owner)');
         this.print('clear | exit | logout');
         this.print('…or any free text → think');
         return;
@@ -977,6 +984,24 @@ const AciCli = {
         return;
       }
       if (cmd === 'news') { NewsFeed.flash(); this.print('news', 'ok'); return; }
+      if (cmd === 'roles') {
+        await FieldBrain?.onAuth();
+        this.print('roles: ' + (FieldBrain?.roles || []).join(' + '), 'ok');
+        if (FieldBrain?.vendorIds?.length) this.print('vendors: ' + FieldBrain.vendorIds.join(', '), 'dim');
+        return;
+      }
+      if (cmd === 'claim') {
+        if (!rest) { this.print('usage: claim <order_id>', 'err'); return; }
+        const r = await FieldBrain?.claimDelivery(rest);
+        this.print(r?.ok ? 'claimed ' + (r.short_id || rest) : (r?.error || 'failed'), r?.ok ? 'ok' : 'err');
+        return;
+      }
+      if (cmd === 'field_stats') {
+        if (!Auth?.isOwner) { this.print('owner only', 'err'); return; }
+        const r = await this.api({ mode: 'field_stats' });
+        this.print(JSON.stringify(r).slice(0, 700), 'out');
+        return;
+      }
 
       if (!window._aciConnected) await AciConnect.connect(false);
       this.print('…', 'dim');
@@ -1070,6 +1095,110 @@ const AciConnect = {
   }
 };
 window.AciConnect = AciConnect;
+
+// === FIELD BRAIN — multi-role field usage → collective brain (compliant scope) ===
+// All logged-in users: client + driver. Vendor when they own a shop. Same person, all hats.
+
+const FIELD_SCOPE = new Set([
+  'heartbeat', 'login', 'roles_sync', 'location', 'drive', 'route', 'order',
+  'vendor', 'commerce', 'think', 'teach', 'connect', 'explore', 'claim_delivery',
+  'evolve', 'vhf', 'news', 'batch'
+]);
+
+const FieldBrain = {
+  roles: ['client', 'driver'],
+  vendorIds: [],
+  _hb: null,
+
+  init() {
+    if (Auth?.client) {
+      Auth.client.auth.onAuthStateChange(() => this.onAuth());
+    }
+    this.onAuth();
+    this._hb = setInterval(() => this.heartbeat(), 120000);
+  },
+
+  async onAuth() {
+    if (!Auth?.user) {
+      this.roles = [];
+      this.vendorIds = [];
+      return;
+    }
+    const r = await ACI.api({ mode: 'roles_sync' });
+    if (r.ok) {
+      this.roles = r.roles || ['client', 'driver'];
+      this.vendorIds = r.vendor_ids || [];
+      Auth.userRoles = this.roles;
+      Auth.vendorIds = this.vendorIds;
+      this.updateChip();
+      this.pulse('roles_sync', this.roles.join('+'), { role: 'client' });
+    }
+  },
+
+  updateChip() {
+    const chip = document.getElementById('user-chip');
+    if (!chip || !Auth?.user) return;
+    const name = Auth.user.user_metadata?.full_name || Auth.user.email?.split('@')[0] || 'User';
+    const hats = this.roles.map(r => r === 'driver' ? '🚴' : r === 'vendor' ? '🏪' : '👤').join('');
+    const owner = Auth.isOwner ? ' · OWNER' : '';
+    chip.textContent = (name + ' ' + hats + owner).slice(0, 48);
+    chip.title = 'Roles: ' + this.roles.join(', ');
+  },
+
+  hasRole(role) {
+    return this.roles.includes(role);
+  },
+
+  inferRole(action, opts = {}) {
+    if (opts.role) return opts.role;
+    if (action === 'vendor' || action === 'commerce') return this.hasRole('vendor') ? 'vendor' : 'client';
+    if (/drive|route|claim/.test(action)) return 'driver';
+    return 'client';
+  },
+
+  pulse(action, detail, opts = {}) {
+    if (!Auth?.user || !FIELD_SCOPE.has(action)) return;
+    const pos = window._lastPos || {};
+    ACI.api({
+      mode: 'field_pulse',
+      action,
+      role: this.inferRole(action, opts),
+      detail: String(detail || '').slice(0, 220),
+      lat: pos.lat ?? null,
+      lng: pos.lng ?? null,
+      props: opts.props || {}
+    });
+  },
+
+  heartbeat() {
+    if (!Auth?.user) return;
+    const mode = window.DrivingView?.mode || 'still';
+    const speed = window.DrivingView?.speed ? Math.round(DrivingView.speed * 3.6) + 'km/h' : '';
+    this.pulse('heartbeat', mode + (speed ? ' ' + speed : ''), { role: 'driver' });
+  },
+
+  async claimDelivery(orderId) {
+    if (!Auth?.user) return { error: 'login required' };
+    const r = await ACI.api({ mode: 'claim_delivery', order_id: orderId });
+    if (r.ok) {
+      this.pulse('claim_delivery', orderId, { role: 'driver' });
+      ACIControl?.reply('Delivery claimed — you are driver for ' + (r.short_id || orderId));
+    }
+    return r;
+  },
+
+  hookFeed() {
+    if (!ACI || ACI._fieldHooked) return;
+    ACI._fieldHooked = true;
+    const orig = ACI.feed.bind(ACI);
+    ACI.feed = (action, detail) => {
+      orig(action, detail);
+      if (Auth?.user) FieldBrain.pulse(action === 'batch' ? 'batch' : action, detail);
+    };
+  }
+};
+
+window.FieldBrain = FieldBrain;
 
 // === ASTRANOV COLLECTIVE INTELLIGENCE (ACI) — FINAL ===
 // Synthesized from all AI specs: pure globe + three modes + council + self-evolving neurons.
@@ -1264,6 +1393,12 @@ const ACIControl = {
     if (/^(cli|terminal|console)$/.test(low)) { AciCli.toggle(); return; }
     if (/^(connect|open|link)$/.test(low)) { AciConnect.open(); return; }
     if (/^deploy/.test(low)) { AciConnect.deploy(text.replace(/^deploy\s*/i, '')); return; }
+    if (/^claim/.test(low)) {
+      const oid = text.replace(/^claim\s*/i, '').trim();
+      if (oid) FieldBrain?.claimDelivery(oid);
+      return;
+    }
+    if (/^roles/.test(low)) { FieldBrain?.onAuth(); ACIControl.reply('Roles: ' + (FieldBrain?.roles || []).join(' + ')); return; }
     if (/^(login|sign in|google|σύνδεση)/.test(low)) { Auth.signInGoogle(); return; }
     if (/^(logout|sign out|αποσύνδεση)/.test(low)) { Auth.signOut(); return; }
     if (/telecom|sat radio|satellite radio|ασύρματος/.test(low)) { Comms.startTelecomms(); return; }
@@ -1343,21 +1478,27 @@ const Commerce = {
       const items = [{ name: 'Πιτογύρα', qty: 2 }, { name: 'Μπύρα', qty: 2 }, { name: 'Τσιγάρα', qty: 1 }];
       let orderResult = null;
       try {
+        const headers = Auth?.authHeaders ? await Auth.authHeaders() : sbHeaders();
         const r = await fetch(SB_URL + '/functions/v1/order-intake', {
-          method: 'POST', headers: sbHeaders(),
+          method: 'POST', headers,
           body: JSON.stringify({ vendor_id: vendor.id, items, delivery_lat: dLat, delivery_lng: dLng, notes: 'Astranov ACI order Αξάς', calc: { total_avc: 18 } })
         });
         orderResult = r.ok ? await r.json() : null;
       } catch { /* local fallback */ }
-      const driver = orderResult?.driver || orderResult?.order?.driver_name || 'ΤΗΛΕΜΑΧΟΣ';
+      const driverObj = orderResult?.driver;
+      const driver = driverObj?.name || orderResult?.order?.driver_name || (orderResult?.seeking_driver ? 'seeking driver' : 'ΤΗΛΕΜΑΧΟΣ');
       MapDepict.action('order', {
         lat: dLat, lng: dLng,
         vendorLat: vendor.lat, vendorLng: vendor.lng,
         detail: vendor.name + ' → εσύ · ' + driver
       });
       if (window.DrivingView) DrivingView.setDestination(vendor.lat, vendor.lng);
-      const msg = 'Παραγγελία στο ' + vendor.name + '. Οδηγός ' + driver + '. Πιτογύρα, μπύρες, τσιγάρα στο σημείο σου.';
+      const msg = orderResult?.seeking_driver
+        ? 'Παραγγελία στο ' + vendor.name + '. Αναζητούμε οδηγό — logged-in drivers can claim.'
+        : 'Παραγγελία στο ' + vendor.name + '. Οδηγός ' + driver + (driverObj?.self ? ' (εσύ — client+driver)' : '') + '.';
       ACIControl.reply(msg);
+      FieldBrain?.pulse('order', vendor.name + ' → ' + driver, { role: 'client' });
+      if (orderResult?.order?.id && driverObj?.self) FieldBrain?.pulse('order', 'self-delivery ' + orderResult.order.short_id, { role: 'driver' });
       speak(msg, () => resumeListening());
       groupOrder();
     });
@@ -2304,6 +2445,9 @@ const DrivingView = {
       this.updateCamera(pos);
       this.updateGuidance(lat, lng);
     }
+    if (prev !== this.mode) {
+      FieldBrain?.pulse('drive', this.mode + ' ' + Math.round(this.speed * 3.6) + 'km/h', { role: 'driver' });
+    }
     if (prev !== this.mode && fast) {
       const el = document.getElementById('drive-guide');
       if (el) el.textContent = (this.mode === 'drive' ? '🚗 DRIVING' : '🏃 FAST') + ' · ' + Math.round(this.speed * 3.6) + ' km/h';
@@ -3087,6 +3231,8 @@ function animate() {
 animate();
 ACI.init();
 Auth.init();
+FieldBrain.init();
+FieldBrain.hookFeed();
 AciCli.init();
 setTimeout(() => Auth.refreshAuthority(), 800);
 ACIControl.init();

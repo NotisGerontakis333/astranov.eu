@@ -67,6 +67,9 @@ const DrivingView = {
       this.updateCamera(pos);
       this.updateGuidance(lat, lng);
     }
+    if (prev !== this.mode) {
+      FieldBrain?.pulse('drive', this.mode + ' ' + Math.round(this.speed * 3.6) + 'km/h', { role: 'driver' });
+    }
     if (prev !== this.mode && fast) {
       const el = document.getElementById('drive-guide');
       if (el) el.textContent = (this.mode === 'drive' ? '🚗 DRIVING' : '🏃 FAST') + ' · ' + Math.round(this.speed * 3.6) + ' km/h';

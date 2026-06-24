@@ -191,6 +191,12 @@ const ACIControl = {
     if (/^(cli|terminal|console)$/.test(low)) { AciCli.toggle(); return; }
     if (/^(connect|open|link)$/.test(low)) { AciConnect.open(); return; }
     if (/^deploy/.test(low)) { AciConnect.deploy(text.replace(/^deploy\s*/i, '')); return; }
+    if (/^claim/.test(low)) {
+      const oid = text.replace(/^claim\s*/i, '').trim();
+      if (oid) FieldBrain?.claimDelivery(oid);
+      return;
+    }
+    if (/^roles/.test(low)) { FieldBrain?.onAuth(); ACIControl.reply('Roles: ' + (FieldBrain?.roles || []).join(' + ')); return; }
     if (/^(login|sign in|google|σύνδεση)/.test(low)) { Auth.signInGoogle(); return; }
     if (/^(logout|sign out|αποσύνδεση)/.test(low)) { Auth.signOut(); return; }
     if (/telecom|sat radio|satellite radio|ασύρματος/.test(low)) { Comms.startTelecomms(); return; }

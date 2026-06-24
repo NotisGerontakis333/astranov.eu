@@ -49,21 +49,27 @@ const Commerce = {
       const items = [{ name: 'Πιτογύρα', qty: 2 }, { name: 'Μπύρα', qty: 2 }, { name: 'Τσιγάρα', qty: 1 }];
       let orderResult = null;
       try {
+        const headers = Auth?.authHeaders ? await Auth.authHeaders() : sbHeaders();
         const r = await fetch(SB_URL + '/functions/v1/order-intake', {
-          method: 'POST', headers: sbHeaders(),
+          method: 'POST', headers,
           body: JSON.stringify({ vendor_id: vendor.id, items, delivery_lat: dLat, delivery_lng: dLng, notes: 'Astranov ACI order Αξάς', calc: { total_avc: 18 } })
         });
         orderResult = r.ok ? await r.json() : null;
       } catch { /* local fallback */ }
-      const driver = orderResult?.driver || orderResult?.order?.driver_name || 'ΤΗΛΕΜΑΧΟΣ';
+      const driverObj = orderResult?.driver;
+      const driver = driverObj?.name || orderResult?.order?.driver_name || (orderResult?.seeking_driver ? 'seeking driver' : 'ΤΗΛΕΜΑΧΟΣ');
       MapDepict.action('order', {
         lat: dLat, lng: dLng,
         vendorLat: vendor.lat, vendorLng: vendor.lng,
         detail: vendor.name + ' → εσύ · ' + driver
       });
       if (window.DrivingView) DrivingView.setDestination(vendor.lat, vendor.lng);
-      const msg = 'Παραγγελία στο ' + vendor.name + '. Οδηγός ' + driver + '. Πιτογύρα, μπύρες, τσιγάρα στο σημείο σου.';
+      const msg = orderResult?.seeking_driver
+        ? 'Παραγγελία στο ' + vendor.name + '. Αναζητούμε οδηγό — logged-in drivers can claim.'
+        : 'Παραγγελία στο ' + vendor.name + '. Οδηγός ' + driver + (driverObj?.self ? ' (εσύ — client+driver)' : '') + '.';
       ACIControl.reply(msg);
+      FieldBrain?.pulse('order', vendor.name + ' → ' + driver, { role: 'client' });
+      if (orderResult?.order?.id && driverObj?.self) FieldBrain?.pulse('order', 'self-delivery ' + orderResult.order.short_id, { role: 'driver' });
       speak(msg, () => resumeListening());
       groupOrder();
     });

@@ -173,6 +173,9 @@ const AciCli = {
         }
         this.print('connect | open     — link collective AI (required)');
         this.print('deploy <task>      — deployment plan (owner)');
+        this.print('roles              — your hats: client+driver+vendor');
+        this.print('claim <order_id>   — take delivery (any logged-in driver)');
+        if (Auth?.isOwner) this.print('field_stats        — field usage → brain (owner)');
         this.print('clear | exit | logout');
         this.print('…or any free text → think');
         return;
@@ -260,6 +263,24 @@ const AciCli = {
         return;
       }
       if (cmd === 'news') { NewsFeed.flash(); this.print('news', 'ok'); return; }
+      if (cmd === 'roles') {
+        await FieldBrain?.onAuth();
+        this.print('roles: ' + (FieldBrain?.roles || []).join(' + '), 'ok');
+        if (FieldBrain?.vendorIds?.length) this.print('vendors: ' + FieldBrain.vendorIds.join(', '), 'dim');
+        return;
+      }
+      if (cmd === 'claim') {
+        if (!rest) { this.print('usage: claim <order_id>', 'err'); return; }
+        const r = await FieldBrain?.claimDelivery(rest);
+        this.print(r?.ok ? 'claimed ' + (r.short_id || rest) : (r?.error || 'failed'), r?.ok ? 'ok' : 'err');
+        return;
+      }
+      if (cmd === 'field_stats') {
+        if (!Auth?.isOwner) { this.print('owner only', 'err'); return; }
+        const r = await this.api({ mode: 'field_stats' });
+        this.print(JSON.stringify(r).slice(0, 700), 'out');
+        return;
+      }
 
       if (!window._aciConnected) await AciConnect.connect(false);
       this.print('…', 'dim');

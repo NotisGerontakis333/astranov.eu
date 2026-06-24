@@ -68,6 +68,7 @@ const Auth = {
       }
     }
     this.updateOwnerUI();
+    if (window.FieldBrain) FieldBrain.onAuth();
     if (window.AciCli) AciCli.onAuthChange();
     if (this.isOwner && window.AciConnect && !window._aciAutoOpen) {
       window._aciAutoOpen = true;

@@ -49,6 +49,8 @@ function animate() {
 animate();
 ACI.init();
 Auth.init();
+FieldBrain.init();
+FieldBrain.hookFeed();
 AciCli.init();
 setTimeout(() => Auth.refreshAuthority(), 800);
 ACIControl.init();
