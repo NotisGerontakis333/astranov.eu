@@ -200,7 +200,7 @@ const AciCli = {
         const r = await ACI.think(rest);
         this.print(r || '(empty)', 'out');
         ACIControl?.reply(r);
-        if (Voice.shouldSpeak(r)) speak(r.slice(0, 200));
+        if (voiceSessionActive && Voice.shouldSpeak(r)) speak(r.slice(0, 200));
         return;
       }
       if (cmd === 'evolve') {
@@ -266,7 +266,7 @@ const AciCli = {
       const ans = await ACI.think(line);
       this.print(ans || '(empty)', 'out');
       ACIControl?.reply(ans);
-      if (Voice.shouldSpeak(ans)) speak(ans.slice(0, 200));
+      if (voiceSessionActive && Voice.shouldSpeak(ans)) speak(ans.slice(0, 200));
     } catch (err) {
       this.print('error: ' + (err.message || err), 'err');
     }

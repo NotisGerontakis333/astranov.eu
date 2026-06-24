@@ -167,7 +167,10 @@ const ACIControl = {
     input.addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
     const mic = document.getElementById('aci-mic');
     mic.onclick = () => {
-      if (Voice.speaking) { userIntervene(); startVoiceOptions(); return; }
+      if (Voice.speaking || voiceSessionActive) {
+        userIntervene();
+        return;
+      }
       startVoiceOptions();
     };
     const stopBtn = document.getElementById('aci-stop');
@@ -212,6 +215,6 @@ const ACIControl = {
     const ans = await ACI.think(text);
     if (!ans) return;
     ACIControl.reply(ans);
-    if (Voice.shouldSpeak(ans)) speak(ans.slice(0, 200), () => {});
+    if (Voice.shouldSpeak(ans)) speak(ans.slice(0, 200));
   }
 };

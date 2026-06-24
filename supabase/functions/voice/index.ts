@@ -19,15 +19,7 @@ const PERSONA = {
 type SynthResult = { bytes: Uint8Array; mime: string } | null
 
 function geminiPrompt(text: string) {
-  return `# AUDIO PROFILE: Astranov
-## Collective Intelligence — calm female mid-tone
-
-### DIRECTOR'S NOTES
-Style: Calm, grounded, warm. Mid register. Even pacing. Never rushed.
-Pacing: Measured and clear. Speak naturally in Greek or English as written.
-
-#### TRANSCRIPT
-${text}`
+  return `Speak this calmly in a grounded female mid-tone voice. Read only the line below:\n${text}`
 }
 
 function b64ToBytes(data: string): Uint8Array {
@@ -90,7 +82,8 @@ async function synthGemini(text: string, key: string): Promise<SynthResult> {
       if (!part?.data) continue
       const raw = b64ToBytes(part.data)
       const mime = String(part.mimeType || '')
-      const bytes = mime.includes('wav') ? raw : pcmToWav(raw)
+      const isWav = raw.length > 12 && raw[0] === 0x52 && raw[1] === 0x49 && raw[2] === 0x46 && raw[3] === 0x46
+      const bytes = (mime.includes('wav') || isWav) ? raw : pcmToWav(raw)
       if (!bytes.length) continue
       return { bytes, mime: 'audio/wav' }
     } catch { /* try next model */ }

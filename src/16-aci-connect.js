@@ -47,7 +47,9 @@ const AciConnect = {
     if (conn.greeting) {
       ACIControl?.reply(conn.greeting);
       if (AciCli) AciCli.print(conn.greeting, 'out');
-      if (speakGreeting && Voice.shouldSpeak(conn.greeting)) speak(conn.greeting);
+      if (speakGreeting && voiceSessionActive && Voice.shouldSpeak(conn.greeting)) {
+        speak(conn.greeting.slice(0, 200));
+      }
     }
 
     MapDepict?.action('think', { detail: this.connected ? 'ACI linked' : 'connect failed' });

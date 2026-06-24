@@ -30,9 +30,7 @@ function requestOrbitalTech() {
 
   // Speak the request - direct, no roleplay
   if (voiceEnabled) {
-    speak('Requesting advanced orbital technology integration for global WebRTC video calling. This supports reduced infrastructure communication.', () => {
-      speak('Formal request logged and copied to clipboard for submission.');
-    });
+    speak('Orbital tech request prepared and copied to clipboard.');
   }
 
   // Visual on globe: signal

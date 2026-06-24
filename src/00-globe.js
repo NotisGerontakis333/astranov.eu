@@ -33,6 +33,7 @@ let globePivot;
 let trackVelX = 0, trackVelY = 0;
 let cityLevel = false;
 let voiceEnabled = true;
+let voiceSessionActive = false;
 let isListening = false;
 let recognition;
 let userLocated = false;

@@ -70,12 +70,12 @@ function handleVoiceCommand(event) {
     Voice.preferredListenLang = 'en-US';
     if (recognition) recognition.lang = 'en-US';
     MapDepict.action('mode', { detail: 'English listen' });
-    speak('English mode on. Greek mode: πες ελληνικά.', () => provokeAnswer());
+    speak('English mode on.', () => resumeListening());
   } else if (transcript.includes('ελληνικά') || transcript.includes('greek')) {
     Voice.preferredListenLang = 'el-GR';
     if (recognition) recognition.lang = 'el-GR';
     MapDepict.action('mode', { detail: 'Greek listen' });
-    speak('Ελληνικά mode. Greklish works too — μίλα όπως θες.', () => provokeAnswer());
+    speak('Ελληνικά mode.', () => resumeListening());
   } else if (transcript.includes('cli') || transcript.includes('terminal') || transcript.includes('κονσόλα')) {
     AciCli.toggle();
   } else if (transcript.includes('logout') || transcript.includes('αποσύνδεση') || transcript.includes('sign out')) {
@@ -93,14 +93,14 @@ function handleVoiceCommand(event) {
       MapDepict.action('explore', { lat: randomLat, lng: randomLng, detail: 'explore' });
       const p = latLngToPos(randomLat, randomLng);
       focusOnGlobePoint(new THREE.Vector3(p.x, p.y, p.z));
-      speak('Εξερευνάμε εδώ στον χάρτη.', () => provokeAnswer());
+      speak('Εξερευνάμε εδώ στον χάρτη.', () => resumeListening());
     });
   } else if (transcript.includes('video') || transcript.includes('call') || transcript.includes('βίντεο') || transcript.includes('κλήση') || transcript.includes('orbital')) {
     requestLocationIfNeeded(() => {
       const target = 'Αξαδίνα';
       MapDepict.action('video', { detail: target });
       startOrbitalVideoCall(target);
-      speak('Ξεκινάω orbital video call.', () => provokeAnswer());
+      speak('Ξεκινάω orbital video call.', () => resumeListening());
     });
   } else if (transcript.includes('mute') || transcript.includes('σιωπή') || transcript.includes('mute all')) {
     voiceEnabled = false;
@@ -119,56 +119,51 @@ function handleVoiceCommand(event) {
     Commerce.loadVendors().then(() => Commerce.announceVendors());
   } else if (transcript.includes('request') || transcript.includes('technology') || transcript.includes('tech')) {
     requestOrbitalTech();
-    speak('Request prepared.', () => provokeAnswer());
+    speak('Request prepared.', () => resumeListening());
   } else if (transcript.includes('athenian') || transcript.includes('αθηναϊκ')) {
     ACI.thinkMode = 'athenian';
     MapDepict.action('mode', { detail: 'athenian' });
-    speak('Athenian mode — creativity kai strategy.', () => provokeAnswer());
+    speak('Athenian mode.', () => resumeListening());
   } else if (transcript.includes('spartan') || transcript.includes('σπαρτιατ')) {
     ACI.thinkMode = 'spartan';
     MapDepict.action('mode', { detail: 'spartan' });
-    speak('Spartan mode — terse kai decisive.', () => provokeAnswer());
+    speak('Spartan mode.', () => resumeListening());
   } else if (transcript.includes('myrmidon') || transcript.includes('μυρμιδόν')) {
     ACI.thinkMode = 'myrmidon';
     MapDepict.action('mode', { detail: 'myrmidon' });
-    speak('Myrmidon mode — collective force.', () => provokeAnswer());
+    speak('Myrmidon mode.', () => resumeListening());
   } else if (transcript.match(/^(remember|θυμήσου|να θυμάσαι)/)) {
     const content = transcript.replace(/^(remember|θυμήσου|να θυμάσαι)[:,]?\s*/i, '').trim();
     ACI.teach(content || transcript).then(() => {
-      speak('Remembered. Neuron strengthened.', () => provokeAnswer());
+      speak('Remembered.', () => resumeListening());
     });
   } else if (transcript.includes('evolve') || transcript.includes('collective') || transcript.includes('brain') || transcript.includes('neuron') || transcript.includes('self evolve')) {
     ACI.evolve('voice-command').then(() => {
-      speak('Collective intelligence evolved. Council judged. Neurons updated.', () => provokeAnswer());
+      speak('Collective evolved.', () => resumeListening());
     });
   } else if (transcript.length > 3) {
     ACI.think(transcript).then(text => {
       if (!text) return;
       ACIControl.reply(text);
-      speak(text.slice(0, 280), () => provokeAnswer());
+      speak(text.slice(0, 280), () => resumeListening());
     });
   } else {
     speak('Πες κάτι στο Astranov Collective Intelligence, ή: work, explore, evolve, remember, athenian, spartan.', () => startListeningForOptions());
   }
 }
 
-function provokeAnswer() {
-  if (!voiceEnabled || isListening || window.AciCli?.open) return;
-  setTimeout(() => {
-    speak('Τι θες να κάνουμε τώρα Αξάς;', () => {
-      startListeningForOptions();
-    });
-  }, 1200);
+function resumeListening() {
+  if (!voiceSessionActive || !voiceEnabled || isListening || Voice.speaking) return;
+  setTimeout(() => startListeningForOptions(), 500);
 }
+window.resumeListening = resumeListening;
 
 function startVoiceOptions() {
   if (!voiceEnabled) return;
-  const txt = cityLevel 
-    ? 'City level. Speak to Astranov Collective Intelligence: ask anything, remember, evolve, athenian, spartan, myrmidon, work, explore, video, mute, sleep.'
-    : 'Speak to Astranov Collective Intelligence Αξάς. Ask anything, teach me to remember, evolve collective, or choose a mode.';
-  speak(txt, () => {
-    startListeningForOptions();
-  });
+  voiceSessionActive = true;
+  Voice.stop();
+  const txt = 'Astranov listening. Say work, explore, evolve, connect, or ask anything.';
+  speak(txt, () => startListeningForOptions());
 }
 
 function requestLocationIfNeeded(onLocated) {
@@ -176,20 +171,14 @@ function requestLocationIfNeeded(onLocated) {
     if (onLocated) onLocated();
     return;
   }
-  speak('Για καλύτερη εμπειρία, δώσε άδεια τοποθεσίας.', () => {
-    navigator.geolocation.getCurrentPosition(pos => {
-      placeMe(pos.coords.latitude, pos.coords.longitude);
-      window._lastPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-      userLocated = true;
-      MapDepict.action('location', { lat: pos.coords.latitude, lng: pos.coords.longitude, detail: 'GPS' });
-      speak('Σε εντόπισα στον χάρτη.', () => {
-        if (onLocated) onLocated();
-      });
-    }, () => {
-      speak('Χρησιμοποιώ default θέση.', () => {
-        if (onLocated) onLocated();
-      });
-    });
+  navigator.geolocation.getCurrentPosition(pos => {
+    placeMe(pos.coords.latitude, pos.coords.longitude);
+    window._lastPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+    userLocated = true;
+    MapDepict.action('location', { lat: pos.coords.latitude, lng: pos.coords.longitude, detail: 'GPS' });
+    if (onLocated) onLocated();
+  }, () => {
+    if (onLocated) onLocated();
   });
 }
 
@@ -199,7 +188,7 @@ function placeMe(lat, lng) {
   window._lastPos = { lat, lng };
   if (window._meMarker && window._meMarker.parent) window._meMarker.parent.remove(window._meMarker);
   const pos = latLngToPos(lat, lng, 1.03);
-  const m = new THREE.Mesh(new THREE.SphereGeometry(0.02,5,5), new THREE.MeshBasicMaterial({color:0x00ffcc}));
+  const m = new THREE.Mesh(new THREE.SphereGeometry(0.028,8,8), new THREE.MeshBasicMaterial({color:0x00ffcc}));
   m.position.set(pos.x,pos.y,pos.z);
   m.userData = {type:'me', name: me ? me.name : 'You'};
   globePivot.add(m);

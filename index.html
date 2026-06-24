@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Astranov</title>
-<meta name="compliance-check" content="astranov-voice-female-calm-2026-06-24">
+<meta name="compliance-check" content="astranov-voice-single-queue-2026-06-24">
 <meta name="aci-session" content="Astranov Collective Intelligence">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
@@ -140,6 +140,7 @@ let globePivot;
 let trackVelX = 0, trackVelY = 0;
 let cityLevel = false;
 let voiceEnabled = true;
+let voiceSessionActive = false;
 let isListening = false;
 let recognition;
 let userLocated = false;
@@ -196,8 +197,8 @@ function latLngToPos(lat, lng, r = 1) {
 }
 
 // === VOICE + MAP DEPICT ===
-// Astranov Voice: synthesized female, mid-tone, calm (server TTS + browser fallback).
-// Greek, English, Greklish — full sentences, never spell letter-by-letter.
+// Astranov Voice: ONE calm female persona, ONE utterance at a time (queued).
+// Server TTS preferred; browser fallback only if server unavailable.
 
 const Voice = {
   persona: { name: 'Astranov', style: 'female calm mid-tone' },
@@ -209,6 +210,8 @@ const Voice = {
   _voicesReady: null,
   _audio: null,
   _blobUrl: null,
+  _gen: 0,
+  _queue: Promise.resolve(),
   engine: 'astranov',
 
   init() {
@@ -264,13 +267,13 @@ const Voice = {
   },
 
   releaseAudio() {
-    if (this._audio) { try { this._audio.pause(); } catch (_) {} this._audio = null; }
+    if (this._audio) { try { this._audio.pause(); this._audio.currentTime = 0; } catch (_) {} this._audio = null; }
     if (this._blobUrl) { try { URL.revokeObjectURL(this._blobUrl); } catch (_) {} this._blobUrl = null; }
   },
 
-  playBlob(blob) {
+  playBlob(blob, gen) {
     return new Promise(resolve => {
-      if (this.stopped) { resolve(); return; }
+      if (this.stopped || gen !== this._gen) { resolve(); return; }
       this.releaseAudio();
       this._blobUrl = URL.createObjectURL(blob);
       this._audio = new Audio(this._blobUrl);
@@ -296,14 +299,15 @@ const Voice = {
     return null;
   },
 
-  speakBrowserSentence(sentence) {
+  speakBrowser(text, lang, gen) {
     return new Promise(resolve => {
-      if (this.stopped) { resolve(); return; }
-      const utter = new SpeechSynthesisUtterance(sentence.text);
-      utter.lang = sentence.lang;
+      if (this.stopped || gen !== this._gen) { resolve(); return; }
+      try { speechSynthesis.cancel(); } catch (_) {}
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.lang = lang;
       utter.rate = 0.88;
       utter.pitch = 0.94;
-      const voice = this.pickFemaleCalm(sentence.lang);
+      const voice = this.pickFemaleCalm(lang);
       if (voice) utter.voice = voice;
       utter.onend = () => resolve();
       utter.onerror = () => resolve();
@@ -333,46 +337,56 @@ const Voice = {
     return true;
   },
 
-  splitSentences(text) {
-    const parts = text.split(/(?<=[.!?;])\s+|\n+/).map(s => s.trim()).filter(s => s.length > 3);
-    const list = (parts.length ? parts : [text]).slice(0, 2);
-    return list.map(s => ({ text: s, lang: this.detectLang(s) }));
-  },
-
   stop() {
+    this._gen++;
     this.stopped = true;
     this.speaking = false;
     this.releaseAudio();
     try { speechSynthesis.cancel(); } catch (_) {}
   },
 
-  async speak(text, onEnd) {
+  flush() {
+    this.stop();
+    this._queue = Promise.resolve();
+  },
+
+  enqueue(text, onEnd) {
+    this._queue = this._queue
+      .then(() => this._speakOne(text, onEnd))
+      .catch(() => {});
+    return this._queue;
+  },
+
+  async _speakOne(text, onEnd) {
     if (!voiceEnabled) { if (onEnd) onEnd(); return; }
-    const clean = this.humanize(text);
+    const clean = this.humanize(text).slice(0, 420);
     if (!this.shouldSpeak(clean)) { if (onEnd) onEnd(); return; }
 
-    this.stop();
+    const gen = ++this._gen;
     this.stopped = false;
-    await this.ensureVoices();
+    this.releaseAudio();
+    try { speechSynthesis.cancel(); } catch (_) {}
 
-    const sentences = this.splitSentences(clean);
-    for (const sentence of sentences) {
-      if (this.stopped) break;
-      const blob = await this.synthServer(sentence.text, sentence.lang);
-      if (blob && !this.stopped) {
-        await this.playBlob(blob);
-      } else if (!this.stopped) {
-        await this.speakBrowserSentence(sentence);
-      }
+    await this.ensureVoices();
+    if (gen !== this._gen) return;
+
+    const lang = this.detectLang(clean);
+    const blob = await this.synthServer(clean, lang);
+    if (gen !== this._gen) return;
+
+    if (blob) {
+      await this.playBlob(blob, gen);
+    } else {
+      await this.speakBrowser(clean, lang, gen);
     }
 
-    this.speaking = false;
-    if (onEnd && !this.stopped) onEnd();
+    if (gen === this._gen) this.speaking = false;
+    if (onEnd && gen === this._gen && !this.stopped) onEnd();
   }
 };
 
-function speak(text, onEnd) { Voice.speak(text, onEnd); }
-function stopSpeaking() { Voice.stop(); }
+function speak(text, onEnd) { return Voice.enqueue(text, onEnd); }
+function stopSpeaking() { Voice.flush(); }
 
 const MapDepict = {
   overlays: [],
@@ -524,7 +538,8 @@ window.Voice = Voice;
 window.MapDepict = MapDepict;
 
 function userIntervene() {
-  Voice.stop();
+  Voice.flush();
+  voiceSessionActive = false;
   if (window.PmrRadio) PmrRadio.hide();
   if (window.DrivingView) DrivingView.deactivate();
   MapDepict.cancelAll();
@@ -537,7 +552,7 @@ function userIntervene() {
   const ma = document.getElementById('map-action');
   if (ma) ma.textContent = '⏹ Διακοπή — εσύ παίρνεις τον έλεγχο';
   if (window.ACIControl) ACIControl.reply('Stopped — your move. Drag, zoom, type or speak.');
-  speak('Σταμάτησα. Your move — πες ή γράψε τι θες.', () => {});
+  speak('Σταμάτησα. Your move.', () => {});
 }
 
 window.userIntervene = userIntervene;
@@ -615,7 +630,10 @@ const Auth = {
     if (window.AciCli) AciCli.onAuthChange();
     if (this.isOwner && window.AciConnect && !window._aciAutoOpen) {
       window._aciAutoOpen = true;
-      setTimeout(() => AciConnect.open(), 600);
+      setTimeout(() => {
+        if (window.AciCli) AciCli.show();
+        AciConnect.connect(false);
+      }, 800);
     }
   },
 
@@ -899,7 +917,7 @@ const AciCli = {
         const r = await ACI.think(rest);
         this.print(r || '(empty)', 'out');
         ACIControl?.reply(r);
-        if (Voice.shouldSpeak(r)) speak(r.slice(0, 200));
+        if (voiceSessionActive && Voice.shouldSpeak(r)) speak(r.slice(0, 200));
         return;
       }
       if (cmd === 'evolve') {
@@ -965,7 +983,7 @@ const AciCli = {
       const ans = await ACI.think(line);
       this.print(ans || '(empty)', 'out');
       ACIControl?.reply(ans);
-      if (Voice.shouldSpeak(ans)) speak(ans.slice(0, 200));
+      if (voiceSessionActive && Voice.shouldSpeak(ans)) speak(ans.slice(0, 200));
     } catch (err) {
       this.print('error: ' + (err.message || err), 'err');
     }
@@ -1022,7 +1040,9 @@ const AciConnect = {
     if (conn.greeting) {
       ACIControl?.reply(conn.greeting);
       if (AciCli) AciCli.print(conn.greeting, 'out');
-      if (speakGreeting && Voice.shouldSpeak(conn.greeting)) speak(conn.greeting);
+      if (speakGreeting && voiceSessionActive && Voice.shouldSpeak(conn.greeting)) {
+        speak(conn.greeting.slice(0, 200));
+      }
     }
 
     MapDepict?.action('think', { detail: this.connected ? 'ACI linked' : 'connect failed' });
@@ -1220,7 +1240,10 @@ const ACIControl = {
     input.addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
     const mic = document.getElementById('aci-mic');
     mic.onclick = () => {
-      if (Voice.speaking) { userIntervene(); startVoiceOptions(); return; }
+      if (Voice.speaking || voiceSessionActive) {
+        userIntervene();
+        return;
+      }
       startVoiceOptions();
     };
     const stopBtn = document.getElementById('aci-stop');
@@ -1265,7 +1288,7 @@ const ACIControl = {
     const ans = await ACI.think(text);
     if (!ans) return;
     ACIControl.reply(ans);
-    if (Voice.shouldSpeak(ans)) speak(ans.slice(0, 200), () => {});
+    if (Voice.shouldSpeak(ans)) speak(ans.slice(0, 200));
   }
 };
 
@@ -1335,7 +1358,7 @@ const Commerce = {
       if (window.DrivingView) DrivingView.setDestination(vendor.lat, vendor.lng);
       const msg = 'Παραγγελία στο ' + vendor.name + '. Οδηγός ' + driver + '. Πιτογύρα, μπύρες, τσιγάρα στο σημείο σου.';
       ACIControl.reply(msg);
-      speak(msg, () => provokeAnswer());
+      speak(msg, () => resumeListening());
       groupOrder();
     });
   }
@@ -1821,27 +1844,55 @@ const mouse = new THREE.Vector2();
 
 container.addEventListener('click', onGlobeClick);
 
+function globeClickTargets() {
+  const targets = [];
+  if (window._meMarker) targets.push(window._meMarker);
+  if (window.Commerce?.markers) targets.push(...Commerce.markers);
+  globePivot.children.forEach(c => {
+    if (c.userData?.name || c.userData?.vendor || c.userData?.type === 'me' || c.userData?.type === 'pilot') {
+      if (!targets.includes(c)) targets.push(c);
+    }
+  });
+  return targets;
+}
+
 function onGlobeClick(e) {
   if (dragging) return;
   mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
   mouse.y = - (e.clientY / window.innerHeight) * 2 + 1;
   raycaster.setFromCamera(mouse, camera);
+
+  const markerHits = raycaster.intersectObjects(globeClickTargets(), true);
+  if (markerHits.length > 0) {
+    const hit = markerHits[0].object;
+    const root = hit.userData?.vendor ? hit : (hit.parent?.userData?.vendor ? hit.parent : hit);
+    const ud = root.userData || hit.userData || {};
+
+    if (ud.vendor) {
+      MapDepict.action('vendor', { lat: ud.vendor.lat, lng: ud.vendor.lng, detail: ud.vendor.name });
+      ACIControl?.reply('Κατάστημα: ' + ud.vendor.name + ' — πες order ή κλικ 🛒');
+      Commerce.orderPitogyra();
+      return;
+    }
+    if (ud.type === 'me' || ud.name === (me?.name || 'Αξάς') || root === window._meMarker) {
+      if (voiceEnabled) startVoiceOptions();
+      else toggleKryfto();
+      return;
+    }
+    if (ud.name) {
+      MapDepict.action('explore', { lat: ud.lat, lng: ud.lng, detail: ud.name });
+      ACIControl?.reply('User: ' + ud.name);
+      if (voiceEnabled) speak('Επιλέχθηκε ' + ud.name + '.', () => {});
+      return;
+    }
+  }
+
   const intersects = raycaster.intersectObject(earth);
   if (intersects.length > 0) {
     const point = intersects[0].point;
     focusOnGlobePoint(point);
     cityLevel = camera.position.z < 2.2;
-
-    const markerHits = raycaster.intersectObject(window._meMarker, true);
-    if (markerHits.length > 0) {
-      if (voiceEnabled) startVoiceOptions();
-      else toggleKryfto();
-      return;
-    }
-
-    const gLocal = latLngToPos(36.2, 28.1, 1.04);
-    const gWorld = new THREE.Vector3(gLocal.x, gLocal.y, gLocal.z).applyMatrix4(globePivot.matrixWorld);
-    if (point.distanceTo(gWorld) < 0.22) groupOrder();
+    MapDepict.action('explore', { detail: 'globe' });
   }
 }
 
@@ -2385,9 +2436,7 @@ function requestOrbitalTech() {
 
   // Speak the request - direct, no roleplay
   if (voiceEnabled) {
-    speak('Requesting advanced orbital technology integration for global WebRTC video calling. This supports reduced infrastructure communication.', () => {
-      speak('Formal request logged and copied to clipboard for submission.');
-    });
+    speak('Orbital tech request prepared and copied to clipboard.');
   }
 
   // Visual on globe: signal
@@ -2658,12 +2707,12 @@ function handleVoiceCommand(event) {
     Voice.preferredListenLang = 'en-US';
     if (recognition) recognition.lang = 'en-US';
     MapDepict.action('mode', { detail: 'English listen' });
-    speak('English mode on. Greek mode: πες ελληνικά.', () => provokeAnswer());
+    speak('English mode on.', () => resumeListening());
   } else if (transcript.includes('ελληνικά') || transcript.includes('greek')) {
     Voice.preferredListenLang = 'el-GR';
     if (recognition) recognition.lang = 'el-GR';
     MapDepict.action('mode', { detail: 'Greek listen' });
-    speak('Ελληνικά mode. Greklish works too — μίλα όπως θες.', () => provokeAnswer());
+    speak('Ελληνικά mode.', () => resumeListening());
   } else if (transcript.includes('cli') || transcript.includes('terminal') || transcript.includes('κονσόλα')) {
     AciCli.toggle();
   } else if (transcript.includes('logout') || transcript.includes('αποσύνδεση') || transcript.includes('sign out')) {
@@ -2681,14 +2730,14 @@ function handleVoiceCommand(event) {
       MapDepict.action('explore', { lat: randomLat, lng: randomLng, detail: 'explore' });
       const p = latLngToPos(randomLat, randomLng);
       focusOnGlobePoint(new THREE.Vector3(p.x, p.y, p.z));
-      speak('Εξερευνάμε εδώ στον χάρτη.', () => provokeAnswer());
+      speak('Εξερευνάμε εδώ στον χάρτη.', () => resumeListening());
     });
   } else if (transcript.includes('video') || transcript.includes('call') || transcript.includes('βίντεο') || transcript.includes('κλήση') || transcript.includes('orbital')) {
     requestLocationIfNeeded(() => {
       const target = 'Αξαδίνα';
       MapDepict.action('video', { detail: target });
       startOrbitalVideoCall(target);
-      speak('Ξεκινάω orbital video call.', () => provokeAnswer());
+      speak('Ξεκινάω orbital video call.', () => resumeListening());
     });
   } else if (transcript.includes('mute') || transcript.includes('σιωπή') || transcript.includes('mute all')) {
     voiceEnabled = false;
@@ -2707,56 +2756,51 @@ function handleVoiceCommand(event) {
     Commerce.loadVendors().then(() => Commerce.announceVendors());
   } else if (transcript.includes('request') || transcript.includes('technology') || transcript.includes('tech')) {
     requestOrbitalTech();
-    speak('Request prepared.', () => provokeAnswer());
+    speak('Request prepared.', () => resumeListening());
   } else if (transcript.includes('athenian') || transcript.includes('αθηναϊκ')) {
     ACI.thinkMode = 'athenian';
     MapDepict.action('mode', { detail: 'athenian' });
-    speak('Athenian mode — creativity kai strategy.', () => provokeAnswer());
+    speak('Athenian mode.', () => resumeListening());
   } else if (transcript.includes('spartan') || transcript.includes('σπαρτιατ')) {
     ACI.thinkMode = 'spartan';
     MapDepict.action('mode', { detail: 'spartan' });
-    speak('Spartan mode — terse kai decisive.', () => provokeAnswer());
+    speak('Spartan mode.', () => resumeListening());
   } else if (transcript.includes('myrmidon') || transcript.includes('μυρμιδόν')) {
     ACI.thinkMode = 'myrmidon';
     MapDepict.action('mode', { detail: 'myrmidon' });
-    speak('Myrmidon mode — collective force.', () => provokeAnswer());
+    speak('Myrmidon mode.', () => resumeListening());
   } else if (transcript.match(/^(remember|θυμήσου|να θυμάσαι)/)) {
     const content = transcript.replace(/^(remember|θυμήσου|να θυμάσαι)[:,]?\s*/i, '').trim();
     ACI.teach(content || transcript).then(() => {
-      speak('Remembered. Neuron strengthened.', () => provokeAnswer());
+      speak('Remembered.', () => resumeListening());
     });
   } else if (transcript.includes('evolve') || transcript.includes('collective') || transcript.includes('brain') || transcript.includes('neuron') || transcript.includes('self evolve')) {
     ACI.evolve('voice-command').then(() => {
-      speak('Collective intelligence evolved. Council judged. Neurons updated.', () => provokeAnswer());
+      speak('Collective evolved.', () => resumeListening());
     });
   } else if (transcript.length > 3) {
     ACI.think(transcript).then(text => {
       if (!text) return;
       ACIControl.reply(text);
-      speak(text.slice(0, 280), () => provokeAnswer());
+      speak(text.slice(0, 280), () => resumeListening());
     });
   } else {
     speak('Πες κάτι στο Astranov Collective Intelligence, ή: work, explore, evolve, remember, athenian, spartan.', () => startListeningForOptions());
   }
 }
 
-function provokeAnswer() {
-  if (!voiceEnabled || isListening || window.AciCli?.open) return;
-  setTimeout(() => {
-    speak('Τι θες να κάνουμε τώρα Αξάς;', () => {
-      startListeningForOptions();
-    });
-  }, 1200);
+function resumeListening() {
+  if (!voiceSessionActive || !voiceEnabled || isListening || Voice.speaking) return;
+  setTimeout(() => startListeningForOptions(), 500);
 }
+window.resumeListening = resumeListening;
 
 function startVoiceOptions() {
   if (!voiceEnabled) return;
-  const txt = cityLevel 
-    ? 'City level. Speak to Astranov Collective Intelligence: ask anything, remember, evolve, athenian, spartan, myrmidon, work, explore, video, mute, sleep.'
-    : 'Speak to Astranov Collective Intelligence Αξάς. Ask anything, teach me to remember, evolve collective, or choose a mode.';
-  speak(txt, () => {
-    startListeningForOptions();
-  });
+  voiceSessionActive = true;
+  Voice.stop();
+  const txt = 'Astranov listening. Say work, explore, evolve, connect, or ask anything.';
+  speak(txt, () => startListeningForOptions());
 }
 
 function requestLocationIfNeeded(onLocated) {
@@ -2764,20 +2808,14 @@ function requestLocationIfNeeded(onLocated) {
     if (onLocated) onLocated();
     return;
   }
-  speak('Για καλύτερη εμπειρία, δώσε άδεια τοποθεσίας.', () => {
-    navigator.geolocation.getCurrentPosition(pos => {
-      placeMe(pos.coords.latitude, pos.coords.longitude);
-      window._lastPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-      userLocated = true;
-      MapDepict.action('location', { lat: pos.coords.latitude, lng: pos.coords.longitude, detail: 'GPS' });
-      speak('Σε εντόπισα στον χάρτη.', () => {
-        if (onLocated) onLocated();
-      });
-    }, () => {
-      speak('Χρησιμοποιώ default θέση.', () => {
-        if (onLocated) onLocated();
-      });
-    });
+  navigator.geolocation.getCurrentPosition(pos => {
+    placeMe(pos.coords.latitude, pos.coords.longitude);
+    window._lastPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+    userLocated = true;
+    MapDepict.action('location', { lat: pos.coords.latitude, lng: pos.coords.longitude, detail: 'GPS' });
+    if (onLocated) onLocated();
+  }, () => {
+    if (onLocated) onLocated();
   });
 }
 
@@ -2787,7 +2825,7 @@ function placeMe(lat, lng) {
   window._lastPos = { lat, lng };
   if (window._meMarker && window._meMarker.parent) window._meMarker.parent.remove(window._meMarker);
   const pos = latLngToPos(lat, lng, 1.03);
-  const m = new THREE.Mesh(new THREE.SphereGeometry(0.02,5,5), new THREE.MeshBasicMaterial({color:0x00ffcc}));
+  const m = new THREE.Mesh(new THREE.SphereGeometry(0.028,8,8), new THREE.MeshBasicMaterial({color:0x00ffcc}));
   m.position.set(pos.x,pos.y,pos.z);
   m.userData = {type:'me', name: me ? me.name : 'You'};
   globePivot.add(m);

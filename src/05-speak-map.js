@@ -1,6 +1,6 @@
 // === VOICE + MAP DEPICT ===
-// Astranov Voice: synthesized female, mid-tone, calm (server TTS + browser fallback).
-// Greek, English, Greklish — full sentences, never spell letter-by-letter.
+// Astranov Voice: ONE calm female persona, ONE utterance at a time (queued).
+// Server TTS preferred; browser fallback only if server unavailable.
 
 const Voice = {
   persona: { name: 'Astranov', style: 'female calm mid-tone' },
@@ -12,6 +12,8 @@ const Voice = {
   _voicesReady: null,
   _audio: null,
   _blobUrl: null,
+  _gen: 0,
+  _queue: Promise.resolve(),
   engine: 'astranov',
 
   init() {
@@ -67,13 +69,13 @@ const Voice = {
   },
 
   releaseAudio() {
-    if (this._audio) { try { this._audio.pause(); } catch (_) {} this._audio = null; }
+    if (this._audio) { try { this._audio.pause(); this._audio.currentTime = 0; } catch (_) {} this._audio = null; }
     if (this._blobUrl) { try { URL.revokeObjectURL(this._blobUrl); } catch (_) {} this._blobUrl = null; }
   },
 
-  playBlob(blob) {
+  playBlob(blob, gen) {
     return new Promise(resolve => {
-      if (this.stopped) { resolve(); return; }
+      if (this.stopped || gen !== this._gen) { resolve(); return; }
       this.releaseAudio();
       this._blobUrl = URL.createObjectURL(blob);
       this._audio = new Audio(this._blobUrl);
@@ -99,14 +101,15 @@ const Voice = {
     return null;
   },
 
-  speakBrowserSentence(sentence) {
+  speakBrowser(text, lang, gen) {
     return new Promise(resolve => {
-      if (this.stopped) { resolve(); return; }
-      const utter = new SpeechSynthesisUtterance(sentence.text);
-      utter.lang = sentence.lang;
+      if (this.stopped || gen !== this._gen) { resolve(); return; }
+      try { speechSynthesis.cancel(); } catch (_) {}
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.lang = lang;
       utter.rate = 0.88;
       utter.pitch = 0.94;
-      const voice = this.pickFemaleCalm(sentence.lang);
+      const voice = this.pickFemaleCalm(lang);
       if (voice) utter.voice = voice;
       utter.onend = () => resolve();
       utter.onerror = () => resolve();
@@ -136,46 +139,56 @@ const Voice = {
     return true;
   },
 
-  splitSentences(text) {
-    const parts = text.split(/(?<=[.!?;])\s+|\n+/).map(s => s.trim()).filter(s => s.length > 3);
-    const list = (parts.length ? parts : [text]).slice(0, 2);
-    return list.map(s => ({ text: s, lang: this.detectLang(s) }));
-  },
-
   stop() {
+    this._gen++;
     this.stopped = true;
     this.speaking = false;
     this.releaseAudio();
     try { speechSynthesis.cancel(); } catch (_) {}
   },
 
-  async speak(text, onEnd) {
+  flush() {
+    this.stop();
+    this._queue = Promise.resolve();
+  },
+
+  enqueue(text, onEnd) {
+    this._queue = this._queue
+      .then(() => this._speakOne(text, onEnd))
+      .catch(() => {});
+    return this._queue;
+  },
+
+  async _speakOne(text, onEnd) {
     if (!voiceEnabled) { if (onEnd) onEnd(); return; }
-    const clean = this.humanize(text);
+    const clean = this.humanize(text).slice(0, 420);
     if (!this.shouldSpeak(clean)) { if (onEnd) onEnd(); return; }
 
-    this.stop();
+    const gen = ++this._gen;
     this.stopped = false;
-    await this.ensureVoices();
+    this.releaseAudio();
+    try { speechSynthesis.cancel(); } catch (_) {}
 
-    const sentences = this.splitSentences(clean);
-    for (const sentence of sentences) {
-      if (this.stopped) break;
-      const blob = await this.synthServer(sentence.text, sentence.lang);
-      if (blob && !this.stopped) {
-        await this.playBlob(blob);
-      } else if (!this.stopped) {
-        await this.speakBrowserSentence(sentence);
-      }
+    await this.ensureVoices();
+    if (gen !== this._gen) return;
+
+    const lang = this.detectLang(clean);
+    const blob = await this.synthServer(clean, lang);
+    if (gen !== this._gen) return;
+
+    if (blob) {
+      await this.playBlob(blob, gen);
+    } else {
+      await this.speakBrowser(clean, lang, gen);
     }
 
-    this.speaking = false;
-    if (onEnd && !this.stopped) onEnd();
+    if (gen === this._gen) this.speaking = false;
+    if (onEnd && gen === this._gen && !this.stopped) onEnd();
   }
 };
 
-function speak(text, onEnd) { Voice.speak(text, onEnd); }
-function stopSpeaking() { Voice.stop(); }
+function speak(text, onEnd) { return Voice.enqueue(text, onEnd); }
+function stopSpeaking() { Voice.flush(); }
 
 const MapDepict = {
   overlays: [],
@@ -327,7 +340,8 @@ window.Voice = Voice;
 window.MapDepict = MapDepict;
 
 function userIntervene() {
-  Voice.stop();
+  Voice.flush();
+  voiceSessionActive = false;
   if (window.PmrRadio) PmrRadio.hide();
   if (window.DrivingView) DrivingView.deactivate();
   MapDepict.cancelAll();
@@ -340,7 +354,7 @@ function userIntervene() {
   const ma = document.getElementById('map-action');
   if (ma) ma.textContent = '⏹ Διακοπή — εσύ παίρνεις τον έλεγχο';
   if (window.ACIControl) ACIControl.reply('Stopped — your move. Drag, zoom, type or speak.');
-  speak('Σταμάτησα. Your move — πες ή γράψε τι θες.', () => {});
+  speak('Σταμάτησα. Your move.', () => {});
 }
 
 window.userIntervene = userIntervene;

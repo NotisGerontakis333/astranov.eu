@@ -62,27 +62,55 @@ const mouse = new THREE.Vector2();
 
 container.addEventListener('click', onGlobeClick);
 
+function globeClickTargets() {
+  const targets = [];
+  if (window._meMarker) targets.push(window._meMarker);
+  if (window.Commerce?.markers) targets.push(...Commerce.markers);
+  globePivot.children.forEach(c => {
+    if (c.userData?.name || c.userData?.vendor || c.userData?.type === 'me' || c.userData?.type === 'pilot') {
+      if (!targets.includes(c)) targets.push(c);
+    }
+  });
+  return targets;
+}
+
 function onGlobeClick(e) {
   if (dragging) return;
   mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
   mouse.y = - (e.clientY / window.innerHeight) * 2 + 1;
   raycaster.setFromCamera(mouse, camera);
+
+  const markerHits = raycaster.intersectObjects(globeClickTargets(), true);
+  if (markerHits.length > 0) {
+    const hit = markerHits[0].object;
+    const root = hit.userData?.vendor ? hit : (hit.parent?.userData?.vendor ? hit.parent : hit);
+    const ud = root.userData || hit.userData || {};
+
+    if (ud.vendor) {
+      MapDepict.action('vendor', { lat: ud.vendor.lat, lng: ud.vendor.lng, detail: ud.vendor.name });
+      ACIControl?.reply('Κατάστημα: ' + ud.vendor.name + ' — πες order ή κλικ 🛒');
+      Commerce.orderPitogyra();
+      return;
+    }
+    if (ud.type === 'me' || ud.name === (me?.name || 'Αξάς') || root === window._meMarker) {
+      if (voiceEnabled) startVoiceOptions();
+      else toggleKryfto();
+      return;
+    }
+    if (ud.name) {
+      MapDepict.action('explore', { lat: ud.lat, lng: ud.lng, detail: ud.name });
+      ACIControl?.reply('User: ' + ud.name);
+      if (voiceEnabled) speak('Επιλέχθηκε ' + ud.name + '.', () => {});
+      return;
+    }
+  }
+
   const intersects = raycaster.intersectObject(earth);
   if (intersects.length > 0) {
     const point = intersects[0].point;
     focusOnGlobePoint(point);
     cityLevel = camera.position.z < 2.2;
-
-    const markerHits = raycaster.intersectObject(window._meMarker, true);
-    if (markerHits.length > 0) {
-      if (voiceEnabled) startVoiceOptions();
-      else toggleKryfto();
-      return;
-    }
-
-    const gLocal = latLngToPos(36.2, 28.1, 1.04);
-    const gWorld = new THREE.Vector3(gLocal.x, gLocal.y, gLocal.z).applyMatrix4(globePivot.matrixWorld);
-    if (point.distanceTo(gWorld) < 0.22) groupOrder();
+    MapDepict.action('explore', { detail: 'globe' });
   }
 }
 

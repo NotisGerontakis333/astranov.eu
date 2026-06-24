@@ -64,7 +64,7 @@ const Commerce = {
       if (window.DrivingView) DrivingView.setDestination(vendor.lat, vendor.lng);
       const msg = 'Παραγγελία στο ' + vendor.name + '. Οδηγός ' + driver + '. Πιτογύρα, μπύρες, τσιγάρα στο σημείο σου.';
       ACIControl.reply(msg);
-      speak(msg, () => provokeAnswer());
+      speak(msg, () => resumeListening());
       groupOrder();
     });
   }
