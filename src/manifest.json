@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "description": "Module load order for index.html monolith. Regenerate via: node scripts/extract.mjs | node scripts/assemble.mjs",
+  "modules": [
+    { "file": "00-globe.js", "marker": null },
+    { "file": "05-speak-map.js", "marker": "// === VOICE + MAP DEPICT ===" },
+    { "file": "12-auth.js", "marker": "// === GOOGLE AUTH (Supabase) ===" },
+    { "file": "20-aci.js", "marker": "// === ASTRANOV COLLECTIVE INTELLIGENCE (ACI)" },
+    { "file": "30-commerce.js", "marker": "// ── COMMERCE:" },
+    { "file": "40-comms-news.js", "marker": "// ── COMMS:" },
+    { "file": "42-satradio.js", "marker": "// === SAT RADIO HANDHELD" },
+    { "file": "50-cosmic.js", "marker": "// ── COSMIC ZOOM:" },
+    { "file": "10-trackball.js", "marker": "// Trackball — rotate entire globe pivot" },
+    { "file": "60-graphics.js", "marker": "// ASTRANOV AI GRAPHICS ENGINE" },
+    { "file": "70-routing.js", "marker": "// STRONG ROUTING FALLBACK PROVIDER CYCLING ENGINE" },
+    { "file": "72-driving.js", "marker": "// === DRIVING VIEW + OSRM ROAD ROUTING ===" },
+    { "file": "80-webrtc.js", "marker": "// WebRTC Video Calling + Orbital global compatibility" },
+    { "file": "90-voice-world.js", "marker": "// Flow" },
+    { "file": "99-boot.js", "marker": "function animate()" }
+  ]
+}

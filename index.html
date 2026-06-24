@@ -4,18 +4,63 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Astranov</title>
-<meta name="compliance-check" content="aci-final-2026-06-24">
+<meta name="compliance-check" content="streets-batch-2026-06-24-pmr-drive-auth">
 <meta name="aci-session" content="Astranov Collective Intelligence">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
   html, body { margin:0; padding:0; height:100%; width:100%; overflow:hidden; background:#000; color:#e8f4ff; font-family:system-ui, sans-serif; }
-  #globe { position:absolute; top:0; left:0; right:0; bottom:0; }
-  #globe canvas { display:block; }
+  #globe { position:absolute; top:0; left:0; right:0; bottom:0; touch-action:none; }
+  #globe canvas { display:block; cursor:grab; }
+  #globe canvas.dragging { cursor:grabbing; }
+  #user-chip { position:fixed; top:10px; right:10px; z-index:45; font:11px system-ui; color:rgba(180,230,255,0.85); pointer-events:none; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #drive-guide { position:fixed; top:36px; left:10px; right:10px; z-index:42; font:12px/1.35 system-ui; color:#7df; background:rgba(0,20,40,0.75); border:1px solid rgba(68,170,255,0.35); border-radius:12px; padding:8px 12px; display:none; pointer-events:none; }
+  #drive-guide.open { display:block; }
+  #aci-hud { position:fixed; left:0; right:0; bottom:0; z-index:50; pointer-events:none; }
+  #sat-radio { display:none; margin:0 8px 6px; padding:10px 12px; background:rgba(8,12,8,0.9); border:1px solid rgba(255,220,80,0.4); border-radius:16px; pointer-events:auto; font:11px/1.4 system-ui; color:#dda; }
+  #sat-radio.open { display:block; }
+  #sat-radio .sr-row { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:6px; }
+  #sat-radio .sr-freq { color:#ff8; font-weight:600; }
+  #sr-ptt { flex:1; padding:10px; background:rgba(180,40,20,0.5); border:2px solid #f84; border-radius:12px; color:#fff; font-weight:700; cursor:pointer; touch-action:none; }
+  #sr-ptt.active { background:rgba(255,60,20,0.8); }
+  #sr-close { background:transparent; border:1px solid #666; color:#aaa; border-radius:8px; padding:4px 10px; cursor:pointer; }
+  #aci-bar { display:flex; gap:6px; padding:8px 10px; margin:0 8px 8px; background:rgba(0,8,18,0.82); border:1px solid rgba(0,180,255,0.35); border-radius:24px; pointer-events:auto; backdrop-filter:blur(12px); align-items:center; }
+  #aci-input { flex:1; min-width:0; background:rgba(0,20,40,0.6); border:1px solid rgba(100,200,255,0.25); color:#e8f4ff; border-radius:16px; padding:8px 12px; font:14px system-ui; outline:none; }
+  #aci-mic, #aci-send, #aci-order, #aci-vhf, #aci-call, #aci-stop, #aci-login { background:rgba(0,100,180,0.35); border:1px solid rgba(0,200,255,0.4); color:#aaf; border-radius:50%; width:38px; height:38px; cursor:pointer; font-size:14px; flex-shrink:0; }
+  #aci-login { font-weight:700; font-size:13px; }
+  #aci-stop { background:rgba(120,20,40,0.45); border-color:rgba(255,80,100,0.5); color:#faa; }
+  #map-action { margin:0 12px 2px; padding:4px 12px; font:11px/1.3 system-ui; color:#8cf; max-height:32px; overflow:hidden; opacity:0.85; pointer-events:none; }
+  #aci-reply { margin:0 12px 4px; padding:6px 12px; font:12px/1.4 system-ui; color:#9fd; max-height:48px; overflow:hidden; opacity:0.9; pointer-events:none; }
+  #news-ticker { margin:8px 8px 0; padding:6px 12px; background:rgba(10,0,20,0.75); border:1px solid rgba(180,100,255,0.3); border-radius:14px; font:11px system-ui; color:#ddaaff; white-space:nowrap; overflow:hidden; pointer-events:auto; }
+  #zoom-label { position:fixed; top:10px; left:10px; z-index:40; font:11px system-ui; color:rgba(150,220,255,0.7); pointer-events:none; }
 </style>
 </head>
 <body>
   <div id="globe"></div>
-
+  <div id="zoom-label">EARTH</div>
+  <div id="user-chip"></div>
+  <div id="drive-guide"></div>
+  <div id="aci-hud">
+    <div id="news-ticker">Astranov Collective Intelligence — loading news…</div>
+    <div id="map-action"></div>
+    <div id="aci-reply"></div>
+    <div id="sat-radio">
+      <div class="sr-row"><span class="sr-ch">EU PMR 11</span><span class="sr-freq">446.13125 MHz</span><button id="sr-close" type="button">✕</button></div>
+      <div class="sr-sim">Virtual Global SIM</div>
+      <div class="sr-bands" style="opacity:0.8;margin-bottom:8px">UHF · VHF · SAT triband</div>
+      <button id="sr-ptt" type="button">PTT · HOLD TO TRANSMIT</button>
+    </div>
+    <div id="aci-bar">
+      <button id="aci-login" title="Sign in with Google" type="button">G</button>
+      <button id="aci-stop" title="Stop — take control" type="button">⏹</button>
+      <button id="aci-mic" title="Voice (tap while speaking to interrupt)" type="button">🎙</button>
+      <input id="aci-input" placeholder="Ask Astranov — order, VHF PMR, drive, login…" />
+      <button id="aci-send" title="Send" type="button">→</button>
+      <button id="aci-order" title="Order pitogyra" type="button">🥙</button>
+      <button id="aci-vhf" title="EU PMR 11 triband SAT radio" type="button">📻</button>
+      <button id="aci-call" title="Phone call" type="button">📞</button>
+    </div>
+  </div>
 <script>
 const container = document.getElementById('globe');
 
@@ -48,6 +93,8 @@ try {
 let drag = false, px = 0, py = 0;
 let dragging = false;
 let idleRoll = 0.00035;
+let globePivot;
+let trackVelX = 0, trackVelY = 0;
 let cityLevel = false;
 let voiceEnabled = true;
 let isListening = false;
@@ -87,25 +134,12 @@ new THREE.TextureLoader().load(
   undefined,
   () => { console.log('Earth texture fallback active'); }
 );
-const earth = new THREE.Mesh( new THREE.SphereGeometry(1,64,64), earthMat );
-earth.rotation.y = 0.82;
-scene.add(earth);
+globePivot = new THREE.Group();
+scene.add(globePivot);
 
-// Multiple bright visible anchors (guaranteed to show) so the globe is obviously there
-const anchor1 = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 8), new THREE.MeshBasicMaterial({ color: 0x00ffaa }));
-anchor1.position.set(0.72, 0.28, 0.65);
-earth.add(anchor1);
-
-const anchor2 = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 8), new THREE.MeshBasicMaterial({ color: 0xffaa00 }));
-anchor2.position.set(-0.6, -0.4, 0.75);
-earth.add(anchor2);
-
-// Visible equator ring - extra obvious geometry
-const ringGeo = new THREE.TorusGeometry(1.01, 0.012, 6, 48);
-const ringMat = new THREE.MeshBasicMaterial({ color: 0x00ddff, transparent: true, opacity: 0.7 });
-const equator = new THREE.Mesh(ringGeo, ringMat);
-equator.rotation.x = Math.PI / 2;
-earth.add(equator);
+const earth = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 64), earthMat);
+globePivot.add(earth);
+globePivot.rotation.y = 0.82;
 
 // lat/lng to 3D sphere position
 function latLngToPos(lat, lng, r = 1) {
@@ -117,6 +151,382 @@ function latLngToPos(lat, lng, r = 1) {
     z: r * Math.sin(phi) * Math.sin(theta)
   };
 }
+
+// === VOICE + MAP DEPICT ===
+// Natural speech: Greek, English, Greklish — never spell letter-by-letter.
+// Every ACI action gets a visual on the globe; user can intervene anytime.
+
+const Voice = {
+  voices: [],
+  ready: false,
+  speaking: false,
+  stopped: false,
+  preferredListenLang: 'el-GR',
+
+  init() {
+    const load = () => {
+      this.voices = speechSynthesis.getVoices().filter(v => v.lang);
+      if (this.voices.length) this.ready = true;
+    };
+    load();
+    speechSynthesis.addEventListener('voiceschanged', load);
+    setTimeout(load, 250);
+  },
+
+  isGreekChar(ch) {
+    return /[\u0370-\u03FF\u1F00-\u1FFF]/.test(ch);
+  },
+
+  pickVoice(lang) {
+    const v = this.voices;
+    if (!v.length) return null;
+    if (lang === 'el-GR') {
+      return v.find(x => /el(-|_)?gr/i.test(x.lang) && !/en/i.test(x.name))
+        || v.find(x => /el/i.test(x.lang))
+        || v.find(x => /greek/i.test(x.name));
+    }
+    return v.find(x => /en(-|_)?us/i.test(x.lang))
+      || v.find(x => /en(-|_)?gb/i.test(x.lang))
+      || v.find(x => /^en/i.test(x.lang));
+  },
+
+  sanitize(text) {
+    return String(text || '')
+      .replace(/[\u{1F000}-\u{1FFFF}]/gu, '')
+      .replace(/https?:\/\/\S+/gi, '')
+      .replace(/[`#*_~|<>[\]{}]/g, ' ')
+      .replace(/([a-zA-Z])\.([a-zA-Z])/g, '$1 $2')
+      .replace(/\s+/g, ' ')
+      .trim();
+  },
+
+  splitChunks(text) {
+    const chunks = [];
+    let buf = '';
+    let script = null;
+    const flush = () => {
+      const t = buf.trim();
+      if (!t) return;
+      chunks.push({ text: t, lang: script === 'g' ? 'el-GR' : 'en-US' });
+      buf = '';
+    };
+    for (const ch of text) {
+      const g = this.isGreekChar(ch);
+      const l = /[A-Za-z]/.test(ch);
+      const s = g ? 'g' : (l ? 'l' : 'o');
+      if (s !== 'o' && script && s !== script) flush();
+      if (s !== 'o') script = s;
+      buf += ch;
+    }
+    flush();
+    if (!chunks.length && text.trim()) {
+      const greek = (text.match(/[\u0370-\u03FF\u1F00-\u1FFF]/g) || []).length;
+      const latin = (text.match(/[A-Za-z]/g) || []).length;
+      chunks.push({ text: text.trim(), lang: greek >= latin ? 'el-GR' : 'en-US' });
+    }
+    return chunks;
+  },
+
+  stop() {
+    this.stopped = true;
+    this.speaking = false;
+    try { speechSynthesis.cancel(); } catch (_) {}
+  },
+
+  speak(text, onEnd) {
+    if (!voiceEnabled) { if (onEnd) onEnd(); return; }
+    const clean = this.sanitize(text);
+    if (!clean) { if (onEnd) onEnd(); return; }
+
+    this.stop();
+    this.stopped = false;
+    const chunks = this.splitChunks(clean);
+    let idx = 0;
+
+    const speakNext = () => {
+      if (this.stopped || idx >= chunks.length) {
+        this.speaking = false;
+        if (onEnd && !this.stopped) onEnd();
+        return;
+      }
+      const { text: t, lang } = chunks[idx++];
+      const utter = new SpeechSynthesisUtterance(t);
+      utter.lang = lang;
+      utter.rate = lang === 'el-GR' ? 0.92 : 1.0;
+      utter.pitch = 1.0;
+      const voice = this.pickVoice(lang);
+      if (voice) utter.voice = voice;
+      utter.onend = speakNext;
+      utter.onerror = speakNext;
+      this.speaking = true;
+      speechSynthesis.speak(utter);
+    };
+
+    if (!this.voices.length) {
+      speechSynthesis.addEventListener('voiceschanged', () => {
+        this.voices = speechSynthesis.getVoices();
+        speakNext();
+      }, { once: true });
+    }
+    speakNext();
+  }
+};
+
+function speak(text, onEnd) { Voice.speak(text, onEnd); }
+function stopSpeaking() { Voice.stop(); }
+
+const MapDepict = {
+  overlays: [],
+  current: '',
+
+  userPos() {
+    return window._lastPos || { lat: 36.22, lng: 28.12 };
+  },
+
+  setHud(label, detail) {
+    const ma = document.getElementById('map-action');
+    if (ma) ma.textContent = detail ? label + ' — ' + detail : label;
+    if (label && window.ACIControl) ACIControl.reply((label + (detail ? ': ' + detail : '')).slice(0, 220));
+  },
+
+  cancelAll() {
+    this.overlays.forEach(o => {
+      if (o.mesh && o.mesh.parent) o.mesh.parent.remove(o.mesh);
+      if (o.line && o.line.parent) o.line.parent.remove(o.line);
+      if (o.group && o.group.parent) o.group.parent.remove(o.group);
+    });
+    this.overlays = [];
+    this.current = '';
+    const ma = document.getElementById('map-action');
+    if (ma) ma.textContent = '';
+  },
+
+  pulse(lat, lng, color, label, duration = 9000) {
+    const p = latLngToPos(lat, lng, 1.04);
+    const pos = new THREE.Vector3(p.x, p.y, p.z);
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(0.018, 0.032, 28),
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, side: THREE.DoubleSide })
+    );
+    ring.position.copy(pos);
+    ring.lookAt(0, 0, 0);
+    globePivot.add(ring);
+    if (window.AIGraphics) AIGraphics.spawnEffect(pos, color, 14, 36);
+    const entry = { mesh: ring, born: Date.now(), duration, label };
+    this.overlays.push(entry);
+    return entry;
+  },
+
+  arc(fromLat, fromLng, toLat, toLng, color = 0x00ffaa, duration = 14000) {
+    const a = latLngToPos(fromLat, fromLng, 1.03);
+    const b = latLngToPos(toLat, toLng, 1.03);
+    const va = new THREE.Vector3(a.x, a.y, a.z);
+    const vb = new THREE.Vector3(b.x, b.y, b.z);
+    const mid = va.clone().add(vb).multiplyScalar(0.5).normalize().multiplyScalar(1.1);
+    const curve = new THREE.QuadraticBezierCurve3(va, mid, vb);
+    const line = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(curve.getPoints(28)),
+      new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.75 })
+    );
+    globePivot.add(line);
+    const entry = { line, born: Date.now(), duration };
+    this.overlays.push(entry);
+    return line;
+  },
+
+  action(type, opts = {}) {
+    const u = this.userPos();
+    const lat = opts.lat != null ? opts.lat : u.lat;
+    const lng = opts.lng != null ? opts.lng : u.lng;
+    const detail = (opts.detail || '').slice(0, 80);
+    this.current = type;
+
+    const palette = {
+      think: 0x44ccff,
+      evolve: 0xaa66ff,
+      teach: 0x66ff99,
+      order: 0xffaa44,
+      vendor: 0xff8844,
+      phone: 0x44ff88,
+      vhf: 0xffdd44,
+      news: 0xcc88ff,
+      explore: 0x00aaff,
+      video: 0x00ffcc,
+      location: 0x00ffcc,
+      mode: 0x88aaff,
+      stop: 0xff4466,
+      drive: 0x44aaff
+    };
+    const color = palette[type] || 0x00ddff;
+    const labels = {
+      think: 'Σκέψη ACI',
+      evolve: 'Εξέλιξη collective',
+      teach: 'Μνήμη / neuron',
+      order: 'Παραγγελία',
+      vendor: 'Καταστήματα',
+      phone: 'Τηλέφωνο',
+      vhf: 'VHF ασύρματος',
+      news: 'Ειδήσεις',
+      explore: 'Εξερεύνηση',
+      video: 'Video κλήση',
+      location: 'Τοποθεσία',
+      mode: 'Λειτουργία ACI',
+      stop: 'Διακοπή',
+      drive: 'Οδήγηση δρόμου'
+    };
+
+    this.setHud(labels[type] || type, detail);
+    this.pulse(lat, lng, color, labels[type]);
+
+    if (type === 'order' && opts.vendorLat != null) {
+      this.arc(opts.vendorLat, opts.vendorLng, lat, lng, color);
+      const fp = latLngToPos(lat, lng, 1.04);
+      focusOnGlobePoint(new THREE.Vector3(fp.x, fp.y, fp.z));
+    }
+    if (type === 'vendor' && opts.vendors) {
+      opts.vendors.forEach(v => this.pulse(v.lat, v.lng, color, v.name, 12000));
+    }
+    if (type === 'news' && opts.worldLat != null) {
+      this.pulse(opts.worldLat, opts.worldLng, color, 'World news', 10000);
+    }
+    if (type === 'evolve') {
+      [{ lat: 36.22, lng: 28.12 }, { lat: 40, lng: 20 }, { lat: -15, lng: 45 }, { lat: 55, lng: -30 }]
+        .forEach(s => this.pulse(s.lat, s.lng, color, 'neuron', 11000));
+    }
+    if (type === 'think') {
+      const fp = latLngToPos(lat, lng, 1.04);
+      focusOnGlobePoint(new THREE.Vector3(fp.x, fp.y, fp.z));
+    }
+
+    return { type, lat, lng };
+  },
+
+  tick() {
+    const now = Date.now();
+    this.overlays = this.overlays.filter(o => {
+      const age = (now - o.born) / o.duration;
+      if (age >= 1) {
+        if (o.mesh && o.mesh.parent) o.mesh.parent.remove(o.mesh);
+        if (o.line && o.line.parent) o.line.parent.remove(o.line);
+        return false;
+      }
+      if (o.mesh) {
+        o.mesh.material.opacity = 0.9 * (1 - age * 0.85);
+        const s = 1 + age * 1.8;
+        o.mesh.scale.set(s, s, s);
+      }
+      if (o.line) o.line.material.opacity = 0.75 * (1 - age);
+      return true;
+    });
+  }
+};
+
+window.Voice = Voice;
+window.MapDepict = MapDepict;
+
+function userIntervene() {
+  Voice.stop();
+  if (window.SatRadio) SatRadio.hide();
+  if (window.DrivingView) DrivingView.deactivate();
+  MapDepict.cancelAll();
+  if (window._aciAbort) { try { window._aciAbort.abort(); } catch (_) {} }
+  if (window._droneAnim) { clearInterval(window._droneAnim); window._droneAnim = null; }
+  if (Comms) Comms.vhfActive = false;
+  if (recognition) { try { recognition.stop(); } catch (_) {} }
+  isListening = false;
+  if (ACI) ACI.evolving = false;
+  const ma = document.getElementById('map-action');
+  if (ma) ma.textContent = '⏹ Διακοπή — εσύ παίρνεις τον έλεγχο';
+  if (window.ACIControl) ACIControl.reply('Stopped — your move. Drag, zoom, type or speak.');
+  speak('Σταμάτησα. Your move — πες ή γράψε τι θες.', () => {});
+}
+
+window.userIntervene = userIntervene;
+
+// === GOOGLE AUTH (Supabase) ===
+const Auth = {
+  client: null,
+  user: null,
+
+  init() {
+    if (typeof supabase === 'undefined') {
+      console.warn('[Auth] Supabase SDK missing — Google login unavailable');
+      return;
+    }
+    this.client = supabase.createClient(SB_URL, SB_KEY, {
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+    });
+    this.client.auth.onAuthStateChange((_ev, session) => {
+      this.user = session?.user || null;
+      this.applyUser();
+    });
+    this.client.auth.getSession().then(({ data }) => {
+      this.user = data?.session?.user || null;
+      this.applyUser();
+    });
+    const btn = document.getElementById('aci-login');
+    if (btn) btn.onclick = () => this.user ? this.signOut() : this.signInGoogle();
+  },
+
+  async signInGoogle() {
+    if (!this.client) return;
+    MapDepict?.action('think', { detail: 'Google sign-in' });
+    const redirectTo = window.location.origin + window.location.pathname;
+    await this.client.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo, skipBrowserRedirect: false }
+    });
+  },
+
+  async signOut() {
+    if (!this.client) return;
+    await this.client.auth.signOut();
+    this.user = null;
+    this.applyUser();
+    speak('Αποσυνδέθηκες.', () => {});
+  },
+
+  applyUser() {
+    const btn = document.getElementById('aci-login');
+    const chip = document.getElementById('user-chip');
+    if (this.user) {
+      const name = this.user.user_metadata?.full_name
+        || this.user.user_metadata?.name
+        || (this.user.email || '').split('@')[0]
+        || 'User';
+      const avatar = this.user.user_metadata?.avatar_url || this.user.user_metadata?.picture;
+      if (btn) {
+        btn.title = 'Sign out · ' + name;
+        if (avatar) {
+          btn.style.backgroundImage = 'url(' + avatar + ')';
+          btn.style.backgroundSize = 'cover';
+          btn.textContent = '';
+        } else {
+          btn.textContent = name.charAt(0).toUpperCase();
+        }
+      }
+      if (chip) chip.textContent = name;
+      if (typeof me !== 'undefined' && me) { me.name = name; me.id = this.user.id; me.email = this.user.email; }
+      ACI?.feed('login', name);
+    } else {
+      if (btn) {
+        btn.title = 'Sign in with Google';
+        btn.textContent = 'G';
+        btn.style.backgroundImage = '';
+      }
+      if (chip) chip.textContent = '';
+    }
+  },
+
+  headers() {
+    if (!this.client) return {};
+    return this.client.auth.getSession().then(({ data }) => {
+      const t = data?.session?.access_token;
+      return t ? { Authorization: 'Bearer ' + t } : {};
+    });
+  }
+};
+window.Auth = Auth;
 
 // === ASTRANOV COLLECTIVE INTELLIGENCE (ACI) — FINAL ===
 // Synthesized from all AI specs: pure globe + three modes + council + self-evolving neurons.
@@ -142,8 +552,17 @@ const ACI = {
     }).then(r => r.json().catch(() => ({}))).catch(() => ({}));
   },
 
+  _logQueue: [],
+  _logTimer: null,
   feed(action, detail) {
-    this.api({ mode: 'log', action, detail: detail || '' });
+    this._logQueue.push({ action, detail: detail || '', ts: Date.now() });
+    if (!this._logTimer) {
+      this._logTimer = setTimeout(() => {
+        const batch = this._logQueue.splice(0, 8);
+        this._logTimer = null;
+        if (batch.length) this.api({ mode: 'log', action: 'batch', detail: batch.map(b => b.action + ':' + b.detail).join('; ').slice(0, 600) });
+      }, 30000);
+    }
   },
 
   spawnNeuron(lat, lng, strength, principle) {
@@ -175,12 +594,17 @@ const ACI = {
   },
 
   async think(prompt) {
-    const r = await this.api({
-      mode: 'think', prompt,
-      history: this.history.slice(-8),
-      aci_mode: this.thinkMode || undefined
-    });
-    const text = r.text || r.response || 'Astranov is gathering itself.';
+    if (window._aciAbort) { try { window._aciAbort.abort(); } catch (_) {} }
+    window._aciAbort = new AbortController();
+    const up = window._lastPos || { lat: 36.22, lng: 28.12 };
+    MapDepict.action('think', { lat: up.lat, lng: up.lng, detail: prompt.slice(0, 60) });
+    const r = await fetch(this.url + '/functions/v1/aci', {
+      method: 'POST', headers: this.headers(),
+      body: JSON.stringify({ mode: 'think', prompt, history: this.history.slice(-8), aci_mode: this.thinkMode || undefined }),
+      signal: window._aciAbort.signal
+    }).then(res => res.json().catch(() => ({}))).catch(err => (err.name === 'AbortError' ? { aborted: true } : {}));
+    if (r.aborted) return '';
+    const text = r.text || r.response || 'Το Astranov συγκεντρώνεται.';
     this.history.push({ role: 'user', content: prompt });
     this.history.push({ role: 'assistant', content: text });
     if (this.history.length > 20) this.history = this.history.slice(-20);
@@ -190,15 +614,19 @@ const ACI = {
   },
 
   async teach(content) {
+    const tLat = 36.2 + (Math.random() - 0.5) * 4;
+    const tLng = 28.1 + (Math.random() - 0.5) * 4;
+    MapDepict.action('teach', { lat: tLat, lng: tLng, detail: content.slice(0, 50) });
     await this.api({ mode: 'teach', content });
     this.feed('teach', content.slice(0, 120));
-    this.spawnNeuron(36.2 + (Math.random() - 0.5) * 4, 28.1 + (Math.random() - 0.5) * 4, 1.4, content);
+    this.spawnNeuron(tLat, tLng, 1.4, content);
     return true;
   },
 
   async evolve(reason) {
     if (this.evolving) return null;
     this.evolving = true;
+    MapDepict.action('evolve', { detail: reason || 'collective' });
     try {
       const r = await this.api({ mode: 'evolve', activity: reason || 'user-triggered' });
       const births = Math.max(1, Math.min(4, Number(r.brain && r.brain.new_neurons) || 1));
@@ -225,9 +653,7 @@ const ACI = {
         .forEach(s => this.spawnNeuron(s.lat, s.lng, 1.2));
     }
     this.attachHeartbeat();
-    setInterval(() => { this.evolve('heartbeat'); }, 15 * 60 * 1000);
-    setTimeout(() => this.evolve('boot'), 12000);
-    console.log('%c[ACI FINAL] Astranov Collective Intelligence online', 'color:#00ddff', stats);
+    console.log('%c[ACI] Collective Intelligence ready — evolve on voice/command only', 'color:#00ddff', stats);
   },
 
   attachHeartbeat() {
@@ -256,27 +682,463 @@ const ACI = {
 };
 window.AstranovCollectiveIntelligence = ACI;
 
-// Simple interaction (drag + zoom + inertia basics)
-container.addEventListener('mousedown', e => { 
-  drag = true; 
-  px = e.clientX; 
-  py = e.clientY; 
+const SB_URL = ACI.url;
+const SB_KEY = ACI.key;
+const sbHeaders = () => ({ apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, 'Content-Type': 'application/json' });
+
+// ── ACI CONTROL (text + buttons — you command the collective) ──
+const ACIControl = {
+  init() {
+    const input = document.getElementById('aci-input');
+    const send = () => this.handle(input.value.trim());
+    document.getElementById('aci-send').onclick = send;
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
+    const mic = document.getElementById('aci-mic');
+    mic.onclick = () => {
+      if (Voice.speaking) { userIntervene(); startVoiceOptions(); return; }
+      startVoiceOptions();
+    };
+    const stopBtn = document.getElementById('aci-stop');
+    if (stopBtn) stopBtn.onclick = () => userIntervene();
+    document.getElementById('aci-order').onclick = () => Commerce.orderPitogyra();
+    document.getElementById('aci-vhf').onclick = () => Comms.startVHF();
+    document.getElementById('aci-call').onclick = () => Comms.startPhone();
+  },
+  reply(text) {
+    const el = document.getElementById('aci-reply');
+    if (el) el.textContent = (text || '').slice(0, 220);
+  },
+  async handle(text) {
+    if (!text) return;
+    const low = text.toLowerCase();
+    ACIControl.reply('…');
+    if (/^(stop|σταμάτα|σταματα|pause|διακοπή)/.test(low)) { userIntervene(); return; }
+    if (/^(login|sign in|google|σύνδεση)/.test(low)) { Auth.signInGoogle(); return; }
+    if (/^(logout|sign out|αποσύνδεση)/.test(low)) { Auth.signOut(); return; }
+    if (/telecom|sat radio|satellite radio|ασύρματος/.test(low)) { Comms.startTelecomms(); return; }
+    if (/pitogyra|πιτογυρ|μπίρ|τσιγαρ|order|παραγγελ/.test(low)) {
+      await Commerce.orderPitogyra();
+      return;
+    }
+    if (/vhf|radio|ασυρμ/.test(low)) { Comms.startVHF(); return; }
+    if (/phone|call|τηλέφων|κλήση|video/.test(low)) {
+      if (/video|βίντεο/.test(low)) { MapDepict.action('video', { detail: 'Αξαδίνα' }); startOrbitalVideoCall('Αξαδίνα'); }
+      else Comms.startPhone();
+      return;
+    }
+    if (/news|νέα|ειδήσει/.test(low)) { NewsFeed.flash(); return; }
+    if (/vendor|κατάστη|shop/.test(low)) { await Commerce.loadVendors(); Commerce.announceVendors(); return; }
+    if (/evolve|neuron|collective|εξέλιξη/.test(low)) {
+      await ACI.evolve('user-command');
+      ACIControl.reply('Collective evolved. Council judged. Neurons updated.');
+      speak('Η collective intelligence εξελίχθηκε. Neurons updated.', () => {});
+      return;
+    }
+    const ans = await ACI.think(text);
+    if (!ans) return;
+    ACIControl.reply(ans);
+    speak(ans.slice(0, 260), () => {});
+  }
+};
+
+// ── COMMERCE: vendors, drivers, pitogyra order to your location ──
+const Commerce = {
+  vendors: [],
+  markers: [],
+  async loadVendors() {
+    try {
+      const r = await fetch(SB_URL + '/rest/v1/vendors?select=id,name,emoji,lat,lng,category,items&is_active=eq.true&limit=30', { headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY } });
+      this.vendors = r.ok ? await r.json() : [];
+    } catch { this.vendors = []; }
+    if (!this.vendors.length) {
+      this.vendors = [
+        { id: 'pitogyra-kos', name: 'Πιτογυράκος Κως', emoji: '🥙', lat: 36.89, lng: 27.29, category: 'food', items: [{ name: 'Πιτογύρα', price: 3.5 }, { name: 'Μπύρα', price: 2 }, { name: 'Τσιγάρα', price: 5 }] },
+        { id: 'mini-market', name: 'Mini Market Αξάς', emoji: '🏪', lat: 36.22, lng: 28.14, category: 'shop', items: [] }
+      ];
+    }
+    this.showOnGlobe();
+    return this.vendors;
+  },
+  showOnGlobe() {
+    this.markers.forEach(m => { if (m.parent) m.parent.remove(m); });
+    this.markers = [];
+    if (this.vendors.length) MapDepict.action('vendor', { vendors: this.vendors, detail: this.vendors.length + ' shops' });
+    this.vendors.forEach(v => {
+      const p = latLngToPos(v.lat, v.lng, 1.028);
+      const m = new THREE.Mesh(new THREE.SphereGeometry(0.012, 6, 6), new THREE.MeshBasicMaterial({ color: 0xffaa44 }));
+      m.position.set(p.x, p.y, p.z);
+      m.userData = { vendor: v };
+      globePivot.add(m);
+      this.markers.push(m);
+    });
+  },
+  announceVendors() {
+    const names = this.vendors.map(v => v.name).join(', ');
+    const msg = 'Καταστήματα στον χάρτη: ' + names;
+    ACIControl.reply(msg);
+    speak(msg.slice(0, 200));
+  },
+  async orderPitogyra() {
+    requestLocationIfNeeded(async () => {
+      await this.loadVendors();
+      const vendor = this.vendors.find(v => /πιτο|pit|food|γυρ/i.test(v.name + v.id)) || this.vendors[0];
+      if (!vendor) { speak('No vendor found.'); return; }
+      let dLat = 36.22, dLng = 28.12;
+      if (userLocated && window._lastPos) { dLat = window._lastPos.lat; dLng = window._lastPos.lng; }
+      else if (window._meMarker) {
+        const wp = new THREE.Vector3(); window._meMarker.getWorldPosition(wp);
+        dLat = 36.22; dLng = 28.12;
+      }
+      const items = [{ name: 'Πιτογύρα', qty: 2 }, { name: 'Μπύρα', qty: 2 }, { name: 'Τσιγάρα', qty: 1 }];
+      let orderResult = null;
+      try {
+        const r = await fetch(SB_URL + '/functions/v1/order-intake', {
+          method: 'POST', headers: sbHeaders(),
+          body: JSON.stringify({ vendor_id: vendor.id, items, delivery_lat: dLat, delivery_lng: dLng, notes: 'Astranov ACI order Αξάς', calc: { total_avc: 18 } })
+        });
+        orderResult = r.ok ? await r.json() : null;
+      } catch { /* local fallback */ }
+      const driver = orderResult?.driver || orderResult?.order?.driver_name || 'ΤΗΛΕΜΑΧΟΣ';
+      MapDepict.action('order', {
+        lat: dLat, lng: dLng,
+        vendorLat: vendor.lat, vendorLng: vendor.lng,
+        detail: vendor.name + ' → εσύ · ' + driver
+      });
+      if (window.DrivingView) DrivingView.setDestination(vendor.lat, vendor.lng);
+      const msg = 'Παραγγελία στο ' + vendor.name + '. Οδηγός ' + driver + '. Πιτογύρα, μπύρες, τσιγάρα στο σημείο σου.';
+      ACIControl.reply(msg);
+      speak(msg, () => provokeAnswer());
+      groupOrder();
+    });
+  }
+};
+
+// ── COMMS: phone + EU PMR VHF + triband SAT radio ──
+const Comms = {
+  vhfActive: false,
+  pmr: { channel: 11, freqMHz: 446.13125, label: 'EU PMR 11' },
+
+  async startPhone() {
+    const num = prompt('Phone number to call (e.g. +3069...):', '+30');
+    if (num && /^\+?\d[\d\s-]{6,}$/.test(num)) {
+      const up = window._lastPos || { lat: 36.22, lng: 28.12 };
+      MapDepict.action('phone', { lat: up.lat, lng: up.lng, detail: num });
+      window.location.href = 'tel:' + num.replace(/\s/g, '');
+      ACIControl.reply('Τηλέφωνο: ' + num);
+      speak('Ανοίγω τηλέφωνο για κλήση.', () => {});
+    } else speak('Λάθος αριθμός.');
+  },
+
+  async startVHF() {
+    if (this.vhfActive) return;
+    this.vhfActive = true;
+    SatRadio.show();
+    const orig = handleVoiceCommand;
+    recognition.onresult = (ev) => {
+      isListening = false;
+      const msg = (ev.results[0][0].transcript || '').trim();
+      if (!msg) return;
+      SatRadio.transmit(msg);
+      this.vhfActive = false;
+      recognition.onresult = orig;
+    };
+  },
+
+  startTelecomms() {
+    this.startVHF();
+  }
+};
+
+// ── NEWS (real RSS) ──
+const NewsFeed = {
+  items: [],
+  async fetch() {
+    try {
+      const url = 'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://feeds.bbci.co.uk/news/world/rss.xml');
+      const r = await fetch(url);
+      const xml = await r.text();
+      const titles = [...xml.matchAll(/<title>(?:<!\[CDATA\[)?([^\]<]+)/g)].map(m => m[1]).filter(t => t.length > 12 && !t.includes('BBC'));
+      this.items = titles.slice(0, 8);
+    } catch { this.items = ['Astranov Collective Intelligence online', 'Globe trackball active', 'ACI ready for orders and comms']; }
+    this.tick();
+  },
+  tick() {
+    const el = document.getElementById('news-ticker');
+    if (!el || !this.items.length) return;
+    const i = Math.floor(Date.now() / 12000) % this.items.length;
+    el.textContent = '📡 ' + this.items[i];
+  },
+  flash() {
+    this.fetch();
+    MapDepict.action('news', { worldLat: 51.5, worldLng: -0.12, detail: (this.items[0] || '').slice(0, 50) });
+    speak(this.items[0] || 'Φόρτωση ειδήσεων');
+  }
+};
+
+// === SAT RADIO HANDHELD — EU PMR triband global SIM ===
+const SatRadio = {
+  open: false,
+  mesh: null,
+  pttActive: false,
+  config: {
+    pmrChannel: 11,
+    pmrFreqMHz: 446.13125,
+    pmrLabel: 'EU PMR 11',
+    bands: ['UHF 403–470 MHz', 'VHF 156 MHz marine', 'SAT L-band global'],
+    sim: 'Virtual Global SIM · roaming',
+    callsign: 'ASTRANOV-AXAS'
+  },
+
+  show() {
+    this.open = true;
+    const panel = document.getElementById('sat-radio');
+    if (panel) {
+      panel.classList.add('open');
+      panel.querySelector('.sr-freq').textContent = this.config.pmrFreqMHz + ' MHz';
+      panel.querySelector('.sr-ch').textContent = this.config.pmrLabel;
+      panel.querySelector('.sr-sim').textContent = this.config.sim;
+      panel.querySelector('.sr-bands').textContent = this.config.bands.join(' · ');
+    }
+    this.spawnHandheld();
+    const up = window._lastPos || { lat: 36.22, lng: 28.12 };
+    MapDepict.action('vhf', { lat: up.lat, lng: up.lng, detail: this.config.pmrLabel + ' ' + this.config.pmrFreqMHz });
+    ACIControl.reply('Triband SAT radio · ' + this.config.pmrLabel + ' · ' + this.config.pmrFreqMHz + ' MHz — PTT to transmit');
+    speak('Triband satellite radio ready. EU PMR channel eleven, four four six megahertz. PTT όταν είσαι έτοιμος.', () => {
+      if (recognition) { isListening = true; try { recognition.start(); } catch { isListening = false; } }
+    });
+  },
+
+  hide() {
+    this.open = false;
+    this.pttActive = false;
+    document.getElementById('sat-radio')?.classList.remove('open');
+    if (this.mesh?.parent) this.mesh.parent.remove(this.mesh);
+    this.mesh = null;
+    if (Comms) Comms.vhfActive = false;
+  },
+
+  spawnHandheld() {
+    if (this.mesh?.parent) this.mesh.parent.remove(this.mesh);
+    const up = window._lastPos || { lat: 36.22, lng: 28.12 };
+    const p = latLngToPos(up.lat + 0.06, up.lng + 0.04, 1.048);
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(
+      new THREE.BoxGeometry(0.045, 0.07, 0.018),
+      new THREE.MeshBasicMaterial({ color: 0x223344 })
+    );
+    g.add(body);
+    const screen = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.032, 0.022),
+      new THREE.MeshBasicMaterial({ color: 0x00ccaa })
+    );
+    screen.position.set(0, 0.008, 0.01);
+    g.add(screen);
+    const ant = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.003, 0.003, 0.055, 6),
+      new THREE.MeshBasicMaterial({ color: 0x888899 })
+    );
+    ant.position.set(0, 0.05, 0);
+    g.add(ant);
+    const satLed = new THREE.Mesh(
+      new THREE.SphereGeometry(0.005, 6, 6),
+      new THREE.MeshBasicMaterial({ color: 0x00ff88 })
+    );
+    satLed.position.set(0.02, 0.03, 0.012);
+    g.add(satLed);
+    g.position.set(p.x, p.y, p.z);
+    g.lookAt(0, 0, 0);
+    globePivot.add(g);
+    this.mesh = g;
+    AIGraphics?.spawnEffect(g.position, 0xffdd44, 20, 45);
+  },
+
+  formatTx(msg) {
+    return '[' + this.config.callsign + '] [' + this.config.pmrLabel + ' ' + this.config.pmrFreqMHz + ' MHz] [TRIBAND SAT SIM] ' + msg;
+  },
+
+  transmit(msg) {
+    const tx = this.formatTx(msg);
+    ACIControl.reply(tx.slice(0, 220));
+    try { navigator.clipboard.writeText(tx); } catch (_) {}
+    ACI?.feed('vhf-tx', tx.slice(0, 120));
+    if (this.mesh) AIGraphics?.spawnEffect(this.mesh.position, 0xffdd44, 12, 30);
+    speak('PMR eleven transmitted. ' + msg.slice(0, 100), () => {});
+    return tx;
+  },
+
+  bindUI() {
+    const ptt = document.getElementById('sr-ptt');
+    const close = document.getElementById('sr-close');
+    if (ptt) {
+      ptt.onmousedown = ptt.ontouchstart = (e) => { e.preventDefault(); this.pttActive = true; ptt.classList.add('active'); };
+      const up = () => { this.pttActive = false; ptt.classList.remove('active'); };
+      ptt.onmouseup = ptt.onmouseleave = ptt.ontouchend = up;
+    }
+    if (close) close.onclick = () => { this.hide(); if (recognition) recognition.onresult = handleVoiceCommand; };
+  }
+};
+window.SatRadio = SatRadio;
+
+// ── COSMIC ZOOM: Earth → satellites → solar system → galaxy ──
+const CosmicZoom = {
+  level: 'earth',
+  solarGroup: null,
+  galaxyPts: null,
+  satGroup: null,
+  issMarker: null,
+
+  init() {
+    this.solarGroup = new THREE.Group();
+    this.solarGroup.visible = false;
+    scene.add(this.solarGroup);
+    const sun = new THREE.Mesh(new THREE.SphereGeometry(0.35, 16, 16), new THREE.MeshBasicMaterial({ color: 0xffcc33 }));
+    this.solarGroup.add(sun);
+    const planets = [
+      { n: 'Mercury', c: 0xaaaaaa, r: 0.04, dist: 0.7, sp: 0.004 },
+      { n: 'Venus', c: 0xddbb88, r: 0.06, dist: 1.0, sp: 0.003 },
+      { n: 'Mars', c: 0xff6644, r: 0.05, dist: 1.5, sp: 0.0025 },
+      { n: 'Jupiter', c: 0xccaa77, r: 0.12, dist: 2.2, sp: 0.0015 },
+      { n: 'Saturn', c: 0xddcc99, r: 0.1, dist: 3.0, sp: 0.001 }
+    ];
+    planets.forEach((p, i) => {
+      const m = new THREE.Mesh(new THREE.SphereGeometry(p.r, 10, 10), new THREE.MeshBasicMaterial({ color: p.c }));
+      m.userData = { dist: p.dist, speed: p.sp, phase: i };
+      this.solarGroup.add(m);
+    });
+    const gPos = [];
+    for (let i = 0; i < 6000; i++) {
+      const arm = (i % 4) * 0.4;
+      const t = Math.random() * Math.PI * 2;
+      const rad = 8 + Math.random() * 25 + arm * 3;
+      gPos.push(Math.cos(t) * rad, (Math.random() - 0.5) * 2, Math.sin(t) * rad);
+    }
+    const gGeo = new THREE.BufferGeometry();
+    gGeo.setAttribute('position', new THREE.Float32BufferAttribute(gPos, 3));
+    this.galaxyPts = new THREE.Points(gGeo, new THREE.PointsMaterial({ color: 0xaaccff, size: 0.04, sizeAttenuation: true, transparent: true, opacity: 0.6 }));
+    this.galaxyPts.visible = false;
+    scene.add(this.galaxyPts);
+    this.satGroup = new THREE.Group();
+    globePivot.add(this.satGroup);
+    this.spawnStarlinkShell();
+    this.trackISS();
+    setInterval(() => this.trackISS(), 30000);
+  },
+
+  spawnStarlinkShell() {
+    for (let i = 0; i < 120; i++) {
+      const phi = Math.acos(2 * Math.random() - 1);
+      const theta = Math.random() * Math.PI * 2;
+      const r = 1.06 + (i % 5) * 0.008;
+      const m = new THREE.Mesh(new THREE.SphereGeometry(0.003, 4, 4), new THREE.MeshBasicMaterial({ color: 0x88aaff }));
+      m.position.set(r * Math.sin(phi) * Math.cos(theta), r * Math.cos(phi), r * Math.sin(phi) * Math.sin(theta));
+      m.userData = { orb: i * 0.01, r };
+      this.satGroup.add(m);
+    }
+    const iss = new THREE.Mesh(new THREE.SphereGeometry(0.014, 8, 8), new THREE.MeshBasicMaterial({ color: 0x00ffcc }));
+    iss.userData = { type: 'iss' };
+    this.satGroup.add(iss);
+    this.issMarker = iss;
+  },
+
+  async trackISS() {
+    try {
+      const r = await fetch('https://api.open-notify.org/iss-now.json');
+      const j = await r.json();
+      if (j.iss_position && this.issMarker) {
+        const lat = parseFloat(j.iss_position.latitude);
+        const lng = parseFloat(j.iss_position.longitude);
+        const p = latLngToPos(lat, lng, 1.065);
+        this.issMarker.position.set(p.x, p.y, p.z);
+        window._lastPos = window._lastPos || {};
+      }
+    } catch {}
+  },
+
+  update(camZ) {
+    let level = 'earth', label = 'EARTH';
+    if (camZ > 14) { level = 'galaxy'; label = 'GALAXY'; }
+    else if (camZ > 6) { level = 'system'; label = 'SOLAR SYSTEM'; }
+    else if (camZ > 3.5) { level = 'orbit'; label = 'ORBIT — ISS · STARLINK'; }
+    if (level !== this.level) this.level = level;
+    const zl = document.getElementById('zoom-label');
+    if (zl) zl.textContent = label + ' (z=' + camZ.toFixed(1) + ')';
+    globePivot.visible = camZ < 12;
+    if (this.solarGroup) this.solarGroup.visible = camZ > 5 && camZ < 18;
+    if (this.galaxyPts) this.galaxyPts.visible = camZ > 12;
+    if (this.satGroup) this.satGroup.visible = camZ < 10;
+    if (this.solarGroup && this.solarGroup.visible) {
+      const t = Date.now() * 0.001;
+      this.solarGroup.children.forEach((c, i) => {
+        if (i === 0 || !c.userData.dist) return;
+        const a = t * c.userData.speed * 200 + c.userData.phase;
+        c.position.set(Math.cos(a) * c.userData.dist, Math.sin(a * 0.3) * 0.2, Math.sin(a) * c.userData.dist);
+      });
+    }
+    if (this.satGroup) {
+      const t = Date.now() * 0.0003;
+      this.satGroup.children.forEach((c, i) => {
+        if (c.userData.type === 'iss') return;
+        if (c.userData.orb != null) {
+          const a = t + c.userData.orb * 50;
+          const r = c.userData.r;
+          c.position.x = r * Math.cos(a);
+          c.position.z = r * Math.sin(a);
+        }
+      });
+    }
+  }
+};
+
+// Trackball — rotate entire globe pivot (earth + atmosphere + clouds + markers)
+const canvas = renderer.domElement;
+const TRACK_SENS = 0.005;
+
+function trackballMove(clientX, clientY) {
+  const dx = clientX - px;
+  const dy = clientY - py;
+  px = clientX;
+  py = clientY;
+  globePivot.rotation.y += dx * TRACK_SENS;
+  globePivot.rotation.x += dy * TRACK_SENS;
+  globePivot.rotation.x = Math.max(-1.25, Math.min(1.25, globePivot.rotation.x));
+  trackVelX = dx * TRACK_SENS * 0.35;
+  trackVelY = dy * TRACK_SENS * 0.35;
+}
+
+function trackballStart(clientX, clientY) {
+  drag = true;
   dragging = true;
-});
-window.addEventListener('mouseup', () => { 
-  drag = false; 
-  setTimeout(() => { dragging = false; }, 50);
-});
-container.addEventListener('mousemove', e => {
-  if (!drag) return;
-  earth.rotation.y += (e.clientX - px) * 0.004;
-  earth.rotation.x += (e.clientY - py) * 0.003;
-  px = e.clientX; py = e.clientY;
-});
-container.addEventListener('wheel', e => {
+  px = clientX;
+  py = clientY;
+  trackVelX = 0;
+  trackVelY = 0;
+  canvas.classList.add('dragging');
+}
+
+function trackballEnd() {
+  drag = false;
+  canvas.classList.remove('dragging');
+  setTimeout(() => { dragging = false; }, 80);
+}
+
+canvas.addEventListener('mousedown', e => { if (e.button === 0) trackballStart(e.clientX, e.clientY); });
+window.addEventListener('mouseup', () => { if (drag) trackballEnd(); });
+canvas.addEventListener('mousemove', e => { if (drag) trackballMove(e.clientX, e.clientY); });
+
+canvas.addEventListener('touchstart', e => {
+  if (e.touches.length === 1) { e.preventDefault(); trackballStart(e.touches[0].clientX, e.touches[0].clientY); }
+}, { passive: false });
+canvas.addEventListener('touchmove', e => {
+  if (drag && e.touches.length === 1) { e.preventDefault(); trackballMove(e.touches[0].clientX, e.touches[0].clientY); }
+}, { passive: false });
+canvas.addEventListener('touchend', () => { if (drag) trackballEnd(); });
+
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
   camera.position.z += e.deltaY * 0.002;
-  camera.position.z = Math.max(1.2, Math.min(7, camera.position.z));
-});
+  camera.position.z = Math.max(1.2, Math.min(22, camera.position.z));
+  CosmicZoom.update(camera.position.z);
+}, { passive: false });
 
 // Handle window resize so canvas always full and correct
 window.addEventListener('resize', () => {
@@ -300,42 +1162,33 @@ function onGlobeClick(e) {
   if (intersects.length > 0) {
     const point = intersects[0].point;
     focusOnGlobePoint(point);
-    ACI.feed('globe-click', cityLevel ? 'city' : 'global');
-
-    // City level detection (zoomed in)
     cityLevel = camera.position.z < 2.2;
-    if (cityLevel) {
-      console.log('Operating on city level.');
+
+    const markerHits = raycaster.intersectObject(window._meMarker, true);
+    if (markerHits.length > 0) {
+      if (voiceEnabled) startVoiceOptions();
+      else toggleKryfto();
+      return;
     }
 
-    // Trigger pilot/drone order by clicking the Greece area on the globe
-    const pilotPos = latLngToPos(36.2, 28.1, 1.04);
-    if (point.distanceTo(pilotPos) < 0.25) {
-      groupOrder();
-    }
-
-    // Click your own marker (user icon) to show options with voice
-    if (window._meMarker && point.distanceTo(window._meMarker.position) < 0.15) {
-      if (voiceEnabled) {
-        startVoiceOptions();
-      } else {
-        toggleKryfto(); // fallback
-      }
-    }
+    const gLocal = latLngToPos(36.2, 28.1, 1.04);
+    const gWorld = new THREE.Vector3(gLocal.x, gLocal.y, gLocal.z).applyMatrix4(globePivot.matrixWorld);
+    if (point.distanceTo(gWorld) < 0.22) groupOrder();
   }
 }
 
 function focusOnGlobePoint(point) {
   const dir = point.clone().normalize();
   const rotY = Math.atan2(dir.x, dir.z);
-  earth.rotation.y = -rotY;
-  const rotX = Math.asin(dir.y);
-  earth.rotation.x = -rotX * 0.7;
-  camera.position.z = 1.7; // zoom in on the spot
+  globePivot.rotation.y = -rotY;
+  const rotX = Math.asin(Math.max(-1, Math.min(1, dir.y)));
+  globePivot.rotation.x = Math.max(-1.25, Math.min(1.25, -rotX * 0.7));
+  camera.position.z = 1.7;
   cityLevel = camera.position.z < 2.2;
 }
 
 // =====================================================
+
 // ASTRANOV AI GRAPHICS ENGINE
 // Advanced gaming graphics - fully procedural, no 3D models
 // Uses layers, particles, canvas-generated textures, additive blending
@@ -346,75 +1199,66 @@ const AIGraphics = {
   cityLights: null,
   activeEffects: [],
 
-  init(scene, earthRadius = 1) {
-    this.addAtmosphere(scene, earthRadius);
-    this.addClouds(scene, earthRadius);
-    this.addCityLights(scene, earthRadius);
-    this.addIdleAIEffects(scene, earthRadius);
+  init(parent, earthRadius = 1) {
+    this._parent = parent;
+    this.addAtmosphere(parent, earthRadius);
+    this.addClouds(parent, earthRadius);
+    this.addCityLights(parent, earthRadius);
+    this.addIdleAIEffects(parent, earthRadius);
     console.log('%c[Astranov AI Graphics Engine] Advanced procedural graphics initialized - gaming style, zero models', 'color:#00ddff');
   },
 
   // Atmospheric glow - classic advanced space graphics
-  addAtmosphere(scene, r) {
-    const geo = new THREE.SphereGeometry(r * 1.025, 48, 48);
-    const mat = new THREE.MeshPhongMaterial({
-      color: 0x00aaff,
+  addAtmosphere(parent, r) {
+    const geo = new THREE.SphereGeometry(r * 1.018, 48, 48);
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0x2288cc,
       transparent: true,
-      opacity: 0.22,
+      opacity: 0.06,
       blending: THREE.AdditiveBlending,
-      shininess: 0,
-      side: THREE.BackSide
+      side: THREE.BackSide,
+      depthWrite: false
     });
     this.atmosphere = new THREE.Mesh(geo, mat);
-    scene.add(this.atmosphere);
+    parent.add(this.atmosphere);
   },
 
   // Procedural clouds using canvas (no external assets)
-  addClouds(scene, r) {
+  addClouds(parent, r) {
     const canvas = document.createElement('canvas');
     canvas.width = 1024;
     canvas.height = 512;
     const ctx = canvas.getContext('2d', { alpha: true });
-
-    // AI-like procedural generation: layered noise blobs for realistic clouds
-    ctx.fillStyle = 'rgba(255,255,255,0.85)';
-    for (let pass = 0; pass < 4; pass++) {
-      for (let i = 0; i < 120; i++) {
+    ctx.clearRect(0, 0, 1024, 512);
+    ctx.fillStyle = '#ffffff';
+    for (let pass = 0; pass < 3; pass++) {
+      for (let i = 0; i < 70; i++) {
         const x = Math.random() * 1024;
-        const y = Math.random() * 512 * (0.3 + pass * 0.2);
-        const w = 30 + Math.random() * 90;
-        const h = w * (0.4 + Math.random() * 0.5);
-        ctx.globalAlpha = 0.15 + Math.random() * 0.35;
+        const y = Math.random() * 512;
+        const w = 20 + Math.random() * 60;
+        ctx.globalAlpha = 0.04 + Math.random() * 0.08;
         ctx.beginPath();
-        ctx.ellipse(x, y, w, h, Math.random() * 0.6, 0, Math.PI * 2);
-        ctx.fill();
-        // Cluster more for organic shape
-        ctx.beginPath();
-        ctx.ellipse(x + (Math.random()-0.5)*w*0.6, y + (Math.random()-0.5)*h*0.4, w*0.7, h*0.7, 0, 0, Math.PI * 2);
+        ctx.ellipse(x, y, w, w * 0.45, Math.random() * 0.5, 0, Math.PI * 2);
         ctx.fill();
       }
     }
     ctx.globalAlpha = 1;
 
     const cloudTex = new THREE.CanvasTexture(canvas);
-    cloudTex.wrapS = THREE.RepeatWrapping;
-    cloudTex.wrapT = THREE.RepeatWrapping;
-
-    const geo = new THREE.SphereGeometry(r * 1.012, 48, 48);
-    const mat = new THREE.MeshPhongMaterial({
+    const geo = new THREE.SphereGeometry(r * 1.008, 48, 48);
+    const mat = new THREE.MeshBasicMaterial({
       map: cloudTex,
       transparent: true,
-      opacity: 0.55,
-      color: 0xeeeeff,
-      shininess: 2,
-      depthWrite: false
+      opacity: 0.11,
+      depthWrite: false,
+      blending: THREE.NormalBlending
     });
     this.clouds = new THREE.Mesh(geo, mat);
-    scene.add(this.clouds);
+    parent.add(this.clouds);
   },
 
   // Night side city lights - procedural gaming detail
-  addCityLights(scene, r) {
+  addCityLights(parent, r) {
     const pos = [];
     const cols = [];
     for (let i = 0; i < 2200; i++) {
@@ -442,11 +1286,10 @@ const AIGraphics = {
       depthWrite: false
     });
     this.cityLights = new THREE.Points(geo, mat);
-    scene.add(this.cityLights);
+    parent.add(this.cityLights);
   },
 
-  // Idle AI network nodes - subtle orbiting data points for "the AI exists" vibe
-  addIdleAIEffects(scene, r) {
+  addIdleAIEffects(parent, r) {
     const positions = [];
     for (let i = 0; i < 80; i++) {
       const angle = (i / 80) * Math.PI * 2;
@@ -465,7 +1308,7 @@ const AIGraphics = {
       blending: THREE.AdditiveBlending
     });
     this.idleNodes = new THREE.Points(geo, mat);
-    scene.add(this.idleNodes);
+    parent.add(this.idleNodes);
   },
 
   _latLngToPos(lat, lng, r = 1) {
@@ -515,24 +1358,9 @@ const AIGraphics = {
   },
 
   update() {
-    // Clouds drift - advanced gaming detail
-    if (this.clouds) {
-      this.clouds.rotation.y += 0.00012;
-    }
-
-    // Atmosphere slow counter rotation
-    if (this.atmosphere) {
-      this.atmosphere.rotation.y -= 0.00005;
-    }
-
     // Subtle city light pulse
     if (this.cityLights) {
       this.cityLights.material.opacity = 0.65 + Math.sin(Date.now() * 0.0015) * 0.1;
-    }
-
-    // Idle AI nodes slow orbit
-    if (this.idleNodes) {
-      this.idleNodes.rotation.y += 0.00008;
     }
 
     // Process particle effects - the heart of advanced AI graphics
@@ -565,7 +1393,7 @@ const AIGraphics = {
 };
 
 // Initialize the engine right after Earth
-AIGraphics.init(scene);
+AIGraphics.init(globePivot);
 
 // Immediate visual confirmation burst (green particles near front) so user sees activity instantly
 setTimeout(() => {
@@ -573,6 +1401,7 @@ setTimeout(() => {
 }, 180);
 
 // =====================================================
+
 // STRONG ROUTING FALLBACK PROVIDER CYCLING ENGINE
 // For safe deliveries to users & drivers (pilot/drones)
 // Cycles providers + fallbacks on risk
@@ -686,6 +1515,175 @@ function updateOrbitalSats() {
   });
 }
 addOrbitalSats();
+
+// === DRIVING VIEW + OSRM ROAD ROUTING ===
+const DrivingView = {
+  active: false,
+  speed: 0,
+  mode: 'still',
+  watchId: null,
+  lastFix: null,
+  lastTime: 0,
+  routeLine: null,
+  routeCoords: [],
+  steps: [],
+  stepIdx: 0,
+  destination: null,
+  WALK_THRESHOLD: 2.2,
+  DRIVE_THRESHOLD: 4.5,
+
+  haversineM(lat1, lng1, lat2, lng2) {
+    const R = 6371000;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  },
+
+  init() {
+    if (!navigator.geolocation) return;
+    this.watchId = navigator.geolocation.watchPosition(
+      pos => this.onFix(pos),
+      () => {},
+      { enableHighAccuracy: true, maximumAge: 1500, timeout: 12000 }
+    );
+  },
+
+  setDestination(lat, lng) {
+    this.destination = { lat, lng };
+    if (this.active) this.fetchRoadRoute();
+  },
+
+  onFix(pos) {
+    const now = Date.now();
+    const lat = pos.coords.latitude;
+    const lng = pos.coords.longitude;
+    let speed = pos.coords.speed;
+    if (this.lastFix && this.lastTime) {
+      const dt = (now - this.lastTime) / 1000;
+      if (dt > 0.4) {
+        const d = this.haversineM(this.lastFix.lat, this.lastFix.lng, lat, lng);
+        if (speed == null || speed < 0) speed = d / dt;
+      }
+    }
+    this.speed = Math.max(0, speed || 0);
+    this.lastFix = { lat, lng };
+    this.lastTime = now;
+    window._lastPos = { lat, lng };
+    if (typeof placeMe === 'function') placeMe(lat, lng);
+
+    const prev = this.mode;
+    if (this.speed < 0.6) this.mode = 'still';
+    else if (this.speed < this.WALK_THRESHOLD) this.mode = 'walk';
+    else if (this.speed < this.DRIVE_THRESHOLD) this.mode = 'run';
+    else this.mode = 'drive';
+
+    const fast = this.mode === 'run' || this.mode === 'drive';
+    if (fast && !this.active) this.activate();
+    if (this.active && this.mode === 'still' && this.speed < 0.5) this.deactivate();
+    if (this.active) {
+      this.updateCamera(pos);
+      this.updateGuidance(lat, lng);
+    }
+    if (prev !== this.mode && fast) {
+      const el = document.getElementById('drive-guide');
+      if (el) el.textContent = (this.mode === 'drive' ? '🚗 DRIVING' : '🏃 FAST') + ' · ' + Math.round(this.speed * 3.6) + ' km/h';
+    }
+  },
+
+  activate() {
+    this.active = true;
+    cityLevel = true;
+    camera.position.z = 1.28;
+    document.getElementById('drive-guide')?.classList.add('open');
+    document.getElementById('zoom-label').textContent = (this.mode === 'drive' ? 'DRIVE VIEW' : 'RUN VIEW');
+    MapDepict?.action('drive', { detail: Math.round(this.speed * 3.6) + ' km/h' });
+    if (!this.destination) {
+      const v = Commerce?.vendors?.[0];
+      this.destination = v ? { lat: v.lat, lng: v.lng } : { lat: 36.89, lng: 27.29 };
+    }
+    this.fetchRoadRoute();
+    speak('Οδήγηση ενεργή στον χάρτη. Road routing ON.', () => {});
+  },
+
+  deactivate() {
+    this.active = false;
+    document.getElementById('drive-guide')?.classList.remove('open');
+    if (this.routeLine?.parent) this.routeLine.parent.remove(this.routeLine);
+    this.routeLine = null;
+    CosmicZoom?.update(camera.position.z);
+  },
+
+  updateCamera(pos) {
+    camera.position.z = this.mode === 'drive' ? 1.22 : 1.32;
+    const h = pos.coords.heading;
+    if (h != null && !isNaN(h) && window._meMarker) {
+      globePivot.rotation.y = (-h + 90) * Math.PI / 180;
+    }
+  },
+
+  async fetchRoadRoute() {
+    const from = window._lastPos || this.lastFix;
+    const to = this.destination;
+    if (!from || !to) return;
+    try {
+      const url = 'https://router.project-osrm.org/route/v1/driving/'
+        + from.lng + ',' + from.lat + ';' + to.lng + ',' + to.lat
+        + '?overview=full&geometries=geojson&steps=true';
+      const r = await fetch(url);
+      const j = await r.json();
+      if (j.code !== 'Ok' || !j.routes?.[0]) return;
+      const route = j.routes[0];
+      this.routeCoords = route.geometry.coordinates.map(c => ({ lng: c[0], lat: c[1] }));
+      this.steps = (route.legs[0]?.steps || []).map(s => ({
+        instruction: (s.maneuver?.type || 'continue') + ' ' + (s.name || ''),
+        dist: s.distance,
+        loc: { lat: s.maneuver.location[1], lng: s.maneuver.location[0] }
+      }));
+      this.stepIdx = 0;
+      this.drawRoute();
+      if (this.steps[0]) this.showStep(this.steps[0]);
+    } catch (e) {
+      console.warn('[DrivingView] OSRM failed', e);
+    }
+  },
+
+  drawRoute() {
+    if (this.routeLine?.parent) this.routeLine.parent.remove(this.routeLine);
+    const pts = this.routeCoords.map(c => {
+      const p = latLngToPos(c.lat, c.lng, 1.026);
+      return new THREE.Vector3(p.x, p.y, p.z);
+    });
+    if (pts.length < 2) return;
+    this.routeLine = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(pts),
+      new THREE.LineBasicMaterial({ color: 0x44aaff, transparent: true, opacity: 0.85 })
+    );
+    globePivot.add(this.routeLine);
+    MapDepict?.pulse(window._lastPos.lat, window._lastPos.lng, 0x44aaff, 'road route', 6000);
+  },
+
+  showStep(step) {
+    const el = document.getElementById('drive-guide');
+    if (!el) return;
+    const km = step.dist > 1000 ? (step.dist / 1000).toFixed(1) + ' km' : Math.round(step.dist) + ' m';
+    el.textContent = '➤ ' + step.instruction + ' · ' + km;
+    ACIControl?.reply(el.textContent);
+    if (step.loc) MapDepict?.pulse(step.loc.lat, step.loc.lng, 0x44aaff, step.instruction.slice(0, 40), 5000);
+  },
+
+  updateGuidance(lat, lng) {
+    if (!this.steps.length) return;
+    const step = this.steps[this.stepIdx];
+    if (!step?.loc) return;
+    const d = this.haversineM(lat, lng, step.loc.lat, step.loc.lng);
+    if (d < 35 && this.stepIdx < this.steps.length - 1) {
+      this.stepIdx++;
+      this.showStep(this.steps[this.stepIdx]);
+    }
+  }
+};
+window.DrivingView = DrivingView;
 
 // WebRTC Video Calling + Orbital global compatibility
 // Real browser tech to reduce wireless pollution via orbital mesh
@@ -933,7 +1931,7 @@ me = {
   name: 'Αξάς'
 };
 
-try { initVoice(); } catch(e){ console.warn('Voice init skipped:', e.message); }
+try { Voice.init(); initVoice(); } catch(e){ console.warn('Voice init skipped:', e.message); }
 
 // Silent init (no panels, all on the globe) - user can play freely first
 function initUser() {
@@ -961,7 +1959,7 @@ function initVoice() {
   if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
     const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
     recognition = new SpeechRec();
-    recognition.lang = 'el-GR';
+    recognition.lang = Voice.preferredListenLang;
     recognition.continuous = false;
     recognition.interimResults = false;
     recognition.onresult = handleVoiceCommand;
@@ -970,16 +1968,6 @@ function initVoice() {
   } else {
     console.log('Voice not supported, using console fallback.');
   }
-}
-
-function speak(text, onEnd) {
-  if (!voiceEnabled) return;
-  const utter = new SpeechSynthesisUtterance(text);
-  utter.lang = 'el-GR';
-  utter.rate = 1.0;
-  utter.pitch = 1.0;
-  if (onEnd) utter.onend = onEnd;
-  speechSynthesis.speak(utter);
 }
 
 function startListeningForOptions() {
@@ -995,26 +1983,42 @@ function handleVoiceCommand(event) {
   const transcript = (event.results[0][0].transcript || '').toLowerCase();
   console.log('User said:', transcript);
 
-  if (transcript.includes('login') || transcript.includes('σύνδεση')) {
-    speak('Είσαι συνδεδεμένος Αξάς.', () => provokeAnswer());
-  } else if (transcript.includes('work') || transcript.includes('δουλειά')) {
-    requestLocationIfNeeded(() => {
-      groupOrder();
-      speak('Ξεκινάμε δουλειά με τον ΤΗΛΕΜΑΧΟ.', () => provokeAnswer());
-    });
+  if (transcript.includes('stop') || transcript.includes('σταμάτα') || transcript.includes('σταματα') || transcript.includes('διακοπή')) {
+    userIntervene();
+    return;
+  } else if (transcript.includes('english') || transcript.includes('αγγλικά')) {
+    Voice.preferredListenLang = 'en-US';
+    if (recognition) recognition.lang = 'en-US';
+    MapDepict.action('mode', { detail: 'English listen' });
+    speak('English mode on. Greek mode: πες ελληνικά.', () => provokeAnswer());
+  } else if (transcript.includes('ελληνικά') || transcript.includes('greek')) {
+    Voice.preferredListenLang = 'el-GR';
+    if (recognition) recognition.lang = 'el-GR';
+    MapDepict.action('mode', { detail: 'Greek listen' });
+    speak('Ελληνικά mode. Greklish works too — μίλα όπως θες.', () => provokeAnswer());
+  } else if (transcript.includes('logout') || transcript.includes('αποσύνδεση') || transcript.includes('sign out')) {
+    Auth.signOut();
+  } else if (transcript.includes('login') || transcript.includes('σύνδεση') || transcript.includes('google')) {
+    Auth.signInGoogle();
+  } else if (transcript.includes('telecom') || transcript.includes('satellite') || transcript.includes('sat radio')) {
+    Comms.startTelecomms();
+  } else if (transcript.includes('work') || transcript.includes('δουλειά') || transcript.includes('pitogyra') || transcript.includes('πιτογυρ') || transcript.includes('μπίρ') || transcript.includes('τσιγαρ')) {
+    Commerce.orderPitogyra();
   } else if (transcript.includes('explore') || transcript.includes('εξερεύνηση')) {
     requestLocationIfNeeded(() => {
       const randomLat = 35 + Math.random() * 10;
       const randomLng = 25 + Math.random() * 10;
+      MapDepict.action('explore', { lat: randomLat, lng: randomLng, detail: 'explore' });
       const p = latLngToPos(randomLat, randomLng);
-      focusOnGlobePoint(p);
-      speak('Εξερευνάμε.', () => provokeAnswer());
+      focusOnGlobePoint(new THREE.Vector3(p.x, p.y, p.z));
+      speak('Εξερευνάμε εδώ στον χάρτη.', () => provokeAnswer());
     });
   } else if (transcript.includes('video') || transcript.includes('call') || transcript.includes('βίντεο') || transcript.includes('κλήση') || transcript.includes('orbital')) {
     requestLocationIfNeeded(() => {
       const target = 'Αξαδίνα';
+      MapDepict.action('video', { detail: target });
       startOrbitalVideoCall(target);
-      speak('Starting real orbital video call.', () => provokeAnswer());
+      speak('Ξεκινάω orbital video call.', () => provokeAnswer());
     });
   } else if (transcript.includes('mute') || transcript.includes('σιωπή') || transcript.includes('mute all')) {
     voiceEnabled = false;
@@ -1023,18 +2027,29 @@ function handleVoiceCommand(event) {
     idleRoll = 0.00005;
     voiceEnabled = false;
     speak('Ύπνος.', () => {});
+  } else if (transcript.includes('vhf') || transcript.includes('ασυρμ') || transcript.includes('radio')) {
+    Comms.startVHF();
+  } else if (transcript.includes('phone') || transcript.includes('τηλέφων')) {
+    Comms.startPhone();
+  } else if (transcript.includes('news') || transcript.includes('νέα') || transcript.includes('ειδήσει')) {
+    NewsFeed.flash();
+  } else if (transcript.includes('vendor') || transcript.includes('κατάστη')) {
+    Commerce.loadVendors().then(() => Commerce.announceVendors());
   } else if (transcript.includes('request') || transcript.includes('technology') || transcript.includes('tech')) {
     requestOrbitalTech();
     speak('Request prepared.', () => provokeAnswer());
   } else if (transcript.includes('athenian') || transcript.includes('αθηναϊκ')) {
     ACI.thinkMode = 'athenian';
-    speak('Athenian mode. Creativity and strategy.', () => provokeAnswer());
+    MapDepict.action('mode', { detail: 'athenian' });
+    speak('Athenian mode — creativity kai strategy.', () => provokeAnswer());
   } else if (transcript.includes('spartan') || transcript.includes('σπαρτιατ')) {
     ACI.thinkMode = 'spartan';
-    speak('Spartan mode. Terse and decisive.', () => provokeAnswer());
+    MapDepict.action('mode', { detail: 'spartan' });
+    speak('Spartan mode — terse kai decisive.', () => provokeAnswer());
   } else if (transcript.includes('myrmidon') || transcript.includes('μυρμιδόν')) {
     ACI.thinkMode = 'myrmidon';
-    speak('Myrmidon mode. Collective force.', () => provokeAnswer());
+    MapDepict.action('mode', { detail: 'myrmidon' });
+    speak('Myrmidon mode — collective force.', () => provokeAnswer());
   } else if (transcript.match(/^(remember|θυμήσου|να θυμάσαι)/)) {
     const content = transcript.replace(/^(remember|θυμήσου|να θυμάσαι)[:,]?\s*/i, '').trim();
     ACI.teach(content || transcript).then(() => {
@@ -1046,6 +2061,8 @@ function handleVoiceCommand(event) {
     });
   } else if (transcript.length > 3) {
     ACI.think(transcript).then(text => {
+      if (!text) return;
+      ACIControl.reply(text);
       speak(text.slice(0, 280), () => provokeAnswer());
     });
   } else {
@@ -1077,11 +2094,13 @@ function requestLocationIfNeeded(onLocated) {
     if (onLocated) onLocated();
     return;
   }
-  speak('Για καλύτερη εμπειρία στην πόλη, δώσε άδεια τοποθεσίας.', () => {
+  speak('Για καλύτερη εμπειρία, δώσε άδεια τοποθεσίας.', () => {
     navigator.geolocation.getCurrentPosition(pos => {
       placeMe(pos.coords.latitude, pos.coords.longitude);
+      window._lastPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
       userLocated = true;
-      speak('Σε εντόπισα.', () => {
+      MapDepict.action('location', { lat: pos.coords.latitude, lng: pos.coords.longitude, detail: 'GPS' });
+      speak('Σε εντόπισα στον χάρτη.', () => {
         if (onLocated) onLocated();
       });
     }, () => {
@@ -1095,14 +2114,16 @@ function requestLocationIfNeeded(onLocated) {
 
 
 function placeMe(lat, lng) {
+  window._lastPos = { lat, lng };
   if (window._meMarker && window._meMarker.parent) window._meMarker.parent.remove(window._meMarker);
   const pos = latLngToPos(lat, lng, 1.03);
   const m = new THREE.Mesh(new THREE.SphereGeometry(0.02,5,5), new THREE.MeshBasicMaterial({color:0x00ffcc}));
   m.position.set(pos.x,pos.y,pos.z);
   m.userData = {type:'me', name: me ? me.name : 'You'};
-  scene.add(m); // add to scene for visibility
+  globePivot.add(m);
   window._meMarker = m;
-  userLocated = true;  // if called with real geo
+  userLocated = true;
+  MapDepict.action('location', { lat, lng, detail: me ? me.name : 'You' });
   // Focus
   camera.position.set(pos.x*0.6, pos.y*0.6 + 0.4, 1.6);
   camera.lookAt(pos.x*0.2, pos.y*0.2, 0);
@@ -1120,7 +2141,7 @@ function showOtherUsers() {
     const m = new THREE.Mesh(new THREE.SphereGeometry(0.015,5,5), new THREE.MeshBasicMaterial({color: u.hidden ? 0x555 : 0xffaa33}));
     m.position.set(pos.x, pos.y, pos.z);
     m.userData = u;
-    scene.add(m);
+    globePivot.add(m);
   });
 }
 
@@ -1139,8 +2160,8 @@ function groupOrder() {
   showPilotTelemachos();
   
   // Focus view on the pilot/delivery area so user sees it clearly
-  earth.rotation.y = -28.1 * Math.PI / 180 + Math.PI/2;
-  earth.rotation.x = -0.01;
+  globePivot.rotation.y = -28.1 * Math.PI / 180 + Math.PI / 2;
+  globePivot.rotation.x = -0.01;
   camera.position.z = 1.6;
   camera.lookAt(0, 0, 0);
   
@@ -1155,7 +2176,7 @@ function groupOrder() {
   // Visualize safe route on the globe (temporary)
   const routeGeo = new THREE.BufferGeometry().setFromPoints(routeData.points);
   let routeLine = new THREE.Line(routeGeo, new THREE.LineBasicMaterial({ color: 0x00ffaa, transparent: true, opacity: 0.35 }));
-  scene.add(routeLine);
+  globePivot.add(routeLine);
 
   // Drone delivery animation using the routed path
   const droneGroup = new THREE.Group();
@@ -1187,14 +2208,15 @@ function groupOrder() {
   droneGroup.add(arm2);
 
   droneGroup.position.copy(routeData.points[0]);
-  scene.add(droneGroup);
+  globePivot.add(droneGroup);
 
   // Spawn initial AI graphics particle burst
   AIGraphics.spawnEffect(droneGroup.position, 0x44ccff, 22, 40);
   
   let steps = 0;
   let routeIdx = 0;
-  const anim = setInterval(() => {
+  if (window._droneAnim) clearInterval(window._droneAnim);
+  window._droneAnim = setInterval(() => {
     steps++;
     
     // Follow the safe routed path
@@ -1225,7 +2247,8 @@ function groupOrder() {
     });
     
     if (steps > 45 || routeIdx >= routeData.points.length - 1) {
-      clearInterval(anim);
+      clearInterval(window._droneAnim);
+      window._droneAnim = null;
       if (droneGroup.parent) droneGroup.parent.remove(droneGroup);
       if (routeLine && routeLine.parent) routeLine.parent.remove(routeLine);
       if (window._pilot && window._pilot.parent) {
@@ -1296,7 +2319,7 @@ function showPilotTelemachos() {
   
   pilotGroup.position.set(pos.x, pos.y, pos.z);
   pilotGroup.userData = { type: 'pilot', name: 'ΤΗΛΕΜΑΧΟΣ' };
-  scene.add(pilotGroup);
+  globePivot.add(pilotGroup);
   window._pilot = pilotGroup;
 
   // Advanced AI Graphics: spawn particle aura around pilot (gaming effect)
@@ -1308,7 +2331,11 @@ function showPilotTelemachos() {
 function animate() {
   requestAnimationFrame(animate);
   if (!drag) {
-    earth.rotation.y += idleRoll;
+    globePivot.rotation.y += idleRoll + trackVelX;
+    globePivot.rotation.x += trackVelY;
+    globePivot.rotation.x = Math.max(-1.25, Math.min(1.25, globePivot.rotation.x));
+    trackVelX *= 0.94;
+    trackVelY *= 0.94;
   }
   // pilot pulse to make it alive
   if (window._pilot) {
@@ -1345,10 +2372,20 @@ function animate() {
     });
   }
 
+  if (window.MapDepict) MapDepict.tick();
+  CosmicZoom.update(camera.position.z);
   renderer.render(scene, camera);
 }
 animate();
 ACI.init();
+Auth.init();
+ACIControl.init();
+SatRadio.bindUI();
+DrivingView.init();
+CosmicZoom.init();
+Commerce.loadVendors();
+NewsFeed.fetch();
+setInterval(() => NewsFeed.tick(), 12000);
 
 // Demo auto show after permissions
 setTimeout(() => {
