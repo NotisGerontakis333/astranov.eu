@@ -197,8 +197,8 @@ const ACIControl = {
       return { executed: true, action: 'stop' };
     }
     if (/^(cli|terminal|console|κονσόλα)$/.test(low)) { AciCli.toggle(); this.reply('CLI panel'); say('CLI.'); return { executed: true }; }
-    if (/^summon\s+coders?\s+/i.test(text) || /^coders\b/i.test(low)) {
-      const task = text.replace(/^summon\s+coders?\s+/i, '').replace(/^coders\s+/i, '').trim();
+    if (/^summon\s+coders?\s*/i.test(text) || /^coders\b/i.test(low)) {
+      const task = text.replace(/^summon\s+coders?\s*/i, '').replace(/^coders\s*/i, '').trim();
       await AciCoders?.handleCodersCommand(task);
       return { executed: true, action: 'coders' };
     }

@@ -206,8 +206,8 @@ serve(async (req) => {
       if (!caller.callerId) return json({ error: 'login required — sign in to summon Astranov Coders' }, 401)
       const task = String(body.task || body.prompt || '').trim().slice(0, 2000)
       if (task.length < 3) return json({ error: 'task required — e.g. coders fix zoom on mobile' }, 400)
-      const coderEngine = String(body.coder_engine || 'grok').toLowerCase()
-      const engine = coderEngine === 'composer' ? 'composer' : 'grok'
+      const coderEngine = String(body.coder_engine || 'composer').toLowerCase()
+      const engine = coderEngine === 'grok' ? 'grok' : 'composer'
 
       const { data: qrow, error: qerr } = await sb.from('cic_queue').insert({
         user_id: caller.callerId,

@@ -88,8 +88,8 @@ const AciCli = {
       if (Auth.isOwner) {
         this.print('OWNER — seed · distill · council · evolve · deploy');
       }
-      this.print('coders use composer — then type your task (no prefix needed)');
-      this.print('coders <task> · composer <task> · think <prompt> · help');
+      this.print('coders = Cursor Composer — type coders then your task');
+      this.print('coders <task> · vendors · order · think <prompt> · help');
     }
     const panel = document.getElementById('aci-cli');
     if (panel) panel.classList.add('visible');
@@ -180,12 +180,11 @@ const AciCli = {
           this.print('council list     — council cases');
           this.print('council convene <title> | <desc>');
         }
-        this.print('coders use composer        — switch to Cursor (me)');
-        this.print('coders use grok            — switch to xAI Grok (instant)');
-        this.print('<task>                     — when Composer active, sends to Cursor');
-        this.print('coders <task>              — explicit summon');
-        this.print('composer <task>            — same as coders composer <task>');
-        this.print('coders switch | list | poll <id>');
+        this.print('coders                     — Cursor Composer (me) — ready');
+        this.print('coders <task>              — send task to Cursor');
+        this.print('<task>                     — any text → Cursor when coders active');
+        this.print('coders grok <task>         — optional xAI instant path');
+        this.print('coders list | poll <id>');
         this.print('connect | open     — link collective AI');
         this.print('deploy <task>      — deployment plan (owner)');
         this.print('roles              — your hats: client+driver+vendor');
@@ -312,7 +311,8 @@ const AciCli = {
         return;
       }
 
-      if (AciCoders?.engine === 'composer' && line.length >= 3) {
+      if (Auth?.user && (AciCoders?.armed || AciCoders?.engine === 'composer') && line.length >= 3
+          && !/^(think|order|vendors|help|deploy|connect|logout|clear|exit)\b/i.test(line)) {
         await AciCoders.summon(line);
         return;
       }

@@ -833,8 +833,8 @@ const AciCli = {
       if (Auth.isOwner) {
         this.print('OWNER — seed · distill · council · evolve · deploy');
       }
-      this.print('coders use composer — then type your task (no prefix needed)');
-      this.print('coders <task> · composer <task> · think <prompt> · help');
+      this.print('coders = Cursor Composer — type coders then your task');
+      this.print('coders <task> · vendors · order · think <prompt> · help');
     }
     const panel = document.getElementById('aci-cli');
     if (panel) panel.classList.add('visible');
@@ -925,12 +925,11 @@ const AciCli = {
           this.print('council list     — council cases');
           this.print('council convene <title> | <desc>');
         }
-        this.print('coders use composer        — switch to Cursor (me)');
-        this.print('coders use grok            — switch to xAI Grok (instant)');
-        this.print('<task>                     — when Composer active, sends to Cursor');
-        this.print('coders <task>              — explicit summon');
-        this.print('composer <task>            — same as coders composer <task>');
-        this.print('coders switch | list | poll <id>');
+        this.print('coders                     — Cursor Composer (me) — ready');
+        this.print('coders <task>              — send task to Cursor');
+        this.print('<task>                     — any text → Cursor when coders active');
+        this.print('coders grok <task>         — optional xAI instant path');
+        this.print('coders list | poll <id>');
         this.print('connect | open     — link collective AI');
         this.print('deploy <task>      — deployment plan (owner)');
         this.print('roles              — your hats: client+driver+vendor');
@@ -1057,7 +1056,8 @@ const AciCli = {
         return;
       }
 
-      if (AciCoders?.engine === 'composer' && line.length >= 3) {
+      if (Auth?.user && (AciCoders?.armed || AciCoders?.engine === 'composer') && line.length >= 3
+          && !/^(think|order|vendors|help|deploy|connect|logout|clear|exit)\b/i.test(line)) {
         await AciCoders.summon(line);
         return;
       }
@@ -1155,20 +1155,22 @@ const AciConnect = {
 window.AciConnect = AciConnect;
 
 // === ASTRANOV CODERS BRIDGE ===
-// grok     → xAI Grok (sync reply in CLI)
-// composer → Cursor Composer queue (async — poll for answer)
+// coders   → Cursor Composer (default — you, in Cursor)
+// coders grok → xAI Grok (optional instant path)
 const AciCoders = {
   ready: false,
   history: [],
   lastSummonId: null,
-  engine: 'grok',
+  engine: 'composer',
+  armed: false,
   _pollTimer: null,
 
   loadEngine() {
     try {
       const e = localStorage.getItem('aci-coders-engine');
-      if (e === 'composer' || e === 'grok') this.engine = e;
-    } catch (_) {}
+      if (e === 'grok') this.engine = 'grok';
+      else this.engine = 'composer';
+    } catch (_) { this.engine = 'composer'; }
   },
 
   saveEngine() {
@@ -1204,10 +1206,11 @@ const AciCoders = {
       return;
     }
     this.ready = true;
+    this.setEngine('composer');
+    this.armed = true;
     if (AciCli) {
-      AciCli.print('◇ Astranov Coders bridge ONLINE', 'ok');
-      AciCli.print('  composer = Cursor (me) — coders use composer, then just type task', 'dim');
-      AciCli.print('  grok = xAI instant  ·  coders switch  ·  coders list  ·  coders poll', 'dim');
+      AciCli.print('◇ Coders → Cursor Composer (ready)', 'ok');
+      AciCli.print('  type: coders <task>  or just your task', 'dim');
     }
     this.updateHud();
     window._aciCodersReady = true;
@@ -1329,10 +1332,18 @@ const AciCoders = {
       if (r?.error) this.engine = prev;
       return r;
     }
-    if (!rest || rest.length < 3) {
+    if (!rest || !rest.trim()) {
+      this.setEngine('composer');
+      this.armed = true;
+      if (AciCli) AciCli.print('Coders → Cursor Composer. Type your task.', 'ok');
+      ACIControl?.reply('Coders: Cursor Composer — ready');
+      return { ok: true, armed: true, coder_engine: 'composer' };
+    }
+    if (rest.length < 3) {
       if (AciCli) AciCli.print('usage: coders <task> | coders poll <id> | coders list', 'err');
       return { error: 'usage' };
     }
+    this.setEngine('composer');
     return this.summon(rest);
   },
 
@@ -1349,7 +1360,7 @@ const AciCoders = {
       return { error: 'task required' };
     }
 
-    if (!window._aciConnected && window.AciConnect) await AciConnect.connect(false);
+    if (this.engine === 'grok' && !window._aciConnected && window.AciConnect) await AciConnect.connect(false);
     const tag = this.engine === 'composer' ? 'Cursor Composer' : 'Grok';
     if (AciCli) AciCli.print('summoning ' + tag + '…', 'dim');
     MapDepict?.action('think', { detail: tag + ': ' + t.slice(0, 48) });
@@ -1696,8 +1707,8 @@ const ACIControl = {
       return { executed: true, action: 'stop' };
     }
     if (/^(cli|terminal|console|κονσόλα)$/.test(low)) { AciCli.toggle(); this.reply('CLI panel'); say('CLI.'); return { executed: true }; }
-    if (/^summon\s+coders?\s+/i.test(text) || /^coders\b/i.test(low)) {
-      const task = text.replace(/^summon\s+coders?\s+/i, '').replace(/^coders\s+/i, '').trim();
+    if (/^summon\s+coders?\s*/i.test(text) || /^coders\b/i.test(low)) {
+      const task = text.replace(/^summon\s+coders?\s*/i, '').replace(/^coders\s*/i, '').trim();
       await AciCoders?.handleCodersCommand(task);
       return { executed: true, action: 'coders' };
     }
