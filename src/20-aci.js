@@ -18,9 +18,9 @@ const ACI = {
   },
 
   api(body) {
-    return this.headers().then(h => fetch(this.url + '/functions/v1/aci', {
+    return this.headers().then(h => fetchJson(this.url + '/functions/v1/aci', {
       method: 'POST', headers: h, body: JSON.stringify(body || {})
-    })).then(r => r.json().catch(() => ({}))).catch(() => ({}));
+    }, 55000));
   },
 
   _logQueue: [],
@@ -69,14 +69,25 @@ const ACI = {
     window._aciAbort = new AbortController();
     const up = window._lastPos || { lat: 36.22, lng: 28.12 };
     MapDepict.action('think', { lat: up.lat, lng: up.lng, detail: prompt.slice(0, 60) });
+    GlobeDeck?.setThinking(true, 'ACI — thinking…');
     const h = await this.headers();
-    const r = await fetch(this.url + '/functions/v1/aci', {
-      method: 'POST', headers: h,
-      body: JSON.stringify({ mode: 'think', prompt, history: this.history.slice(-8), aci_mode: this.thinkMode || undefined }),
-      signal: window._aciAbort.signal
-    }).then(res => res.json().catch(() => ({}))).catch(err => (err.name === 'AbortError' ? { aborted: true } : {}));
+    let r;
+    try {
+      r = await fetchJson(this.url + '/functions/v1/aci', {
+        method: 'POST', headers: h,
+        body: JSON.stringify({ mode: 'think', prompt, history: this.history.slice(-8), aci_mode: this.thinkMode || undefined }),
+      }, 55000);
+    } catch (e) {
+      r = { error: String(e.message || e) };
+    }
+    GlobeDeck?.setThinking(false);
     if (r.aborted) return '';
-    const text = r.text || r.response || 'Το Astranov συγκεντρώνεται.';
+    if (r.error) {
+      const err = 'ACI error: ' + r.error + (r._httpStatus === 401 ? ' — tap G to sign in' : '');
+      GlobeDeck?.showError(err);
+      return err;
+    }
+    const text = (r.text || r.response || '').trim() || 'Το Astranov συγκεντρώνεται — δοκίμασε ξανά.';
     this.history.push({ role: 'user', content: prompt });
     this.history.push({ role: 'assistant', content: text });
     if (this.history.length > 20) this.history = this.history.slice(-20);
@@ -342,9 +353,14 @@ const ACIControl = {
       return { executed: false };
     }
 
+    GlobeDeck?.setThinking(true, 'ACI — thinking…');
     const ans = await ACI.think(text);
-    if (!ans) return { executed: false };
-    const short = ans.slice(0, 160);
+    GlobeDeck?.setThinking(false);
+    if (!ans) {
+      this.reply('No response — check connection and try again');
+      return { executed: false };
+    }
+    const short = ans.slice(0, 280);
     this.reply(short);
     MapDepict.action('think', { detail: short.slice(0, 60) });
     if (fromVoice && Voice.maySpeak() && Voice.shouldSpeak(short)) {

@@ -49,12 +49,13 @@ const AciCoders = {
 
   async openTeam(intro) {
     if (!Auth?.user) {
-      ACIControl?.reply('Login required for Coders team');
+      GlobeDeck?.showError('Sign in with G for Coders team');
       Auth?.signInGoogle();
       return;
     }
     await this.ensureBridge();
     this.teamActive = true;
+    if (GlobeDeck) GlobeDeck.activeTask = 'coders';
     this.armed = true;
     this.engine = 'composer';
     this.updateHud();
@@ -207,6 +208,7 @@ const AciCoders = {
     MapDepict?.action('think', { detail: 'coders: ' + m.slice(0, 40) });
 
     try {
+      GlobeDeck?.setThinking(true, 'Coders — thinking…');
       if (/locate\s+me|locate\s+button|🎯|📍/i.test(m)) {
         locateMe();
       }
@@ -230,10 +232,14 @@ const AciCoders = {
       if (r.error && !q) {
         if (this.isBuildTask(m)) {
           q = await this.queueComposer(m);
-          if (q.summon_id) return this._applyResponse({ ...q, text: (q.text || '') + '\n(chat fallback → Composer queue)', team: true }, m);
+          if (q.summon_id) {
+            GlobeDeck?.setThinking(false);
+            return this._applyResponse({ ...q, text: (q.text || '') + '\n(chat fallback → Composer queue)', team: true }, m);
+          }
         }
+        GlobeDeck?.setThinking(false);
         if (AciCli) AciCli.print('coders error: ' + r.error, 'err');
-        ACIControl?.reply('Coders error: ' + r.error);
+        GlobeDeck?.showError('Coders: ' + r.error);
         return r;
       }
 
@@ -247,11 +253,13 @@ const AciCoders = {
         }
       }
 
+      GlobeDeck?.setThinking(false);
       return this._applyResponse(r, m);
     } catch (e) {
+      GlobeDeck?.setThinking(false);
       const msg = String(e.message || e);
       if (AciCli) AciCli.print('coders failed: ' + msg, 'err');
-      ACIControl?.reply('Coders failed: ' + msg);
+      GlobeDeck?.showError('Coders failed: ' + msg);
       if (this.isBuildTask(m)) return this.queueComposer(m);
       return { error: msg };
     }
@@ -274,7 +282,8 @@ const AciCoders = {
     }
     if (sub === 'exit' || sub === 'close' || sub === 'leave') {
       this.teamActive = false;
-      if (AciCli) AciCli.print('coders team closed', 'ok');
+      if (GlobeDeck) GlobeDeck.activeTask = null;
+      if (AciCli) AciCli.print('coders team closed — free text now goes to ACI think', 'ok');
       this.updateHud();
       return { ok: true };
     }

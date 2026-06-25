@@ -8,7 +8,12 @@ const AciCli = {
   init() {
     const input = document.getElementById('aci-cli-in');
     const toggle = document.getElementById('aci-cli-toggle');
+    const send = document.getElementById('globe-deck-send');
     if (toggle) toggle.onclick = () => this.toggle();
+    if (send) send.onclick = () => {
+      const line = (input?.value || '').trim();
+      if (line) { input.value = ''; this.buffer = ''; this.run(line); }
+    };
     if (input) {
       input.addEventListener('keydown', e => this.onKey(e));
       input.addEventListener('input', () => { this.buffer = input.value; });
@@ -53,7 +58,7 @@ const AciCli = {
     if (window.AciCoders) {
       await AciCoders.ensureBridge();
       AciCoders.armed = true;
-      AciCoders.teamActive = true;
+      AciCoders.teamActive = false;
       AciCoders.updateHud();
     }
   },
@@ -74,11 +79,22 @@ const AciCli = {
 
   toggle() {
     if (!Auth?.user) {
-      ACIControl?.reply('Globe is your UI — sign in with G for full CLI');
-      Auth?.signInGoogle();
+      GlobeDeck?.onUserMessage('Guest — sign in for Coders');
+      this.showGuest();
       return;
     }
     this.open ? this.hide() : this.show();
+  },
+
+  showGuest() {
+    this.open = true;
+    GlobeDeck?.expand('Guest — type a message (think) or tap G to sign in');
+    if (!this._guestWelcomed) {
+      this._guestWelcomed = true;
+      this.print('Guest mode — free text goes to ACI think', 'dim');
+      this.print('Sign in with G for Coders team + orders', 'dim');
+    }
+    document.getElementById('aci-cli-in')?.focus();
   },
 
   show() {
@@ -117,12 +133,11 @@ const AciCli = {
     } else {
       headers.Authorization = 'Bearer ' + SB_KEY;
     }
-    const r = await fetch(SB_URL + '/functions/v1/aci', {
+    const j = await fetchJson(SB_URL + '/functions/v1/aci', {
       method: 'POST', headers,
       body: JSON.stringify({ ...body, cli_user: Auth?.user?.id, cli_email: Auth?.user?.email })
-    });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok && !j.error) j.error = 'HTTP ' + r.status;
+    }, 55000);
+    if (j._httpStatus === 401) j.error = j.error || 'login required — tap G to sign in';
     return j;
   },
 
@@ -341,6 +356,13 @@ const AciCli = {
         GlobeDeck?.finishCliIfOneShot('vendor');
         return;
       }
+      if (cmd === 'ping') {
+        const r = await ACI.think('ping');
+        this.print(r || 'pong', 'ok');
+        ACIControl?.reply(r || 'pong');
+        GlobeDeck?.finishCliIfOneShot(cmd);
+        return;
+      }
       if (cmd === 'locate' || cmd === 'gps' || cmd === 'me') {
         locateMe();
         GlobeDeck?.finishCliIfOneShot(cmd);
@@ -376,23 +398,37 @@ const AciCli = {
         return;
       }
 
-      if (Auth?.user && line.length >= 1 && !/^(think|order|vendors|vendor|batch|help|deploy|connect|logout|clear|exit|close|locate|gps)\b/i.test(line)) {
-        if (AciCoders?.teamActive || /^(add|fix|build|implement|create|remove|locate|why|try|skip|use)\b/i.test(line)) {
-          GlobeDeck.activeTask = 'coders';
-          await AciCoders.chat(line);
-          if (AstranovNode?.batchId) AstranovNode.broadcastTask(line);
-          return;
-        }
+      if (AciCoders?.teamActive && Auth?.user) {
+        GlobeDeck.activeTask = 'coders';
+        await AciCoders.chat(line);
+        if (AstranovNode?.batchId) AstranovNode.broadcastTask(line);
+        return;
       }
-      if (!window._aciConnected) await AciConnect.connect(false);
-      this.print('…', 'dim');
+      if (/^(coders|summon)\b/i.test(line) && Auth?.user) {
+        const task = line.replace(/^coders\s*/i, '').replace(/^summon\s+coders?\s*/i, '').trim();
+        if (GlobeDeck) GlobeDeck.activeTask = 'coders';
+        if (!task) await AciCoders?.openTeam();
+        else await AciCoders?.chat(task);
+        return;
+      }
+      if (Auth?.user && !window._aciConnected) await AciConnect.connect(false);
+      GlobeDeck?.setThinking(true, 'ACI — thinking…');
       const ans = await ACI.think(line);
-      this.print(ans || '(empty)', 'out');
-      ACIControl?.reply(ans);
-      if (voiceSessionActive && Voice.shouldSpeak(ans)) speak(ans.slice(0, 200));
+      GlobeDeck?.setThinking(false);
+      if (ans) {
+        this.print(ans, 'out');
+        ACIControl?.reply(ans);
+        if (voiceSessionActive && Voice.shouldSpeak(ans)) speak(ans.slice(0, 200));
+      } else {
+        this.print('(no response — try again)', 'err');
+        ACIControl?.reply('No response — try again');
+      }
       GlobeDeck?.finishCliIfOneShot('think');
     } catch (err) {
-      this.print('error: ' + (err.message || err), 'err');
+      GlobeDeck?.setThinking(false);
+      const msg = 'error: ' + (err.message || err);
+      this.print(msg, 'err');
+      GlobeDeck?.showError(msg);
     }
   }
 };

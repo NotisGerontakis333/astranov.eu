@@ -55,6 +55,10 @@
   #globe-deck { display:flex; flex-direction:column; margin:0 8px 6px; max-height:40px; background:rgba(0,4,12,0.94); border:1px solid rgba(0,255,160,0.35); border-radius:14px; pointer-events:auto; font:12px/1.4 ui-monospace,monospace; overflow:hidden; transition:max-height 0.22s ease; }
   #globe-deck.expanded { max-height:min(56vh,520px); }
   #globe-deck.deck-ping { border-color:rgba(0,255,200,0.85); box-shadow:0 0 12px rgba(0,255,160,0.35); }
+  #globe-deck.deck-thinking #globe-deck-title { color:#fc8; }
+  #globe-deck-log .deck-thinking-line { animation:deck-pulse 1s ease infinite; }
+  @keyframes deck-pulse { 50% { opacity:0.35; } }
+  #globe-deck-send { background:rgba(0,100,180,0.45); border:1px solid rgba(0,200,255,0.5); color:#cef; border-radius:10px; padding:6px 12px; cursor:pointer; font-size:12px; flex-shrink:0; }
   #globe-deck-header { display:flex; align-items:center; gap:8px; padding:8px 10px; background:rgba(0,40,30,0.5); color:#6fc; font:11px system-ui; touch-action:pan-y; cursor:pointer; flex-shrink:0; user-select:none; min-height:24px; }
   #globe-deck.expanded #globe-deck-header { border-bottom:1px solid rgba(0,255,160,0.2); }
   #globe-deck-title { flex:0 1 auto; max-width:42%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600; }
@@ -177,7 +181,8 @@
         </div>
         <div id="globe-deck-input-row">
           <span id="aci-cli-prompt">collective $</span>
-          <input id="aci-cli-in" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="help" />
+          <input id="aci-cli-in" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="type message · Enter or ➡" />
+          <button id="globe-deck-send" type="button" title="Send">➡</button>
         </div>
       </div>
     </div>
@@ -710,6 +715,27 @@ function userIntervene() {
 
 window.userIntervene = userIntervene;
 
+// === FETCH JSON — timeout + visible errors for all ACI calls ===
+async function fetchJson(url, options, timeoutMs) {
+  const ms = timeoutMs || 55000;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  try {
+    const r = await fetch(url, { ...options, signal: ctrl.signal });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok && !j.error) j.error = 'HTTP ' + r.status;
+    j._httpStatus = r.status;
+    j._ok = r.ok;
+    return j;
+  } catch (e) {
+    if (e.name === 'AbortError') return { error: 'timeout — server slow, try again', _timeout: true };
+    return { error: String(e.message || e.cause?.message || e || 'network failed') };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+window.fetchJson = fetchJson;
+
 // === ASTRO GLYPHS — high-contrast icons for globe HUD (readable at small size) ===
 const AstroGlyphs = {
   client: '🧑',
@@ -919,9 +945,11 @@ window.Auth = Auth;
 const GlobeDeck = {
   expanded: false,
   activeTask: null,
+  thinking: false,
   _touchY: 0,
   _touchT: 0,
   _collapseTimer: null,
+  _thinkLine: null,
 
   init() {
     const hdr = document.getElementById('globe-deck-header');
@@ -998,6 +1026,34 @@ const GlobeDeck = {
     setTimeout(() => d.classList.remove('deck-ping'), 1200);
   },
 
+  setThinking(on, hint) {
+    this.thinking = !!on;
+    const d = this.deck();
+    if (d) d.classList.toggle('deck-thinking', this.thinking);
+    if (on) {
+      this.expand(hint || 'Collective — thinking…');
+      const out = this.logEl();
+      if (out) {
+        if (this._thinkLine?.parentNode) this._thinkLine.remove();
+        this._thinkLine = document.createElement('div');
+        this._thinkLine.className = 'deck-line deck-dim deck-thinking-line';
+        this._thinkLine.textContent = hint || '… thinking';
+        out.appendChild(this._thinkLine);
+        out.scrollTop = out.scrollHeight;
+      }
+    } else if (this._thinkLine?.parentNode) {
+      this._thinkLine.remove();
+      this._thinkLine = null;
+    }
+  },
+
+  showError(msg) {
+    this.expand('Error');
+    this.log(msg, 'err');
+    this.setPreview(msg);
+    this.ping();
+  },
+
   clearLog() {
     const out = this.logEl();
     if (out) out.innerHTML = '';
@@ -1067,7 +1123,7 @@ const GlobeDeck = {
 
   completeTask(task) {
     const keep = ['coders', 'radio', 'batch', 'commerce'];
-    if (this.activeTask && keep.includes(this.activeTask)) return;
+    if (task === 'cli' && this.activeTask && keep.includes(this.activeTask)) return;
     if (this.activeTask && this.activeTask !== task && task !== 'cli') return;
     if (this._collapseTimer) { clearTimeout(this._collapseTimer); this._collapseTimer = null; }
     this.hideStage();
@@ -1087,11 +1143,12 @@ const GlobeDeck = {
 
   finishCliIfOneShot(cmd) {
     if (!this.isOneShotCmd(cmd)) return;
+    if (this.activeTask && ['coders', 'radio', 'batch', 'commerce'].includes(this.activeTask)) return;
     if (this._collapseTimer) clearTimeout(this._collapseTimer);
     this._collapseTimer = setTimeout(() => {
       this._collapseTimer = null;
-      this.completeTask('cli');
-    }, 4500);
+      if (!this.thinking) this.completeTask('cli');
+    }, 8000);
   },
 };
 window.GlobeDeck = GlobeDeck;
@@ -1106,7 +1163,12 @@ const AciCli = {
   init() {
     const input = document.getElementById('aci-cli-in');
     const toggle = document.getElementById('aci-cli-toggle');
+    const send = document.getElementById('globe-deck-send');
     if (toggle) toggle.onclick = () => this.toggle();
+    if (send) send.onclick = () => {
+      const line = (input?.value || '').trim();
+      if (line) { input.value = ''; this.buffer = ''; this.run(line); }
+    };
     if (input) {
       input.addEventListener('keydown', e => this.onKey(e));
       input.addEventListener('input', () => { this.buffer = input.value; });
@@ -1151,7 +1213,7 @@ const AciCli = {
     if (window.AciCoders) {
       await AciCoders.ensureBridge();
       AciCoders.armed = true;
-      AciCoders.teamActive = true;
+      AciCoders.teamActive = false;
       AciCoders.updateHud();
     }
   },
@@ -1172,11 +1234,22 @@ const AciCli = {
 
   toggle() {
     if (!Auth?.user) {
-      ACIControl?.reply('Globe is your UI — sign in with G for full CLI');
-      Auth?.signInGoogle();
+      GlobeDeck?.onUserMessage('Guest — sign in for Coders');
+      this.showGuest();
       return;
     }
     this.open ? this.hide() : this.show();
+  },
+
+  showGuest() {
+    this.open = true;
+    GlobeDeck?.expand('Guest — type a message (think) or tap G to sign in');
+    if (!this._guestWelcomed) {
+      this._guestWelcomed = true;
+      this.print('Guest mode — free text goes to ACI think', 'dim');
+      this.print('Sign in with G for Coders team + orders', 'dim');
+    }
+    document.getElementById('aci-cli-in')?.focus();
   },
 
   show() {
@@ -1215,12 +1288,11 @@ const AciCli = {
     } else {
       headers.Authorization = 'Bearer ' + SB_KEY;
     }
-    const r = await fetch(SB_URL + '/functions/v1/aci', {
+    const j = await fetchJson(SB_URL + '/functions/v1/aci', {
       method: 'POST', headers,
       body: JSON.stringify({ ...body, cli_user: Auth?.user?.id, cli_email: Auth?.user?.email })
-    });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok && !j.error) j.error = 'HTTP ' + r.status;
+    }, 55000);
+    if (j._httpStatus === 401) j.error = j.error || 'login required — tap G to sign in';
     return j;
   },
 
@@ -1439,6 +1511,13 @@ const AciCli = {
         GlobeDeck?.finishCliIfOneShot('vendor');
         return;
       }
+      if (cmd === 'ping') {
+        const r = await ACI.think('ping');
+        this.print(r || 'pong', 'ok');
+        ACIControl?.reply(r || 'pong');
+        GlobeDeck?.finishCliIfOneShot(cmd);
+        return;
+      }
       if (cmd === 'locate' || cmd === 'gps' || cmd === 'me') {
         locateMe();
         GlobeDeck?.finishCliIfOneShot(cmd);
@@ -1474,23 +1553,37 @@ const AciCli = {
         return;
       }
 
-      if (Auth?.user && line.length >= 1 && !/^(think|order|vendors|vendor|batch|help|deploy|connect|logout|clear|exit|close|locate|gps)\b/i.test(line)) {
-        if (AciCoders?.teamActive || /^(add|fix|build|implement|create|remove|locate|why|try|skip|use)\b/i.test(line)) {
-          GlobeDeck.activeTask = 'coders';
-          await AciCoders.chat(line);
-          if (AstranovNode?.batchId) AstranovNode.broadcastTask(line);
-          return;
-        }
+      if (AciCoders?.teamActive && Auth?.user) {
+        GlobeDeck.activeTask = 'coders';
+        await AciCoders.chat(line);
+        if (AstranovNode?.batchId) AstranovNode.broadcastTask(line);
+        return;
       }
-      if (!window._aciConnected) await AciConnect.connect(false);
-      this.print('…', 'dim');
+      if (/^(coders|summon)\b/i.test(line) && Auth?.user) {
+        const task = line.replace(/^coders\s*/i, '').replace(/^summon\s+coders?\s*/i, '').trim();
+        if (GlobeDeck) GlobeDeck.activeTask = 'coders';
+        if (!task) await AciCoders?.openTeam();
+        else await AciCoders?.chat(task);
+        return;
+      }
+      if (Auth?.user && !window._aciConnected) await AciConnect.connect(false);
+      GlobeDeck?.setThinking(true, 'ACI — thinking…');
       const ans = await ACI.think(line);
-      this.print(ans || '(empty)', 'out');
-      ACIControl?.reply(ans);
-      if (voiceSessionActive && Voice.shouldSpeak(ans)) speak(ans.slice(0, 200));
+      GlobeDeck?.setThinking(false);
+      if (ans) {
+        this.print(ans, 'out');
+        ACIControl?.reply(ans);
+        if (voiceSessionActive && Voice.shouldSpeak(ans)) speak(ans.slice(0, 200));
+      } else {
+        this.print('(no response — try again)', 'err');
+        ACIControl?.reply('No response — try again');
+      }
       GlobeDeck?.finishCliIfOneShot('think');
     } catch (err) {
-      this.print('error: ' + (err.message || err), 'err');
+      GlobeDeck?.setThinking(false);
+      const msg = 'error: ' + (err.message || err);
+      this.print(msg, 'err');
+      GlobeDeck?.showError(msg);
     }
   }
 };
@@ -1627,12 +1720,13 @@ const AciCoders = {
 
   async openTeam(intro) {
     if (!Auth?.user) {
-      ACIControl?.reply('Login required for Coders team');
+      GlobeDeck?.showError('Sign in with G for Coders team');
       Auth?.signInGoogle();
       return;
     }
     await this.ensureBridge();
     this.teamActive = true;
+    if (GlobeDeck) GlobeDeck.activeTask = 'coders';
     this.armed = true;
     this.engine = 'composer';
     this.updateHud();
@@ -1785,6 +1879,7 @@ const AciCoders = {
     MapDepict?.action('think', { detail: 'coders: ' + m.slice(0, 40) });
 
     try {
+      GlobeDeck?.setThinking(true, 'Coders — thinking…');
       if (/locate\s+me|locate\s+button|🎯|📍/i.test(m)) {
         locateMe();
       }
@@ -1808,10 +1903,14 @@ const AciCoders = {
       if (r.error && !q) {
         if (this.isBuildTask(m)) {
           q = await this.queueComposer(m);
-          if (q.summon_id) return this._applyResponse({ ...q, text: (q.text || '') + '\n(chat fallback → Composer queue)', team: true }, m);
+          if (q.summon_id) {
+            GlobeDeck?.setThinking(false);
+            return this._applyResponse({ ...q, text: (q.text || '') + '\n(chat fallback → Composer queue)', team: true }, m);
+          }
         }
+        GlobeDeck?.setThinking(false);
         if (AciCli) AciCli.print('coders error: ' + r.error, 'err');
-        ACIControl?.reply('Coders error: ' + r.error);
+        GlobeDeck?.showError('Coders: ' + r.error);
         return r;
       }
 
@@ -1825,11 +1924,13 @@ const AciCoders = {
         }
       }
 
+      GlobeDeck?.setThinking(false);
       return this._applyResponse(r, m);
     } catch (e) {
+      GlobeDeck?.setThinking(false);
       const msg = String(e.message || e);
       if (AciCli) AciCli.print('coders failed: ' + msg, 'err');
-      ACIControl?.reply('Coders failed: ' + msg);
+      GlobeDeck?.showError('Coders failed: ' + msg);
       if (this.isBuildTask(m)) return this.queueComposer(m);
       return { error: msg };
     }
@@ -1852,7 +1953,8 @@ const AciCoders = {
     }
     if (sub === 'exit' || sub === 'close' || sub === 'leave') {
       this.teamActive = false;
-      if (AciCli) AciCli.print('coders team closed', 'ok');
+      if (GlobeDeck) GlobeDeck.activeTask = null;
+      if (AciCli) AciCli.print('coders team closed — free text now goes to ACI think', 'ok');
       this.updateHud();
       return { ok: true };
     }
@@ -2002,9 +2104,9 @@ const ACI = {
   },
 
   api(body) {
-    return this.headers().then(h => fetch(this.url + '/functions/v1/aci', {
+    return this.headers().then(h => fetchJson(this.url + '/functions/v1/aci', {
       method: 'POST', headers: h, body: JSON.stringify(body || {})
-    })).then(r => r.json().catch(() => ({}))).catch(() => ({}));
+    }, 55000));
   },
 
   _logQueue: [],
@@ -2053,14 +2155,25 @@ const ACI = {
     window._aciAbort = new AbortController();
     const up = window._lastPos || { lat: 36.22, lng: 28.12 };
     MapDepict.action('think', { lat: up.lat, lng: up.lng, detail: prompt.slice(0, 60) });
+    GlobeDeck?.setThinking(true, 'ACI — thinking…');
     const h = await this.headers();
-    const r = await fetch(this.url + '/functions/v1/aci', {
-      method: 'POST', headers: h,
-      body: JSON.stringify({ mode: 'think', prompt, history: this.history.slice(-8), aci_mode: this.thinkMode || undefined }),
-      signal: window._aciAbort.signal
-    }).then(res => res.json().catch(() => ({}))).catch(err => (err.name === 'AbortError' ? { aborted: true } : {}));
+    let r;
+    try {
+      r = await fetchJson(this.url + '/functions/v1/aci', {
+        method: 'POST', headers: h,
+        body: JSON.stringify({ mode: 'think', prompt, history: this.history.slice(-8), aci_mode: this.thinkMode || undefined }),
+      }, 55000);
+    } catch (e) {
+      r = { error: String(e.message || e) };
+    }
+    GlobeDeck?.setThinking(false);
     if (r.aborted) return '';
-    const text = r.text || r.response || 'Το Astranov συγκεντρώνεται.';
+    if (r.error) {
+      const err = 'ACI error: ' + r.error + (r._httpStatus === 401 ? ' — tap G to sign in' : '');
+      GlobeDeck?.showError(err);
+      return err;
+    }
+    const text = (r.text || r.response || '').trim() || 'Το Astranov συγκεντρώνεται — δοκίμασε ξανά.';
     this.history.push({ role: 'user', content: prompt });
     this.history.push({ role: 'assistant', content: text });
     if (this.history.length > 20) this.history = this.history.slice(-20);
@@ -2326,9 +2439,14 @@ const ACIControl = {
       return { executed: false };
     }
 
+    GlobeDeck?.setThinking(true, 'ACI — thinking…');
     const ans = await ACI.think(text);
-    if (!ans) return { executed: false };
-    const short = ans.slice(0, 160);
+    GlobeDeck?.setThinking(false);
+    if (!ans) {
+      this.reply('No response — check connection and try again');
+      return { executed: false };
+    }
+    const short = ans.slice(0, 280);
     this.reply(short);
     MapDepict.action('think', { detail: short.slice(0, 60) });
     if (fromVoice && Voice.maySpeak() && Voice.shouldSpeak(short)) {

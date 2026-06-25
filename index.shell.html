@@ -55,6 +55,10 @@
   #globe-deck { display:flex; flex-direction:column; margin:0 8px 6px; max-height:40px; background:rgba(0,4,12,0.94); border:1px solid rgba(0,255,160,0.35); border-radius:14px; pointer-events:auto; font:12px/1.4 ui-monospace,monospace; overflow:hidden; transition:max-height 0.22s ease; }
   #globe-deck.expanded { max-height:min(56vh,520px); }
   #globe-deck.deck-ping { border-color:rgba(0,255,200,0.85); box-shadow:0 0 12px rgba(0,255,160,0.35); }
+  #globe-deck.deck-thinking #globe-deck-title { color:#fc8; }
+  #globe-deck-log .deck-thinking-line { animation:deck-pulse 1s ease infinite; }
+  @keyframes deck-pulse { 50% { opacity:0.35; } }
+  #globe-deck-send { background:rgba(0,100,180,0.45); border:1px solid rgba(0,200,255,0.5); color:#cef; border-radius:10px; padding:6px 12px; cursor:pointer; font-size:12px; flex-shrink:0; }
   #globe-deck-header { display:flex; align-items:center; gap:8px; padding:8px 10px; background:rgba(0,40,30,0.5); color:#6fc; font:11px system-ui; touch-action:pan-y; cursor:pointer; flex-shrink:0; user-select:none; min-height:24px; }
   #globe-deck.expanded #globe-deck-header { border-bottom:1px solid rgba(0,255,160,0.2); }
   #globe-deck-title { flex:0 1 auto; max-width:42%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600; }
@@ -177,7 +181,8 @@
         </div>
         <div id="globe-deck-input-row">
           <span id="aci-cli-prompt">collective $</span>
-          <input id="aci-cli-in" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="help" />
+          <input id="aci-cli-in" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="type message · Enter or ➡" />
+          <button id="globe-deck-send" type="button" title="Send">➡</button>
         </div>
       </div>
     </div>

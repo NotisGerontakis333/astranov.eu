@@ -2,9 +2,11 @@
 const GlobeDeck = {
   expanded: false,
   activeTask: null,
+  thinking: false,
   _touchY: 0,
   _touchT: 0,
   _collapseTimer: null,
+  _thinkLine: null,
 
   init() {
     const hdr = document.getElementById('globe-deck-header');
@@ -81,6 +83,34 @@ const GlobeDeck = {
     setTimeout(() => d.classList.remove('deck-ping'), 1200);
   },
 
+  setThinking(on, hint) {
+    this.thinking = !!on;
+    const d = this.deck();
+    if (d) d.classList.toggle('deck-thinking', this.thinking);
+    if (on) {
+      this.expand(hint || 'Collective — thinking…');
+      const out = this.logEl();
+      if (out) {
+        if (this._thinkLine?.parentNode) this._thinkLine.remove();
+        this._thinkLine = document.createElement('div');
+        this._thinkLine.className = 'deck-line deck-dim deck-thinking-line';
+        this._thinkLine.textContent = hint || '… thinking';
+        out.appendChild(this._thinkLine);
+        out.scrollTop = out.scrollHeight;
+      }
+    } else if (this._thinkLine?.parentNode) {
+      this._thinkLine.remove();
+      this._thinkLine = null;
+    }
+  },
+
+  showError(msg) {
+    this.expand('Error');
+    this.log(msg, 'err');
+    this.setPreview(msg);
+    this.ping();
+  },
+
   clearLog() {
     const out = this.logEl();
     if (out) out.innerHTML = '';
@@ -150,7 +180,7 @@ const GlobeDeck = {
 
   completeTask(task) {
     const keep = ['coders', 'radio', 'batch', 'commerce'];
-    if (this.activeTask && keep.includes(this.activeTask)) return;
+    if (task === 'cli' && this.activeTask && keep.includes(this.activeTask)) return;
     if (this.activeTask && this.activeTask !== task && task !== 'cli') return;
     if (this._collapseTimer) { clearTimeout(this._collapseTimer); this._collapseTimer = null; }
     this.hideStage();
@@ -170,11 +200,12 @@ const GlobeDeck = {
 
   finishCliIfOneShot(cmd) {
     if (!this.isOneShotCmd(cmd)) return;
+    if (this.activeTask && ['coders', 'radio', 'batch', 'commerce'].includes(this.activeTask)) return;
     if (this._collapseTimer) clearTimeout(this._collapseTimer);
     this._collapseTimer = setTimeout(() => {
       this._collapseTimer = null;
-      this.completeTask('cli');
-    }, 4500);
+      if (!this.thinking) this.completeTask('cli');
+    }, 8000);
   },
 };
 window.GlobeDeck = GlobeDeck;

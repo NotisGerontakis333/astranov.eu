@@ -747,7 +747,12 @@ serve(async (req) => {
       const aicycleBody: Record<string, unknown> = { prompt, history, mode: thinkMode }
       if (caller.callerId) aicycleBody.profile_id = caller.callerId
       const result = await invokeFn(base, anon, caller.authToken, 'aicycle', aicycleBody)
-      const text = String(result.text || result.response || '')
+      let text = String(result.text || result.response || '').trim()
+      if (!text) {
+        text = result.error
+          ? String(result.error).slice(0, 300)
+          : 'Astranov is gathering itself — try again in a moment.'
+      }
       if (memoryOwnerId && text) {
         try {
           const snippet = `Q: ${prompt.slice(0, 300)} A: ${text.slice(0, 400)}`
