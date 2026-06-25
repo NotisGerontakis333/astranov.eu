@@ -171,7 +171,7 @@ const ACIControl = {
     };
     const stopBtn = document.getElementById('aci-stop');
     if (stopBtn) stopBtn.onclick = () => userIntervene();
-    document.getElementById('aci-order').onclick = () => Commerce.orderPitogyra();
+    document.getElementById('aci-order').onclick = () => Commerce.showPicker();
     document.getElementById('aci-vhf').onclick = () => Comms.startVHF();
     document.getElementById('aci-call').onclick = () => Comms.startPhone();
   },
@@ -226,8 +226,9 @@ const ACIControl = {
     if (/^(login|sign in|google)$/.test(low) || /^σύνδεση$/.test(low)) { Auth.signInGoogle(); return { executed: true }; }
     if (/^(logout|sign out|αποσύνδεση)$/.test(low)) { Auth.signOut(); return { executed: true }; }
     if (/telecom|sat radio|satellite radio|ασύρματος/.test(low)) { Comms.startTelecomms(); return { executed: true }; }
-    if (/pitogyra|πιτογυρ|μπίρ|τσιγαρ|order|παραγγελ|work|δουλειά|delivery|διανομ/.test(low)) {
-      await Commerce.orderPitogyra();
+    if (/pitogyra|πιτογυρ|μπίρ|τσιγαρ|order|παραγγελ|goals|work|δουλειά|delivery|διανομ/.test(low)) {
+      const q = low.match(/goals|πιτο|pit|pizza|supermarket|bar/)?.[0] || '';
+      await Commerce.openOrderFlow(q || text.replace(/^(order|παραγγελία?)\s*/i, ''));
       return { executed: true, action: 'order' };
     }
     if (/^drive|οδήγ|οδηγ/.test(low)) {
@@ -245,9 +246,8 @@ const ACIControl = {
       return { executed: true, action: 'video' };
     }
     if (/news|νέα|ειδήσει/.test(low)) { NewsFeed.flash(); return { executed: true }; }
-    if (/vendor|κατάστη|shop/.test(low)) {
-      await Commerce.loadVendors();
-      Commerce.announceVendors();
+    if (/vendor|κατάστη|shop|menu|μενού/.test(low)) {
+      await Commerce.showPicker();
       return { executed: true };
     }
     if (/explore|εξερεύ|πήγαινε|go to|focus/.test(low)) {

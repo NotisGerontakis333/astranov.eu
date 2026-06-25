@@ -309,6 +309,11 @@ const MapDepict = {
     }
     if (type === 'vendor' && opts.vendors) {
       opts.vendors.forEach(v => this.pulse(v.lat, v.lng, color, v.name, 12000));
+      const v0 = opts.vendors[0];
+      if (v0 && typeof flyToPoint === 'function') {
+        const fp = latLngToPos(v0.lat, v0.lng, 1.04);
+        flyToPoint(new THREE.Vector3(fp.x, fp.y, fp.z), 1.48);
+      }
     }
     if (type === 'news' && opts.worldLat != null) {
       this.pulse(opts.worldLat, opts.worldLng, color, 'World news', 10000);

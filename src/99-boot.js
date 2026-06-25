@@ -58,7 +58,7 @@ ACIControl.init();
 PmrRadio.bindUI();
 DrivingView.init();
 CosmicZoom.init();
-Commerce.loadVendors();
+Commerce.loadVendors().then(() => Commerce.initUI());
 NewsFeed.fetch();
 setInterval(() => NewsFeed.tick(), 12000);
 

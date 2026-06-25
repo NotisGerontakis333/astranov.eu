@@ -59,6 +59,18 @@
   #aci-cli-prompt { color:#6fc; flex-shrink:0; font-size:11px; }
   #aci-cli-in { flex:1; background:transparent; border:none; color:#e8f4ff; font:inherit; outline:none; min-width:0; }
   #aci-cli-toggle { display:inline-flex; background:rgba(0,60,40,0.5); border:1px solid rgba(0,255,160,0.4); color:#6fc; border-radius:50%; width:38px; height:38px; cursor:pointer; font-size:15px; flex-shrink:0; align-items:center; justify-content:center; }
+  #vendor-menu { display:none; margin:0 8px 6px; max-height:38vh; background:rgba(8,6,0,0.94); border:1px solid rgba(255,170,60,0.45); border-radius:14px; pointer-events:auto; font:12px/1.4 system-ui; overflow:hidden; flex-direction:column; }
+  #vendor-menu.open { display:flex; }
+  #vm-header { display:flex; justify-content:space-between; align-items:center; padding:8px 12px; background:rgba(60,30,0,0.45); color:#fc8; border-bottom:1px solid rgba(255,170,60,0.25); }
+  #vm-close { background:transparent; border:1px solid #666; color:#aaa; border-radius:8px; padding:2px 8px; cursor:pointer; }
+  #vm-body { flex:1; overflow-y:auto; padding:8px 10px; }
+  #vm-list .vm-vendor { display:flex; gap:10px; align-items:center; padding:10px; margin:6px 0; border-radius:10px; background:rgba(0,0,0,0.35); border:1px solid rgba(255,170,60,0.2); cursor:pointer; }
+  #vm-list .vm-vendor:hover { border-color:rgba(255,200,80,0.5); }
+  #vm-items .vm-item { display:flex; justify-content:space-between; align-items:center; padding:8px 4px; border-bottom:1px solid rgba(255,255,255,0.06); }
+  .vm-qty { display:flex; gap:6px; align-items:center; }
+  .vm-qty button { width:28px; height:28px; border-radius:8px; border:1px solid rgba(255,170,60,0.4); background:rgba(80,40,0,0.4); color:#fda; cursor:pointer; font-size:14px; }
+  #vm-place { width:calc(100% - 16px); margin:8px; padding:12px; border:none; border-radius:12px; background:rgba(200,100,20,0.55); border:2px solid #fa4; color:#fff; font-weight:700; cursor:pointer; font-size:13px; }
+  #vm-back { background:transparent; border:none; color:#9cb; cursor:pointer; font-size:11px; padding:4px 0 8px; }
   @media (min-width:720px) { #news-ticker { display:block; } }
 </style>
 </head>
@@ -93,6 +105,10 @@
       <div id="sr-status">Tap 📻 then follow steps 1 → 2 → 3</div>
       <button id="sr-ptt" type="button">③ HOLD PTT — REAL TRANSMIT</button>
     </div>
+    <div id="vendor-menu">
+      <div id="vm-header"><span id="vm-title">Καταστήματα</span><button id="vm-close" type="button">✕</button></div>
+      <div id="vm-body"><div id="vm-list"></div><div id="vm-detail" style="display:none"><button id="vm-back" type="button">← όλα τα καταστήματα</button><div id="vm-items"></div><button id="vm-place" type="button">Παραγγελία</button></div></div>
+    </div>
     <div id="aci-bar">
       <button id="aci-login" title="Sign in with Google" type="button">G</button>
       <button id="aci-cli-toggle" title="CLI panel — tasks &amp; conversation (login for full access)" type="button">⌨</button>
@@ -100,7 +116,7 @@
       <button id="aci-mic" title="Voice (tap while speaking to interrupt)" type="button">🎙</button>
       <input id="aci-input" placeholder="connect · order · claim · roles · deploy · login G…" />
       <button id="aci-send" title="Send" type="button">→</button>
-      <button id="aci-order" title="Order pitogyra" type="button">🥙</button>
+      <button id="aci-order" title="Order — pick vendor on globe" type="button">🥙</button>
       <button id="aci-vhf" title="EU PMR Ch11 — real mic + WebRTC (see steps)" type="button">📻</button>
       <button id="aci-call" title="Phone call" type="button">📞</button>
     </div>
@@ -508,6 +524,11 @@ const MapDepict = {
     }
     if (type === 'vendor' && opts.vendors) {
       opts.vendors.forEach(v => this.pulse(v.lat, v.lng, color, v.name, 12000));
+      const v0 = opts.vendors[0];
+      if (v0 && typeof flyToPoint === 'function') {
+        const fp = latLngToPos(v0.lat, v0.lng, 1.04);
+        flyToPoint(new THREE.Vector3(fp.x, fp.y, fp.z), 1.48);
+      }
     }
     if (type === 'news' && opts.worldLat != null) {
       this.pulse(opts.worldLat, opts.worldLng, color, 'World news', 10000);
@@ -896,7 +917,7 @@ const AciCli = {
         this.print('teach <text>     — store memory / neuron');
         this.print('stats | owner    — memory / authority status');
         this.print('mode <athenian|spartan|myrmidon>');
-        this.print('vendors | order | vhf | drive | news');
+        this.print('vendors | order [name] | vhf | drive | news');
         if (Auth?.isOwner) {
           this.print('--- OWNER (notisastranov@gmail.com) ---');
           this.print('seed             — founding neurons');
@@ -1004,8 +1025,12 @@ const AciCli = {
         this.print('mode: ' + (ACI.thinkMode || 'default'), 'ok');
         return;
       }
-      if (cmd === 'vendors') { await Commerce.loadVendors(); Commerce.announceVendors(); this.print('vendors on globe', 'ok'); return; }
-      if (cmd === 'order') { await Commerce.orderPitogyra(); this.print('order placed', 'ok'); return; }
+      if (cmd === 'vendors') { await Commerce.showPicker(); this.print('vendor picker open — tap globe or list', 'ok'); return; }
+      if (cmd === 'order') {
+        await Commerce.openOrderFlow(rest);
+        this.print(rest ? 'order · ' + rest : 'pick vendor — menu open', 'ok');
+        return;
+      }
       if (cmd === 'vhf') { Comms.startVHF(); this.print('PMR panel open', 'ok'); return; }
       if (cmd === 'drive') {
         DrivingView?.activate?.();
@@ -1645,7 +1670,7 @@ const ACIControl = {
     };
     const stopBtn = document.getElementById('aci-stop');
     if (stopBtn) stopBtn.onclick = () => userIntervene();
-    document.getElementById('aci-order').onclick = () => Commerce.orderPitogyra();
+    document.getElementById('aci-order').onclick = () => Commerce.showPicker();
     document.getElementById('aci-vhf').onclick = () => Comms.startVHF();
     document.getElementById('aci-call').onclick = () => Comms.startPhone();
   },
@@ -1700,8 +1725,9 @@ const ACIControl = {
     if (/^(login|sign in|google)$/.test(low) || /^σύνδεση$/.test(low)) { Auth.signInGoogle(); return { executed: true }; }
     if (/^(logout|sign out|αποσύνδεση)$/.test(low)) { Auth.signOut(); return { executed: true }; }
     if (/telecom|sat radio|satellite radio|ασύρματος/.test(low)) { Comms.startTelecomms(); return { executed: true }; }
-    if (/pitogyra|πιτογυρ|μπίρ|τσιγαρ|order|παραγγελ|work|δουλειά|delivery|διανομ/.test(low)) {
-      await Commerce.orderPitogyra();
+    if (/pitogyra|πιτογυρ|μπίρ|τσιγαρ|order|παραγγελ|goals|work|δουλειά|delivery|διανομ/.test(low)) {
+      const q = low.match(/goals|πιτο|pit|pizza|supermarket|bar/)?.[0] || '';
+      await Commerce.openOrderFlow(q || text.replace(/^(order|παραγγελία?)\s*/i, ''));
       return { executed: true, action: 'order' };
     }
     if (/^drive|οδήγ|οδηγ/.test(low)) {
@@ -1719,9 +1745,8 @@ const ACIControl = {
       return { executed: true, action: 'video' };
     }
     if (/news|νέα|ειδήσει/.test(low)) { NewsFeed.flash(); return { executed: true }; }
-    if (/vendor|κατάστη|shop/.test(low)) {
-      await Commerce.loadVendors();
-      Commerce.announceVendors();
+    if (/vendor|κατάστη|shop|menu|μενού/.test(low)) {
+      await Commerce.showPicker();
       return { executed: true };
     }
     if (/explore|εξερεύ|πήγαινε|go to|focus/.test(low)) {
@@ -1808,82 +1833,290 @@ const ACIControl = {
   }
 };
 
-// ── COMMERCE: vendors, drivers, pitogyra order to your location ──
+// ── COMMERCE: real vendors, menu, orders (no drone simulation) ──
 const Commerce = {
   vendors: [],
   markers: [],
-  async loadVendors() {
-    try {
-      const r = await fetch(SB_URL + '/rest/v1/vendors?select=id,name,emoji,lat,lng,category,items&is_active=eq.true&limit=30', { headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY } });
-      this.vendors = r.ok ? await r.json() : [];
-    } catch { this.vendors = []; }
-    if (!this.vendors.length) {
-      this.vendors = [
-        { id: 'pitogyra-kos', name: 'Πιτογυράκος Κως', emoji: '🥙', lat: 36.89, lng: 27.29, category: 'food', items: [{ name: 'Πιτογύρα', price: 3.5 }, { name: 'Μπύρα', price: 2 }, { name: 'Τσιγάρα', price: 5 }] },
-        { id: 'mini-market', name: 'Mini Market Αξάς', emoji: '🏪', lat: 36.22, lng: 28.14, category: 'shop', items: [] }
+  selected: null,
+  cart: {},
+  _uiReady: false,
+
+  haversineKm(lat1, lng1, lat2, lng2) {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  },
+
+  userLatLng() {
+    if (userLocated && window._lastPos) return { lat: window._lastPos.lat, lng: window._lastPos.lng };
+    return { lat: 36.4239, lng: 28.2245 };
+  },
+
+  defaultMenu(vendor) {
+    const cat = String(vendor.category || '').toLowerCase();
+    const name = String(vendor.name || '').toLowerCase();
+    if (/bar|restaurant|fast_food|food|bakery/.test(cat) || /goals|pizza|πιτο|pit/.test(name)) {
+      return [
+        { name: 'Μπύρα', price: 4 },
+        { name: 'Τσιγάρα', price: 5.5 },
+        { name: 'Πιτογύρα', price: 3.5 },
+        { name: 'Νερό', price: 1.5 },
       ];
     }
+    if (/supermarket|shop/.test(cat)) {
+      return [{ name: 'Ψωμί', price: 2 }, { name: 'Γάλα', price: 1.8 }, { name: 'Νερό', price: 1 }];
+    }
+    if (/pharmacy/.test(cat)) {
+      return [{ name: 'Παυσίπονο', price: 6 }, { name: 'Βιταμίνες', price: 12 }];
+    }
+    return [{ name: 'Είδος 1', price: 5 }, { name: 'Είδος 2', price: 8 }];
+  },
+
+  menuFor(vendor) {
+    const items = Array.isArray(vendor.items) ? vendor.items.filter(i => i && i.name) : [];
+    return items.length ? items : this.defaultMenu(vendor);
+  },
+
+  async loadVendors() {
+    try {
+      const r = await fetch(SB_URL + '/rest/v1/vendors?select=id,name,emoji,lat,lng,category,items,is_active,delivery_enabled&is_active=eq.true&limit=80', {
+        headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY },
+      });
+      this.vendors = r.ok ? await r.json() : [];
+    } catch { this.vendors = []; }
+    const u = this.userLatLng();
+    this.vendors.sort((a, b) => this.haversineKm(u.lat, u.lng, a.lat, a.lng) - this.haversineKm(u.lat, u.lng, b.lat, b.lng));
     this.showOnGlobe();
     return this.vendors;
   },
+
+  flyToVendor(v) {
+    if (!v || v.lat == null) return;
+    const p = latLngToPos(v.lat, v.lng, 1.03);
+    if (typeof flyToPoint === 'function') flyToPoint(new THREE.Vector3(p.x, p.y, p.z), 1.42);
+    MapDepict?.action('vendor', { lat: v.lat, lng: v.lng, detail: v.name });
+  },
+
   showOnGlobe() {
     this.markers.forEach(m => { if (m.parent) m.parent.remove(m); });
     this.markers = [];
-    if (this.vendors.length) MapDepict.action('vendor', { vendors: this.vendors, detail: this.vendors.length + ' shops' });
+    if (!this.vendors.length) return;
+    MapDepict?.action('vendor', { vendors: this.vendors, detail: this.vendors.length + ' shops' });
     this.vendors.forEach(v => {
       const p = latLngToPos(v.lat, v.lng, 1.028);
-      const m = new THREE.Mesh(new THREE.SphereGeometry(0.012, 6, 6), new THREE.MeshBasicMaterial({ color: 0xffaa44 }));
+      const col = /bar|restaurant|fast_food|food/.test(v.category || '') ? 0xff8844 : 0xffcc44;
+      const m = new THREE.Mesh(new THREE.SphereGeometry(0.014, 8, 8), new THREE.MeshBasicMaterial({ color: col }));
       m.position.set(p.x, p.y, p.z);
       m.userData = { vendor: v };
       globePivot.add(m);
       this.markers.push(m);
     });
+    this.flyToVendor(this.vendors[0]);
   },
-  announceVendors() {
-    const names = this.vendors.map(v => v.name).join(', ');
-    const msg = 'Καταστήματα στον χάρτη: ' + names;
-    ACIControl.reply(msg);
-    if (Voice.maySpeak() && Voice.shouldSpeak(msg)) speak(msg.slice(0, 100));
+
+  initUI() {
+    if (this._uiReady) return;
+    this._uiReady = true;
+    const panel = document.getElementById('vendor-menu');
+    document.getElementById('vm-close')?.addEventListener('click', () => this.hideMenu());
+    document.getElementById('vm-back')?.addEventListener('click', () => this.showPicker());
+    document.getElementById('vm-place')?.addEventListener('click', () => this.placeCart());
+    if (panel) panel.addEventListener('click', e => e.stopPropagation());
   },
-  async orderPitogyra() {
+
+  showMenu() {
+    this.initUI();
+    document.getElementById('vendor-menu')?.classList.add('open');
+  },
+
+  hideMenu() {
+    document.getElementById('vendor-menu')?.classList.remove('open');
+    this.selected = null;
+    this.cart = {};
+  },
+
+  async showPicker(filter) {
+    await this.loadVendors();
+    this.showMenu();
+    this.selected = null;
+    this.cart = {};
+    const list = document.getElementById('vm-list');
+    const detail = document.getElementById('vm-detail');
+    if (list) list.style.display = 'block';
+    if (detail) detail.style.display = 'none';
+    const title = document.getElementById('vm-title');
+    if (title) title.textContent = 'Επίλεξε κατάστημα · ' + this.vendors.length;
+
+    let rows = this.vendors;
+    if (filter) {
+      const q = filter.toLowerCase();
+      rows = this.vendors.filter(v => (v.name + ' ' + v.category).toLowerCase().includes(q));
+      if (!rows.length) rows = this.vendors;
+    }
+
+    if (!list) return;
+    list.innerHTML = '';
+    const u = this.userLatLng();
+    rows.slice(0, 24).forEach(v => {
+      const km = this.haversineKm(u.lat, u.lng, v.lat, v.lng).toFixed(1);
+      const row = document.createElement('div');
+      row.className = 'vm-vendor';
+      row.innerHTML = '<span style="font-size:22px">' + (v.emoji || '🏪') + '</span><div><div style="color:#fda;font-weight:600">' + v.name + '</div><div style="color:#9ab;font-size:10px">' + (v.category || 'shop') + ' · ' + km + ' km</div></div>';
+      row.onclick = () => this.openVendor(v);
+      list.appendChild(row);
+    });
+    if (rows[0]) this.flyToVendor(rows[0]);
+    ACIControl?.reply('Tap vendor on globe or list — ' + rows.length + ' shops');
+  },
+
+  openVendor(vendor) {
+    if (!vendor) return;
+    this.selected = vendor;
+    this.cart = {};
+    this.flyToVendor(vendor);
+    this.showMenu();
+    const list = document.getElementById('vm-list');
+    const detail = document.getElementById('vm-detail');
+    if (list) list.style.display = 'none';
+    if (detail) detail.style.display = 'block';
+    const title = document.getElementById('vm-title');
+    if (title) title.textContent = (vendor.emoji || '🏪') + ' ' + vendor.name;
+    this.renderCart();
+    AciCli?.print('vendor: ' + vendor.name + ' — add items, tap Παραγγελία', 'ok');
+  },
+
+  renderCart() {
+    const box = document.getElementById('vm-items');
+    if (!box || !this.selected) return;
+    const menu = this.menuFor(this.selected);
+    box.innerHTML = '';
+    menu.forEach(item => {
+      const key = item.name;
+      const qty = this.cart[key] || 0;
+      const row = document.createElement('div');
+      row.className = 'vm-item';
+      row.innerHTML = '<span>' + item.name + ' <small style="color:#9ab">' + (item.price || 0) + ' AVC</small></span>';
+      const q = document.createElement('div');
+      q.className = 'vm-qty';
+      const minus = document.createElement('button');
+      minus.textContent = '−';
+      minus.onclick = () => { this.cart[key] = Math.max(0, (this.cart[key] || 0) - 1); this.renderCart(); };
+      const span = document.createElement('span');
+      span.textContent = String(qty);
+      span.style.minWidth = '18px';
+      span.style.textAlign = 'center';
+      const plus = document.createElement('button');
+      plus.textContent = '+';
+      plus.onclick = () => { this.cart[key] = (this.cart[key] || 0) + 1; this.renderCart(); };
+      q.append(minus, span, plus);
+      row.appendChild(q);
+      box.appendChild(row);
+    });
+    const total = menu.reduce((s, i) => s + (this.cart[i.name] || 0) * (i.price || 0), 0);
+    const btn = document.getElementById('vm-place');
+    if (btn) btn.textContent = total > 0 ? 'Παραγγελία · ' + total.toFixed(1) + ' AVC' : 'Παραγγελία';
+  },
+
+  cartItems() {
+    const menu = this.menuFor(this.selected || {});
+    return menu
+      .filter(i => (this.cart[i.name] || 0) > 0)
+      .map(i => ({ name: i.name, qty: this.cart[i.name], price: i.price }));
+  },
+
+  async placeCart() {
+    const vendor = this.selected;
+    const items = this.cartItems();
+    if (!vendor) { ACIControl?.reply('Pick a vendor first'); return; }
+    if (!items.length) { ACIControl?.reply('Add at least one item'); return; }
+    if (!Auth?.user) {
+      ACIControl?.reply('Sign in to place order');
+      Auth?.signInGoogle();
+      return;
+    }
+    await this.placeOrder(vendor, items);
+  },
+
+  async placeOrder(vendor, items, notes) {
     requestLocationIfNeeded(async () => {
-      await this.loadVendors();
-      const vendor = this.vendors.find(v => /πιτο|pit|food|γυρ/i.test(v.name + v.id)) || this.vendors[0];
-      if (!vendor) { ACIControl.reply('No vendor found.'); if (Voice.maySpeak()) speak('No vendor.', () => resumeListening()); return; }
-      let dLat = 36.22, dLng = 28.12;
-      if (userLocated && window._lastPos) { dLat = window._lastPos.lat; dLng = window._lastPos.lng; }
-      else if (window._meMarker) {
-        const wp = new THREE.Vector3(); window._meMarker.getWorldPosition(wp);
-        dLat = 36.22; dLng = 28.12;
+      let dLat = this.userLatLng().lat;
+      let dLng = this.userLatLng().lng;
+      if (userLocated && window._lastPos) {
+        dLat = window._lastPos.lat;
+        dLng = window._lastPos.lng;
       }
-      const items = [{ name: 'Πιτογύρα', qty: 2 }, { name: 'Μπύρα', qty: 2 }, { name: 'Τσιγάρα', qty: 1 }];
+      const total = items.reduce((s, i) => s + (i.qty || 1) * (i.price || 0), 0);
       let orderResult = null;
+      let errMsg = '';
       try {
         const headers = Auth?.authHeaders ? await Auth.authHeaders() : sbHeaders();
         const r = await fetch(SB_URL + '/functions/v1/order-intake', {
           method: 'POST', headers,
-          body: JSON.stringify({ vendor_id: vendor.id, items, delivery_lat: dLat, delivery_lng: dLng, notes: 'Astranov ACI order Αξάς', calc: { total_avc: 18 } })
+          body: JSON.stringify({
+            vendor_id: vendor.id,
+            items: items.map(i => ({ name: i.name, qty: i.qty || 1, price: i.price })),
+            delivery_lat: dLat,
+            delivery_lng: dLng,
+            notes: notes || ('Astranov order · ' + vendor.name),
+            calc: { total_avc: total },
+          }),
         });
-        orderResult = r.ok ? await r.json() : null;
-      } catch { /* local fallback */ }
+        const j = await r.json().catch(() => ({}));
+        if (r.ok) orderResult = j;
+        else errMsg = j.error || j.message || ('HTTP ' + r.status);
+      } catch (e) { errMsg = String(e.message || e); }
+
       const driverObj = orderResult?.driver;
-      const driver = driverObj?.name || orderResult?.order?.driver_name || (orderResult?.seeking_driver ? 'seeking driver' : 'ΤΗΛΕΜΑΧΟΣ');
-      MapDepict.action('order', {
+      const driver = driverObj?.name || orderResult?.order?.driver_name || (orderResult?.seeking_driver ? 'seeking driver' : null);
+      const ordId = orderResult?.order?.short_id || orderResult?.order?.id;
+
+      MapDepict?.action('order', {
         lat: dLat, lng: dLng,
         vendorLat: vendor.lat, vendorLng: vendor.lng,
-        detail: vendor.name + ' → εσύ · ' + driver
+        detail: vendor.name + (ordId ? ' · ' + ordId : ''),
       });
       if (window.DrivingView) DrivingView.setDestination(vendor.lat, vendor.lng);
-      const msg = orderResult?.seeking_driver
-        ? 'Παραγγελία στο ' + vendor.name + '. Αναζητούμε οδηγό — logged-in drivers can claim.'
-        : 'Παραγγελία στο ' + vendor.name + '. Οδηγός ' + driver + (driverObj?.self ? ' (εσύ — client+driver)' : '') + '.';
-      ACIControl.reply(msg);
-      FieldBrain?.pulse('order', vendor.name + ' → ' + driver, { role: 'client' });
-      if (orderResult?.order?.id && driverObj?.self) FieldBrain?.pulse('order', 'self-delivery ' + orderResult.order.short_id, { role: 'driver' });
-      if (Voice.maySpeak()) speak(msg.slice(0, 100), () => resumeListening());
-      groupOrder();
+
+      let msg;
+      if (orderResult?.order) {
+        msg = orderResult.seeking_driver
+          ? 'Παραγγελία ' + (ordId || '') + ' στο ' + vendor.name + '. Αναζητούμε οδηγό — claim στο CLI.'
+          : 'Παραγγελία ' + (ordId || '') + ' στο ' + vendor.name + '. Οδηγός: ' + (driver || 'pending') + '.';
+        this.hideMenu();
+      } else {
+        msg = 'Παραγγελία απέτυχε: ' + (errMsg || 'server error') + '. Δοκίμασε ξανά.';
+      }
+
+      ACIControl?.reply(msg);
+      AciCli?.print(msg, orderResult?.order ? 'ok' : 'err');
+      FieldBrain?.pulse('order', vendor.name + ' → ' + (driver || 'pending'), { role: 'client' });
+      if (Voice.maySpeak()) speak(msg.slice(0, 120), () => resumeListening());
     });
-  }
+  },
+
+  announceVendors() {
+    this.showPicker();
+  },
+
+  async openOrderFlow(query) {
+    await this.loadVendors();
+    if (!this.vendors.length) {
+      ACIControl?.reply('No vendors on map yet');
+      return;
+    }
+    const q = String(query || '').trim();
+    if (q.length >= 2) {
+      const hit = this.vendors.find(v => (v.name + ' ' + v.category).toLowerCase().includes(q.toLowerCase()));
+      if (hit) { this.openVendor(hit); return; }
+    }
+    this.showPicker(q.length >= 2 ? q : '');
+  },
+
+  async orderPitogyra() {
+    await this.openOrderFlow('goals');
+  },
 };
 
 // ── COMMS: phone + EU PMR (real audio, no simulation) ──
@@ -2495,9 +2728,12 @@ function onGlobeClick(e) {
     const ud = root.userData || hit.userData || {};
 
     if (ud.vendor) {
-      const vp = latLngToPos(ud.vendor.lat, ud.vendor.lng, 1.03);
-      flyToPoint(new THREE.Vector3(vp.x, vp.y, vp.z), 1.55);
-      MapDepict.action('vendor', { lat: ud.vendor.lat, lng: ud.vendor.lng, detail: ud.vendor.name });
+      if (window.Commerce?.openVendor) Commerce.openVendor(ud.vendor);
+      else {
+        const vp = latLngToPos(ud.vendor.lat, ud.vendor.lng, 1.03);
+        flyToPoint(new THREE.Vector3(vp.x, vp.y, vp.z), 1.55);
+        MapDepict.action('vendor', { lat: ud.vendor.lat, lng: ud.vendor.lng, detail: ud.vendor.name });
+      }
       return;
     }
     if (ud.type === 'me' || ud.name === (me?.name || 'Αξάς') || root === window._meMarker) {
@@ -3675,7 +3911,7 @@ ACIControl.init();
 PmrRadio.bindUI();
 DrivingView.init();
 CosmicZoom.init();
-Commerce.loadVendors();
+Commerce.loadVendors().then(() => Commerce.initUI());
 NewsFeed.fetch();
 setInterval(() => NewsFeed.tick(), 12000);
 

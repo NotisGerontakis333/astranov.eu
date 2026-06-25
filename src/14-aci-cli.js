@@ -172,7 +172,7 @@ const AciCli = {
         this.print('teach <text>     — store memory / neuron');
         this.print('stats | owner    — memory / authority status');
         this.print('mode <athenian|spartan|myrmidon>');
-        this.print('vendors | order | vhf | drive | news');
+        this.print('vendors | order [name] | vhf | drive | news');
         if (Auth?.isOwner) {
           this.print('--- OWNER (notisastranov@gmail.com) ---');
           this.print('seed             — founding neurons');
@@ -280,8 +280,12 @@ const AciCli = {
         this.print('mode: ' + (ACI.thinkMode || 'default'), 'ok');
         return;
       }
-      if (cmd === 'vendors') { await Commerce.loadVendors(); Commerce.announceVendors(); this.print('vendors on globe', 'ok'); return; }
-      if (cmd === 'order') { await Commerce.orderPitogyra(); this.print('order placed', 'ok'); return; }
+      if (cmd === 'vendors') { await Commerce.showPicker(); this.print('vendor picker open — tap globe or list', 'ok'); return; }
+      if (cmd === 'order') {
+        await Commerce.openOrderFlow(rest);
+        this.print(rest ? 'order · ' + rest : 'pick vendor — menu open', 'ok');
+        return;
+      }
       if (cmd === 'vhf') { Comms.startVHF(); this.print('PMR panel open', 'ok'); return; }
       if (cmd === 'drive') {
         DrivingView?.activate?.();

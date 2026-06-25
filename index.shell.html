@@ -59,6 +59,18 @@
   #aci-cli-prompt { color:#6fc; flex-shrink:0; font-size:11px; }
   #aci-cli-in { flex:1; background:transparent; border:none; color:#e8f4ff; font:inherit; outline:none; min-width:0; }
   #aci-cli-toggle { display:inline-flex; background:rgba(0,60,40,0.5); border:1px solid rgba(0,255,160,0.4); color:#6fc; border-radius:50%; width:38px; height:38px; cursor:pointer; font-size:15px; flex-shrink:0; align-items:center; justify-content:center; }
+  #vendor-menu { display:none; margin:0 8px 6px; max-height:38vh; background:rgba(8,6,0,0.94); border:1px solid rgba(255,170,60,0.45); border-radius:14px; pointer-events:auto; font:12px/1.4 system-ui; overflow:hidden; flex-direction:column; }
+  #vendor-menu.open { display:flex; }
+  #vm-header { display:flex; justify-content:space-between; align-items:center; padding:8px 12px; background:rgba(60,30,0,0.45); color:#fc8; border-bottom:1px solid rgba(255,170,60,0.25); }
+  #vm-close { background:transparent; border:1px solid #666; color:#aaa; border-radius:8px; padding:2px 8px; cursor:pointer; }
+  #vm-body { flex:1; overflow-y:auto; padding:8px 10px; }
+  #vm-list .vm-vendor { display:flex; gap:10px; align-items:center; padding:10px; margin:6px 0; border-radius:10px; background:rgba(0,0,0,0.35); border:1px solid rgba(255,170,60,0.2); cursor:pointer; }
+  #vm-list .vm-vendor:hover { border-color:rgba(255,200,80,0.5); }
+  #vm-items .vm-item { display:flex; justify-content:space-between; align-items:center; padding:8px 4px; border-bottom:1px solid rgba(255,255,255,0.06); }
+  .vm-qty { display:flex; gap:6px; align-items:center; }
+  .vm-qty button { width:28px; height:28px; border-radius:8px; border:1px solid rgba(255,170,60,0.4); background:rgba(80,40,0,0.4); color:#fda; cursor:pointer; font-size:14px; }
+  #vm-place { width:calc(100% - 16px); margin:8px; padding:12px; border:none; border-radius:12px; background:rgba(200,100,20,0.55); border:2px solid #fa4; color:#fff; font-weight:700; cursor:pointer; font-size:13px; }
+  #vm-back { background:transparent; border:none; color:#9cb; cursor:pointer; font-size:11px; padding:4px 0 8px; }
   @media (min-width:720px) { #news-ticker { display:block; } }
 </style>
 </head>
@@ -93,6 +105,10 @@
       <div id="sr-status">Tap 📻 then follow steps 1 → 2 → 3</div>
       <button id="sr-ptt" type="button">③ HOLD PTT — REAL TRANSMIT</button>
     </div>
+    <div id="vendor-menu">
+      <div id="vm-header"><span id="vm-title">Καταστήματα</span><button id="vm-close" type="button">✕</button></div>
+      <div id="vm-body"><div id="vm-list"></div><div id="vm-detail" style="display:none"><button id="vm-back" type="button">← όλα τα καταστήματα</button><div id="vm-items"></div><button id="vm-place" type="button">Παραγγελία</button></div></div>
+    </div>
     <div id="aci-bar">
       <button id="aci-login" title="Sign in with Google" type="button">G</button>
       <button id="aci-cli-toggle" title="CLI panel — tasks &amp; conversation (login for full access)" type="button">⌨</button>
@@ -100,7 +116,7 @@
       <button id="aci-mic" title="Voice (tap while speaking to interrupt)" type="button">🎙</button>
       <input id="aci-input" placeholder="connect · order · claim · roles · deploy · login G…" />
       <button id="aci-send" title="Send" type="button">→</button>
-      <button id="aci-order" title="Order pitogyra" type="button">🥙</button>
+      <button id="aci-order" title="Order — pick vendor on globe" type="button">🥙</button>
       <button id="aci-vhf" title="EU PMR Ch11 — real mic + WebRTC (see steps)" type="button">📻</button>
       <button id="aci-call" title="Phone call" type="button">📞</button>
     </div>

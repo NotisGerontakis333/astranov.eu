@@ -191,9 +191,12 @@ function onGlobeClick(e) {
     const ud = root.userData || hit.userData || {};
 
     if (ud.vendor) {
-      const vp = latLngToPos(ud.vendor.lat, ud.vendor.lng, 1.03);
-      flyToPoint(new THREE.Vector3(vp.x, vp.y, vp.z), 1.55);
-      MapDepict.action('vendor', { lat: ud.vendor.lat, lng: ud.vendor.lng, detail: ud.vendor.name });
+      if (window.Commerce?.openVendor) Commerce.openVendor(ud.vendor);
+      else {
+        const vp = latLngToPos(ud.vendor.lat, ud.vendor.lng, 1.03);
+        flyToPoint(new THREE.Vector3(vp.x, vp.y, vp.z), 1.55);
+        MapDepict.action('vendor', { lat: ud.vendor.lat, lng: ud.vendor.lng, detail: ud.vendor.name });
+      }
       return;
     }
     if (ud.type === 'me' || ud.name === (me?.name || 'Αξάς') || root === window._meMarker) {
