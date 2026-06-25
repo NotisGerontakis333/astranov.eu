@@ -13,6 +13,7 @@
     { "file": "20-aci.js", "marker": "// === ASTRANOV COLLECTIVE INTELLIGENCE (ACI)" },
     { "file": "30-commerce.js", "marker": "// ── COMMERCE:" },
     { "file": "31-globe-autonomy.js", "marker": "// === GLOBE AUTONOMY" },
+    { "file": "32-astranov-node.js", "marker": "// === ASTRANOV NODE" },
     { "file": "40-comms-news.js", "marker": "// ── COMMS:" },
     { "file": "42-satradio.js", "marker": "// === SAT RADIO HANDHELD" },
     { "file": "50-cosmic.js", "marker": "// ── COSMIC ZOOM:" },

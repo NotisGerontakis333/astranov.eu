@@ -177,6 +177,8 @@ const ACIControl = {
     if (locBtn) locBtn.onclick = () => locateMe();
     document.getElementById('aci-vhf').onclick = () => Comms.startVHF();
     document.getElementById('aci-call').onclick = () => Comms.startPhone();
+    const batchBtn = document.getElementById('aci-batch');
+    if (batchBtn) batchBtn.onclick = () => AstranovNode?.launchBatch?.();
   },
   reply(text) {
     const el = document.getElementById('aci-reply');
@@ -215,6 +217,10 @@ const ACIControl = {
       return { executed: true, action: 'coders_engine' };
     }
     if (/^(connect|open|link|σύνδεση aci)$/.test(low)) { await AciConnect.open(); return { executed: true }; }
+    if (/^batch|work together|δουλεψε μαζ|εγκατάσταση|install app|native app|node\b|μαζί/.test(low)) {
+      await AstranovNode?.launchBatch?.();
+      return { executed: true, action: 'batch' };
+    }
     if (/^deploy/.test(low)) { await AciConnect.deploy(text.replace(/^deploy\s*/i, '')); return { executed: true }; }
     if (/^claim/.test(low)) {
       const oid = text.replace(/^claim\s*/i, '').trim();

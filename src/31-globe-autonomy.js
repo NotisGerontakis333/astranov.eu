@@ -27,7 +27,7 @@ const GlobeAutonomy = {
   },
 
   shouldPulse(type) {
-    return /^(order|vendor|compare|driver|pay|location|commerce)$/.test(type);
+    return /^(order|vendor|compare|driver|pay|location|commerce|batch)$/.test(type);
   },
 
   onMapAction(type, opts = {}) {

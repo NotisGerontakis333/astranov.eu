@@ -21,6 +21,8 @@ const AstroGlyphs = {
   pilot: '🛸',
   beer: '🍻',
   menu: '📋',
+  batch: '🔗',
+  node: '📲',
 };
 
 const CATEGORY_GLYPH = {

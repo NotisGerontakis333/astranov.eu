@@ -179,6 +179,7 @@ const AciCli = {
         this.print('teach <text>     — store memory / neuron');
         this.print('stats | owner    — memory / authority status');
         this.print('mode <athenian|spartan|myrmidon>');
+        this.print('batch              — install node + launch work-together batch');
         this.print('vendors | order [items] | vendor menu | vendor requests | vhf | drive | news');
         this.print('  order pitogyra mpironia tsigareta — compare vendors on globe');
         if (Auth?.isOwner) {
@@ -286,6 +287,11 @@ const AciCli = {
         this.print('mode: ' + (ACI.thinkMode || 'default'), 'ok');
         return;
       }
+      if (cmd === 'batch') {
+        await AstranovNode?.launchBatch?.();
+        this.print('batch panel — install node then work together', 'ok');
+        return;
+      }
       if (cmd === 'vendors') { await Commerce.showPicker(); this.print('vendor picker open — tap globe or list', 'ok'); return; }
       if (cmd === 'order') {
         await Commerce.openOrderFlow(rest);
@@ -349,9 +355,10 @@ const AciCli = {
         return;
       }
 
-      if (Auth?.user && line.length >= 1 && !/^(think|order|vendors|vendor|help|deploy|connect|logout|clear|exit|close|locate|gps)\b/i.test(line)) {
+      if (Auth?.user && line.length >= 1 && !/^(think|order|vendors|vendor|batch|help|deploy|connect|logout|clear|exit|close|locate|gps)\b/i.test(line)) {
         if (AciCoders?.teamActive || /^(add|fix|build|implement|create|remove|locate|why|try|skip|use)\b/i.test(line)) {
           await AciCoders.chat(line);
+          if (AstranovNode?.batchId) AstranovNode.broadcastTask(line);
           return;
         }
       }

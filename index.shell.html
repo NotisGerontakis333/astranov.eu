@@ -6,6 +6,13 @@
 <title>Astranov</title>
 <meta name="compliance-check" content="astranov-field-brain-multi-role-2026-06-24">
 <meta name="aci-session" content="Astranov Collective Intelligence">
+<meta name="theme-color" content="#00b4ff" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Astranov" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="icon" href="/icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="/icon.svg" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
@@ -89,6 +96,20 @@
   #vm-confirm-pay { width:calc(100% - 16px); margin:8px; padding:12px; border:none; border-radius:12px; background:rgba(40,120,60,0.55); border:2px solid #4c8; color:#fff; font-weight:700; cursor:pointer; font-size:13px; }
   #vm-compare-back { background:transparent; border:none; color:#9cb; cursor:pointer; font-size:11px; padding:4px 0 8px; }
   #vm-back { background:transparent; border:none; color:#9cb; cursor:pointer; font-size:11px; padding:4px 0 8px; }
+  #node-batch { display:none; margin:0 8px 6px; padding:10px 12px; background:rgba(0,12,28,0.94); border:1px solid rgba(100,180,255,0.45); border-radius:16px; pointer-events:auto; font:11px/1.45 system-ui; color:#bdf; }
+  #node-batch.open { display:block; }
+  #node-batch .nb-row { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:6px; }
+  .nb-step { display:flex; gap:8px; align-items:flex-start; margin:6px 0; padding:6px 8px; border-radius:8px; background:rgba(0,0,0,0.3); }
+  .nb-step.nb-done { border-left:3px solid #4c8; }
+  .nb-step.nb-active { border-left:3px solid #6af; }
+  .nb-step.nb-blocked { border-left:3px solid #f66; }
+  .nb-n { width:20px; height:20px; border-radius:50%; background:rgba(0,100,180,0.5); color:#fff; font-size:11px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  #nb-install-android, #nb-launch, #nb-join-comms { width:100%; margin:6px 0; padding:11px; border:none; border-radius:12px; font-weight:700; cursor:pointer; font-size:12px; }
+  #nb-launch { background:rgba(40,100,200,0.55); border:2px solid #6af; color:#fff; }
+  #nb-install-android { background:rgba(30,80,40,0.55); border:2px solid #4c8; color:#cfc; }
+  #nb-join-comms { background:rgba(60,50,0,0.45); border:2px solid #da4; color:#fda; }
+  #nb-ios-steps { display:none; color:#9cb; font-size:10px; margin:8px 0; line-height:1.5; }
+  #nb-close { background:transparent; border:1px solid #666; color:#aaa; border-radius:8px; padding:2px 8px; cursor:pointer; }
   @media (min-width:720px) { #news-ticker { display:block; } }
 </style>
 </head>
@@ -123,6 +144,21 @@
       <div id="sr-status">Tap 📡 then follow steps 1 → 2 → 3</div>
       <button id="sr-ptt" type="button">③ HOLD PTT — REAL TRANSMIT</button>
     </div>
+    <div id="node-batch">
+      <div class="nb-row"><span><strong>🔗 Work together</strong> · Astranov node</span><button id="nb-close" type="button">✖️</button></div>
+      <div style="color:#9cb;font-size:10px;margin-bottom:8px">Εγκατάστησε native/PWA node — decentralized server + comms applet. Μετά batch για δουλειά μαζί.</div>
+      <div id="nb-platform" style="margin-bottom:6px;color:#8cf"></div>
+      <div class="nb-step nb-active" id="nb-step-1"><span class="nb-n">1</span><span class="nb-step-msg">Sign in (G)</span></div>
+      <div class="nb-step" id="nb-step-2"><span class="nb-n">2</span><span class="nb-step-msg">Install Astranov on device</span></div>
+      <div class="nb-step" id="nb-step-3"><span class="nb-n">3</span><span class="nb-step-msg">Launch batch</span></div>
+      <div id="nb-ios-steps">🍎 <strong>iOS:</strong> Safari → Share ⬆️ → <strong>Add to Home Screen</strong> ➕ → open Astranov icon</div>
+      <button id="nb-install-android" type="button">📲 Install Android / PWA node</button>
+      <button id="nb-install-ios" type="button" style="display:none;width:100%;margin:6px 0;padding:10px;border-radius:12px;background:rgba(40,40,60,0.5);border:1px solid #88a;color:#cdf;cursor:pointer;font-weight:600">🍎 iOS install steps</button>
+      <button id="nb-launch" type="button">🔗 Launch batch · work together</button>
+      <div style="margin:8px 0;font-size:10px;color:#9ab">Batch: <b id="nb-batch-id" style="color:#8cf">—</b> · Peers: <b id="nb-peers" style="color:#8cf">0</b></div>
+      <button id="nb-join-comms" type="button">📡 Open comms channel (PMR/WebRTC)</button>
+      <div id="nb-status" style="color:#9cb;font-size:10px;margin-top:6px">Install node to work together without browser babysitting</div>
+    </div>
     <div id="vendor-menu">
       <div id="vm-header"><span id="vm-title">Καταστήματα</span><button id="vm-close" type="button">✖️</button></div>
       <div id="vm-body"><div id="vm-list"></div><div id="vm-detail" style="display:none"><button id="vm-back" type="button">← όλα τα καταστήματα</button><div id="vm-empty" style="display:none"></div><div id="vm-items"></div><button id="vm-request" type="button" style="display:none">Ζήτησε μενού από κατάστημα</button><button id="vm-place" type="button">Παραγγελία</button></div><div id="vm-compare" style="display:none"><button id="vm-compare-back" type="button">← όλα τα καταστήματα</button><div id="vm-wanted"></div><div id="vm-matches"></div><div id="vm-drivers"></div><div id="vm-balance"></div><button id="vm-confirm-pay" type="button" style="display:none">Επιβεβαίωση &amp; Πληρωμή</button></div></div>
@@ -136,6 +172,7 @@
       <input id="aci-input" placeholder="connect · order · claim · roles · deploy · login G…" />
       <button id="aci-send" title="Send" type="button">➡️</button>
       <button id="aci-order" title="Order — pick vendor on globe" type="button">🛒</button>
+      <button id="aci-batch" title="Install node + launch batch — work together" type="button">🔗</button>
       <button id="aci-vhf" title="EU PMR Ch11 — real mic + WebRTC (see steps)" type="button">📡</button>
       <button id="aci-call" title="Phone call" type="button">☎️</button>
     </div>

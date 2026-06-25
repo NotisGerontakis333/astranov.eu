@@ -21,6 +21,9 @@ verify_jwt = false
 [functions.menu-request]
 verify_jwt = false
 
+[functions.node-batch]
+verify_jwt = false
+
 [functions.brain]
 verify_jwt = false
 

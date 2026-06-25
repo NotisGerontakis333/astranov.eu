@@ -282,7 +282,8 @@ const MapDepict = {
       location: 0x00ffcc,
       mode: 0x88aaff,
       stop: 0xff4466,
-      drive: 0x44aaff
+      drive: 0x44aaff,
+      batch: 0x6688ff
     };
     const color = palette[type] || 0x00ddff;
     const labels = {
@@ -302,7 +303,8 @@ const MapDepict = {
       location: 'Τοποθεσία',
       mode: 'Λειτουργία ACI',
       stop: 'Διακοπή',
-      drive: 'Οδήγηση δρόμου'
+      drive: 'Οδήγηση δρόμου',
+      batch: 'Batch · δουλειά μαζί'
     };
 
     this.setHud(labels[type] || type, detail);

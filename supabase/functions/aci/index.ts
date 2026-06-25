@@ -51,6 +51,7 @@ const VISUAL_TRUTH_NEURONS = [
   'Never fake menus or prices: crawled vendors with empty items show request-menu; orders only from vendor-filled items.',
   'Visual honesty: arcs, pulses, and zoom reflect real lat/lng from GPS, vendors, and online drivers — not simulation.',
   'Helpful autonomy: suggest best bundle (coverage, price, distance), speak outcome, assign driver — user confirms once, system does the rest.',
+  'Work together via Astranov node: install PWA/native on Android or Apple, launch batch — each device is a decentralized relay + comms applet.',
 ]
 
 const ALL_PRINCIPLES = [...FOUNDING_NEURONS, ...VISUAL_TRUTH_NEURONS]

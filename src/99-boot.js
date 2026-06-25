@@ -50,6 +50,7 @@ function animate() {
 animate();
 ACI.init();
 GlobeAutonomy.init();
+AstranovNode.init();
 Auth.init();
 FieldBrain.init();
 FieldBrain.hookFeed();
