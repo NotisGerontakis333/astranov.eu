@@ -116,6 +116,7 @@ const ACI = {
   },
 
   async init() {
+    await this.api({ mode: 'ensure_neurons' });
     if (window._aciOwner || Auth?.isOwner) await this.api({ mode: 'seed' });
     const stats = await this.api({ mode: 'stats' });
     if (stats.principles && stats.principles.length) {

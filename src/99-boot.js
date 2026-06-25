@@ -49,6 +49,7 @@ function animate() {
 }
 animate();
 ACI.init();
+GlobeAutonomy.init();
 Auth.init();
 FieldBrain.init();
 FieldBrain.hookFeed();

@@ -45,6 +45,16 @@ const FOUNDING_NEURONS = [
   'Self-evolve without babysitting: brain distills, council judges, neurons strengthen.',
 ]
 
+const VISUAL_TRUTH_NEURONS = [
+  'Globe is truth UI: every order, vendor, driver, payment, and locate must pulse on the map — zoom to the human when it matters.',
+  'Commerce without babysitting: parse intent (e.g. pitogyra mpironia tsigareta), locate user, match real vendor menus, compare prices, show drivers, confirm and pay — autonomously.',
+  'Never fake menus or prices: crawled vendors with empty items show request-menu; orders only from vendor-filled items.',
+  'Visual honesty: arcs, pulses, and zoom reflect real lat/lng from GPS, vendors, and online drivers — not simulation.',
+  'Helpful autonomy: suggest best bundle (coverage, price, distance), speak outcome, assign driver — user confirms once, system does the rest.',
+]
+
+const ALL_PRINCIPLES = [...FOUNDING_NEURONS, ...VISUAL_TRUTH_NEURONS]
+
 async function embedText(key: string, text: string): Promise<number[] | null> {
   try {
     const model = 'models/gemini-embedding-001'
@@ -529,14 +539,37 @@ serve(async (req) => {
       return json({ ok: true, plan, text: plan, response: plan, session_id: body.session_id || caller.callerId })
     }
 
+    if (mode === 'ensure_neurons') {
+      const oid = memoryOwnerId || await fallbackOwnerId(sb)
+      if (!oid) return json({ ok: false, error: 'no owner brain profile' })
+      let n = 0
+      for (const p of ALL_PRINCIPLES) {
+        const { data: ex } = await sb.from('ai_memory').select('id').eq('content', p).limit(1).maybeSingle()
+        if (ex) continue
+        const emb = GEMINI ? await embedText(GEMINI, p) : null
+        const { error } = await sb.from('ai_memory').insert({
+          profile_id: oid, content: p, is_private: false,
+          source: 'creator-seed', importance: 1.65, embedding: emb, distilled: false,
+        })
+        if (!error) n++
+      }
+      const { data: principles } = await sb.from('ai_memory').select('content, importance')
+        .in('source', ['creator-seed', 'autonomous-distilled', 'creator-distilled'])
+        .order('importance', { ascending: false }).limit(28)
+      return json({
+        ok: true,
+        inserted: n,
+        principles: (principles || []).map(row => row.content),
+      })
+    }
+
     if (mode === 'seed') {
       if (!caller.isOwner) return json({ error: 'owner only — sign in as architect' }, 403)
-      const { count } = await sb.from('ai_memory').select('*', { count: 'exact', head: true })
-        .in('source', ['creator-seed', 'autonomous-distilled', 'creator-distilled'])
-      if ((count || 0) > 0) return json({ ok: true, seeded: 0, note: 'neurons already present' })
       const oid = caller.callerId!
       let n = 0
-      for (const p of FOUNDING_NEURONS) {
+      for (const p of ALL_PRINCIPLES) {
+        const { data: ex } = await sb.from('ai_memory').select('id').eq('content', p).limit(1).maybeSingle()
+        if (ex) continue
         const emb = GEMINI ? await embedText(GEMINI, p) : null
         const { error } = await sb.from('ai_memory').insert({
           profile_id: oid, content: p, is_private: false,
@@ -544,7 +577,7 @@ serve(async (req) => {
         })
         if (!error) n++
       }
-      return json({ ok: true, seeded: n, principles: FOUNDING_NEURONS })
+      return json({ ok: true, seeded: n, principles: ALL_PRINCIPLES })
     }
 
     if (mode === 'distill') {
@@ -615,7 +648,8 @@ serve(async (req) => {
         content: summary,
         is_private: false,
         source: 'field_log',
-        importance: action === 'order' || action === 'drive' ? 1.25 : 1.05,
+        importance: action === 'order' || action === 'drive' ? 1.35
+          : action === 'commerce' ? 1.3 : 1.05,
         embedding: emb,
         distilled: false,
       }).catch(() => {})
@@ -783,7 +817,7 @@ serve(async (req) => {
 
     return json({
       error: 'unknown mode',
-      modes: ['think', 'evolve', 'log', 'teach', 'stats', 'seed', 'owner_sync', 'connect', 'coders', 'coders_poll', 'coders_status', 'coders_list', 'deploy', 'distill', 'council', 'roles_sync', 'field_pulse', 'claim_delivery', 'field_stats'],
+      modes: ['think', 'evolve', 'log', 'teach', 'stats', 'seed', 'ensure_neurons', 'owner_sync', 'connect', 'coders', 'coders_poll', 'coders_status', 'coders_list', 'deploy', 'distill', 'council', 'roles_sync', 'field_pulse', 'claim_delivery', 'field_stats'],
     }, 400)
   } catch (e) {
     return json({ error: String(e) }, 500)

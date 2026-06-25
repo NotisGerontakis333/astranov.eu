@@ -53,6 +53,7 @@ const FieldBrain = {
 
   inferRole(action, opts = {}) {
     if (opts.role) return opts.role;
+    if (opts.props?.visual_truth) return 'client';
     if (action === 'vendor' || action === 'commerce') return this.hasRole('vendor') ? 'vendor' : 'client';
     if (/drive|route|claim/.test(action)) return 'driver';
     return 'client';
