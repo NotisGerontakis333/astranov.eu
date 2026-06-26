@@ -215,10 +215,7 @@ const ACIControl = {
     }
     if (/^(cli|terminal|console|κονσόλα)$/.test(low)) { AciCli.toggle(); this.reply('CLI panel'); say('CLI.'); return { executed: true }; }
     if (/^summon\s+coders?\s*/i.test(text) || /^coders\b/i.test(low)) {
-      const task = text.replace(/^summon\s+coders?\s*/i, '').replace(/^coders\s*/i, '').trim();
-      if (GlobeDeck) GlobeDeck.activeTask = 'coders';
-      if (!task) await AciCoders?.openTeam();
-      else await AciCoders?.chat(task);
+      await AciCoders?.handleMessage(text);
       return { executed: true, action: 'coders' };
     }
     if (/^(use\s+)?(grok|composer)$/.test(low) || /^switch\s+(to\s+)?(grok|composer)$/.test(low)) {
@@ -351,18 +348,7 @@ const ACIControl = {
       return { executed: false };
     }
 
-    GlobeDeck?.setThinking(true, 'ACI — thinking…');
-    const ans = await ACI.think(text);
-    GlobeDeck?.setThinking(false);
-    if (!ans) {
-      this.reply('No response — check connection and try again');
-      return { executed: false };
-    }
-    const short = ans.slice(0, 280);
-    this.reply(short);
-    if (fromVoice && Voice.maySpeak() && Voice.shouldSpeak(short)) {
-      speak(short, () => resumeListening());
-    }
-    return { executed: true, action: 'think' };
+    await AciCoders?.handleMessage(text);
+    return { executed: true, action: 'coders' };
   }
 };

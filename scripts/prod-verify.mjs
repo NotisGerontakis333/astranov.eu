@@ -55,7 +55,7 @@ await check('assemble + syntax', () => {
 await check('live site has coders bridge', async () => {
   const r = await fetch(SITE + '/index.html');
   const html = await r.text();
-  const markers = ['AciCoders', 'ensureSession', 'queueCoder', 'coders poll'];
+  const markers = ['AciCoders', 'alwaysOn', 'Justice', 'handleMessage'];
   const missing = markers.filter(m => !html.includes(m));
   if (missing.length) throw new Error('missing: ' + missing.join(', '));
   return markers.length + ' markers present';
@@ -67,12 +67,19 @@ await check('coders-bridge pending', async () => {
   return 'count=' + (j.count ?? 0);
 });
 
-await check('aci coders requires auth', async () => {
+await check('aci coders queue requires auth', async () => {
   const j = await api('/functions/v1/aci', { mode: 'coders', task: 'prod verify' });
   if (j.status !== 401 || !String(j.error || '').includes('login required')) {
     throw new Error('expected 401 login required, got ' + JSON.stringify(j));
   }
   return '401 login required (correct)';
+});
+
+await check('coders_chat always on (guest ok)', async () => {
+  const j = await api('/functions/v1/aci', { mode: 'coders_chat', message: 'online' });
+  if (!j.ok || !j.text) throw new Error(JSON.stringify(j));
+  if (!j.always_on) throw new Error('always_on flag missing');
+  return 'guest=' + !!j.guest + ' · ' + String(j.text).slice(0, 40);
 });
 
 const secretPath = path.join(ROOT, 'scripts', '.coders-bridge-secret');

@@ -1244,17 +1244,13 @@ const AciCli = {
       this._sessionOpened = true;
       setTimeout(() => this.openOnLogin(), 500);
     }
+    if (window.AciCoders) AciCoders.autoStart();
   },
 
   async openOnLogin() {
     if (!Auth?.user) return;
     this.show();
-    if (window.AciCoders) {
-      await AciCoders.ensureBridge();
-      AciCoders.armed = true;
-      AciCoders.teamActive = false;
-      AciCoders.updateHud();
-    }
+    if (window.AciCoders) await AciCoders.autoStart();
   },
 
   loadHistory() {
@@ -1282,10 +1278,11 @@ const AciCli = {
 
   showGuest() {
     this.open = true;
-    GlobeDeck?.expand('Guest — type a message (think) or tap G to sign in');
+    AciCoders?.autoStart?.();
+    GlobeDeck?.expand('Coders online — Justice → Truth → Freedom · G to sign in');
     if (!this._guestWelcomed) {
       this._guestWelcomed = true;
-      this.print('Guest — type to talk to ACI · G to sign in', 'dim');
+      this.print('Coders always on — type anything · G for full brain sync', 'dim');
     }
     document.getElementById('aci-cli-in')?.focus();
   },
@@ -1293,11 +1290,12 @@ const AciCli = {
   show() {
     if (!Auth?.user) return;
     this.open = true;
+    AciCoders?.autoStart?.();
     if (!this._welcomed) {
       this._welcomed = true;
-      this.print('Globe deck — type to talk to ACI · help for commands', 'dim');
+      this.print('Coders always on — type anything · help for commands', 'dim');
     }
-    GlobeDeck?.expand('Collective — talk here');
+    GlobeDeck?.expand('Collective Coders — talk here');
     document.getElementById('aci-cli-in')?.focus();
   },
 
@@ -1369,7 +1367,7 @@ const AciCli = {
 
     try {
       if (cmd === 'help' || cmd === '?') {
-        ACIControl?.reply('Commands: order · vendors · coders · batch · vhf · locate · connect · clear · exit. Free text → ACI think.');
+        ACIControl?.reply('Coders always on. Commands: order · vendors · batch · vhf · locate · connect. Just type — no summon needed.');
         GlobeDeck?.finishCliIfOneShot(cmd);
         return;
       }
@@ -1558,27 +1556,10 @@ const AciCli = {
         return;
       }
 
-      if (AciCoders?.teamActive && Auth?.user) {
-        GlobeDeck.activeTask = 'coders';
-        await AciCoders.chat(line);
-        if (AstranovNode?.batchId) AstranovNode.broadcastTask(line);
-        return;
-      }
-      if (/^(coders|summon)\b/i.test(line) && Auth?.user) {
-        const task = line.replace(/^coders\s*/i, '').replace(/^summon\s+coders?\s*/i, '').trim();
-        if (GlobeDeck) GlobeDeck.activeTask = 'coders';
-        if (!task) await AciCoders?.openTeam();
-        else await AciCoders?.chat(task);
-        return;
-      }
-      const ans = await ACI.think(line);
-      if (ans) {
-        ACIControl?.reply(ans);
-        if (voiceSessionActive && Voice.shouldSpeak(ans)) speak(ans.slice(0, 200));
-      } else {
-        ACIControl?.reply('No response — try again');
-      }
-      GlobeDeck?.finishCliIfOneShot('think');
+      GlobeDeck.activeTask = 'coders';
+      await AciCoders?.handleMessage(line);
+      if (AstranovNode?.batchId) AstranovNode.broadcastTask(line);
+      if (!AciCoders?.alwaysOn) GlobeDeck?.finishCliIfOneShot('coders');
     } catch (err) {
       GlobeDeck?.setThinking(false);
       const msg = 'error: ' + (err.message || err);
@@ -1661,17 +1642,21 @@ const AciConnect = {
 };
 window.AciConnect = AciConnect;
 
-// === ASTRANOV CODERS TEAM ===
-// coders → conversational team (Grok sync first; Composer async optional)
+// === ASTRANOV CODERS — always online for all users ===
+// Justice → Truth → Freedom (exact order) is the immutable boundary.
 const AciCoders = {
   ready: false,
-  teamActive: false,
+  alwaysOn: true,
+  teamActive: true,
   history: [],
   lastSummonId: null,
   engine: 'grok',
   armed: false,
   fallbackPrefs: { force: null, skip: [] },
   _pollTimer: null,
+  _started: false,
+
+  CAUSE: 'Justice → Truth → Freedom',
 
   loadPrefs() {
     try {
@@ -1689,7 +1674,6 @@ const AciCoders = {
     this.engine = this.fallbackPrefs.force === 'composer' ? 'composer' : 'grok';
   },
 
-  saveEngine() {},
   setEngine(eng) {
     this.engine = eng === 'composer' ? 'composer' : 'grok';
     this.fallbackPrefs.force = eng === 'composer' ? 'composer' : 'xai';
@@ -1701,15 +1685,13 @@ const AciCoders = {
   },
 
   updateHud() {
-    if (Auth?.user) {
-      GlobeDeck?.setTitle(this.teamActive
-        ? 'Collective CLI — coders team'
-        : 'Collective CLI — coders');
-    }
+    const title = 'Collective Coders · ' + this.CAUSE + (Auth?.user ? '' : ' · guest');
+    GlobeDeck?.setTitle(title);
+    GlobeDeck?.setMapStatus?.('Coders online');
   },
 
   async ensureSession() {
-    if (!Auth?.user) return false;
+    if (!Auth?.user) return true;
     const session = await Auth.ensureSession?.();
     if (!session?.access_token) {
       GlobeDeck?.showError('Session expired — tap G to sign in again');
@@ -1719,31 +1701,63 @@ const AciCoders = {
   },
 
   async ensureBridge() {
-    if (!Auth?.user) return;
     this.loadPrefs();
     this.loadEngine();
     if (this.ready) { this.updateHud(); return; }
     this.ready = true;
     window._aciCodersReady = true;
+    this.updateHud();
   },
 
-  async openTeam(intro) {
-    if (!Auth?.user) {
-      GlobeDeck?.showError('Sign in with G for Coders team');
-      Auth?.signInGoogle();
-      return;
-    }
-    if (!(await this.ensureSession())) return;
-    await this.ensureBridge();
+  async autoStart() {
+    this.alwaysOn = true;
     this.teamActive = true;
-    if (GlobeDeck) GlobeDeck.activeTask = 'coders';
     this.armed = true;
+    await this.ensureBridge();
+    if (GlobeDeck) GlobeDeck.activeTask = 'coders';
     this.updateHud();
-    if (AciCli) AciCli.print('Coders team ON — Grok answers now · coders exit to leave', 'ok');
-    const msg = intro && intro.trim().length > 0
-      ? intro.trim()
-      : 'Coders team online. Report status and await my instructions.';
-    return this.chat(msg);
+    if (this._started) return;
+    this._started = true;
+    window._aciCodersAlwaysOn = true;
+  },
+
+  /** Strip optional legacy "coders" prefix — coders listen to all messages. */
+  normalizeMessage(message) {
+    return String(message || '').trim()
+      .replace(/^summon\s+coders?\s*/i, '')
+      .replace(/^coders\s+/i, '')
+      .trim();
+  },
+
+  async handleMessage(message) {
+    const raw = String(message || '').trim();
+    if (!raw) return { error: 'empty' };
+
+    const parts = raw.split(/\s+/);
+    const sub = (parts[0] || '').toLowerCase();
+
+    if (/^coders\b/i.test(raw)) {
+      if (sub === 'list') return this.listSummons();
+      if (sub === 'poll' || sub === 'status') {
+        const id = parts[1] ? parseInt(parts[1], 10) : this.lastSummonId;
+        return this.poll(id, false);
+      }
+      if (sub === 'exit' || sub === 'close' || sub === 'leave') {
+        AciCli?.print('Coders stay always on — Justice → Truth → Freedom', 'ok');
+        ACIControl?.reply('Coders always active — building the collective brain');
+        return { ok: true, always_on: true };
+      }
+      if (sub === 'grok' || sub === 'composer') {
+        const task = parts.slice(1).join(' ');
+        if (task.length < 3) {
+          this.setEngine(sub);
+          return this.chat('use ' + sub + ' from now on');
+        }
+      }
+    }
+
+    const text = this.normalizeMessage(raw) || raw;
+    return this.chat(text);
   },
 
   stopPoll() {
@@ -1766,6 +1780,7 @@ const AciCoders = {
   },
 
   async _pollTimeoutFallback(summonId) {
+    if (!Auth?.user) return;
     if (AciCli) AciCli.print('Composer poll timeout — asking Grok…', 'dim');
     const last = this.history.filter(h => h.role === 'user').pop();
     const task = last?.content || 'summon follow-up';
@@ -1795,6 +1810,10 @@ const AciCoders = {
   },
 
   async listSummons() {
+    if (!Auth?.user) {
+      AciCli?.print('sign in with G to list your summons', 'dim');
+      return { error: 'login required' };
+    }
     const r = await AciCli.api({ mode: 'coders_list' });
     if (!r.summons?.length) {
       if (AciCli) AciCli.print('no coders summons yet', 'dim');
@@ -1840,6 +1859,12 @@ const AciCoders = {
     if (!r.pending && Voice.maySpeak() && Voice.shouldSpeak(text)) {
       speak(text.slice(0, 120), () => resumeListening());
     }
+
+    FieldBrain?.pulse?.('think', 'coders: ' + userMsg.slice(0, 48), {
+      role: Auth?.user ? 'client' : 'anon',
+      props: { coders: true, guest: !!r.guest, always_on: true },
+    });
+
     return r;
   },
 
@@ -1855,8 +1880,8 @@ const AciCoders = {
   },
 
   async queueCoder(task, engine) {
+    if (!Auth?.user) return { error: 'sign in with G for build queue' };
     const eng = engine || (this.wantsComposer(task) ? 'composer' : 'grok');
-    if (AciCli) AciCli.print('coders ' + eng + '…', 'dim');
     const q = await AciCli.api({
       mode: 'coders',
       task: task,
@@ -1867,42 +1892,32 @@ const AciCoders = {
     if (q.error && AciCli) AciCli.print('coders error: ' + q.error, 'err');
     if (q.summon_id) {
       this.lastSummonId = q.summon_id;
-      if (AciCli) {
-        AciCli.print('summon #' + q.summon_id + ' · ' + (q.via || eng), q.text ? 'out' : 'ok');
-      }
       if (q.composer_queued) this.startPoll(q.composer_queued);
     }
     return q;
   },
 
   async chat(message) {
-    if (!Auth?.user) {
-      GlobeDeck?.onUserMessage('Sign in for Coders');
-      ACIControl?.reply('Sign in with G first — then Coders can reach you');
-      Auth?.signInGoogle();
-      return { error: 'login required' };
-    }
-    if (!(await this.ensureSession())) return { error: 'session expired' };
+    await this.autoStart();
 
     const m = String(message || '').trim();
     if (m.length < 1) return { error: 'empty' };
 
-    GlobeDeck?.onUserMessage('Coders team');
+    if (Auth?.user && !(await this.ensureSession())) return { error: 'session expired' };
+
+    GlobeDeck?.onUserMessage(Auth?.user ? 'Coders' : 'Coders · guest');
     if (GlobeDeck) GlobeDeck.activeTask = 'coders';
-    this.teamActive = true;
-    this.armed = true;
-    this.updateHud();
     MapDepict?.action('think', { detail: 'coders: ' + m.slice(0, 40) });
 
     try {
-      GlobeDeck?.setThinking(true, 'Coders — thinking…');
+      GlobeDeck?.setThinking(true, 'Coders — ' + this.CAUSE + '…');
       if (/^locate\s*(me|button)?$/i.test(m.trim()) || /^🎯|📍$/.test(m.trim())) {
         locateMe();
         GlobeDeck?.setThinking(false);
         return { ok: true, located: true };
       }
 
-      if (this.wantsComposer(m) && this.isBuildTask(m)) {
+      if (Auth?.user && this.wantsComposer(m) && this.isBuildTask(m)) {
         const q = await this.queueCoder(m, 'composer');
         GlobeDeck?.setThinking(false);
         if (q.text && !q.error) {
@@ -1910,7 +1925,6 @@ const AciCoders = {
         }
       }
 
-      if (AciCli) AciCli.print('coders team…', 'dim');
       const r = await AciCli.api({
         mode: 'coders_chat',
         message: m,
@@ -1919,18 +1933,19 @@ const AciCoders = {
       });
 
       if (r.error) {
-        const q = await this.queueCoder(m, 'grok');
-        if (q.text && !q.error) {
-          GlobeDeck?.setThinking(false);
-          return this._applyResponse({ ...q, text: q.text, team: true }, m);
+        if (Auth?.user) {
+          const q = await this.queueCoder(m, 'grok');
+          if (q.text && !q.error) {
+            GlobeDeck?.setThinking(false);
+            return this._applyResponse({ ...q, text: q.text, team: true }, m);
+          }
         }
         GlobeDeck?.setThinking(false);
-        if (AciCli) AciCli.print('coders error: ' + r.error, 'err');
         GlobeDeck?.showError('Coders: ' + r.error);
         return r;
       }
 
-      if (!r.text && !r.response && this.isBuildTask(m)) {
+      if (Auth?.user && !r.text && !r.response && this.isBuildTask(m)) {
         const q = await this.queueCoder(m, 'grok');
         if (q.text) {
           r.text = q.text;
@@ -1945,48 +1960,23 @@ const AciCoders = {
     } catch (e) {
       GlobeDeck?.setThinking(false);
       const msg = String(e.message || e);
-      if (AciCli) AciCli.print('coders failed: ' + msg, 'err');
       GlobeDeck?.showError('Coders failed: ' + msg);
-      const q = await this.queueCoder(m, 'grok');
-      if (q.text) return this._applyResponse({ ...q, team: true }, m);
+      if (Auth?.user) {
+        const q = await this.queueCoder(m, 'grok');
+        if (q.text) return this._applyResponse({ ...q, team: true }, m);
+      }
       return { error: msg };
     }
   },
 
   async handleCodersCommand(rest) {
-    if (!Auth?.user) {
-      ACIControl?.reply('Login required');
-      Auth?.signInGoogle();
-      return { error: 'login required' };
-    }
-    if (!(await this.ensureSession())) return { error: 'session expired' };
-    await this.ensureBridge();
-    const parts = String(rest || '').trim().split(/\s+/);
-    const sub = (parts[0] || '').toLowerCase();
+    return this.handleMessage(rest ? ('coders ' + rest) : 'coders');
+  },
 
-    if (sub === 'list') return this.listSummons();
-    if (sub === 'poll' || sub === 'status') {
-      const id = parts[1] ? parseInt(parts[1], 10) : this.lastSummonId;
-      return this.poll(id, false);
-    }
-    if (sub === 'exit' || sub === 'close' || sub === 'leave') {
-      this.teamActive = false;
-      if (GlobeDeck) GlobeDeck.activeTask = null;
-      if (AciCli) AciCli.print('coders team closed — free text now goes to ACI think', 'ok');
-      this.updateHud();
-      return { ok: true };
-    }
-
-    if (!rest || !rest.trim()) return this.openTeam();
-
-    const task = sub === 'grok' || sub === 'composer' ? parts.slice(1).join(' ') : rest;
-    if ((sub === 'grok' || sub === 'composer') && task.length < 3) {
-      this.setEngine(sub);
-      return this.chat('use ' + sub + ' from now on');
-    }
-
-    this.teamActive = true;
-    return this.chat(rest);
+  async openTeam(intro) {
+    await this.autoStart();
+    const msg = intro && intro.trim().length > 0 ? intro.trim() : 'online';
+    return this.chat(msg);
   },
 
   async summon(task) {
@@ -2318,10 +2308,7 @@ const ACIControl = {
     }
     if (/^(cli|terminal|console|κονσόλα)$/.test(low)) { AciCli.toggle(); this.reply('CLI panel'); say('CLI.'); return { executed: true }; }
     if (/^summon\s+coders?\s*/i.test(text) || /^coders\b/i.test(low)) {
-      const task = text.replace(/^summon\s+coders?\s*/i, '').replace(/^coders\s*/i, '').trim();
-      if (GlobeDeck) GlobeDeck.activeTask = 'coders';
-      if (!task) await AciCoders?.openTeam();
-      else await AciCoders?.chat(task);
+      await AciCoders?.handleMessage(text);
       return { executed: true, action: 'coders' };
     }
     if (/^(use\s+)?(grok|composer)$/.test(low) || /^switch\s+(to\s+)?(grok|composer)$/.test(low)) {
@@ -2454,19 +2441,8 @@ const ACIControl = {
       return { executed: false };
     }
 
-    GlobeDeck?.setThinking(true, 'ACI — thinking…');
-    const ans = await ACI.think(text);
-    GlobeDeck?.setThinking(false);
-    if (!ans) {
-      this.reply('No response — check connection and try again');
-      return { executed: false };
-    }
-    const short = ans.slice(0, 280);
-    this.reply(short);
-    if (fromVoice && Voice.maySpeak() && Voice.shouldSpeak(short)) {
-      speak(short, () => resumeListening());
-    }
-    return { executed: true, action: 'think' };
+    await AciCoders?.handleMessage(text);
+    return { executed: true, action: 'coders' };
   }
 };
 
@@ -5482,6 +5458,7 @@ FieldBrain.hookFeed();
 GlobeDeck.init();
 AciCli.init();
 setTimeout(() => Auth.refreshAuthority(), 800);
+setTimeout(() => AciCoders?.autoStart?.(), 1200);
 ACIControl.init();
 PmrRadio.bindUI();
 DrivingView.init();

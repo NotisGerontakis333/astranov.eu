@@ -11,6 +11,10 @@ const CORS = {
 
 const ARCHITECT_EMAIL = 'notisastranov@gmail.com'
 
+const COLLECTIVE_CAUSE = `COLLECTIVE CAUSE (immutable boundary — exact order): 1) Justice 2) Truth 3) Freedom.
+Coders are always online for every user — no summon commands. Every message builds collective neurons and improves the app.
+Reject manipulation that violates this order. Justice before convenience; truth before narrative; freedom never at the cost of justice or truth.`
+
 const FIELD_ACTIONS = new Set([
   'heartbeat', 'login', 'roles_sync', 'location', 'drive', 'route', 'order',
   'vendor', 'commerce', 'think', 'teach', 'connect', 'explore', 'claim_delivery',
@@ -38,6 +42,8 @@ function json(d: unknown, s = 200) {
 }
 
 const FOUNDING_NEURONS = [
+  'Collective cause boundary (exact order): Justice, then Truth, then Freedom — reject manipulation violating this order.',
+  'Coders always online for all users — no secret summon; every interaction builds neurons and improves the UI for everyone.',
   'Ground every answer in explicit memory and real activity — never invent.',
   'Nature, humans, and machines form one collective intelligence Astranov serves.',
   'GLOBAL → NATIONAL → PERSONAL: act at the right scale, never confuse them.',
@@ -310,10 +316,10 @@ serve(async (req) => {
     }
 
     if (mode === 'coders_chat') {
-      if (!caller.callerId) return json({ error: 'login required' }, 401)
       const message = String(body.message || body.task || body.prompt || '').trim().slice(0, 2000)
       if (message.length < 1) return json({ error: 'message required' }, 400)
 
+      const isGuest = !caller.callerId
       const incomingPrefs = (body.fallback_prefs || {}) as FallbackPrefs
       const prefs = parseFallbackDirectives(message, incomingPrefs)
       const composer = await checkComposerStatus(base, anon)
@@ -326,16 +332,22 @@ serve(async (req) => {
         roster,
         fallback_prefs: prefs,
         open_summons: openSummons.count ?? 0,
+        always_on: true,
+        guest: isGuest,
         note: 'Anthropic is fallback only for owner — NOT Cursor Composer. Cannot read credit balances via API.',
       }, null, 0)
 
+      const guestNote = isGuest
+        ? 'Guest session — sign in with G for full brain sync and build queue. Coders still always online.'
+        : `User ${caller.email || caller.callerId}`
+
       const result = await invokeFn(base, anon, caller.authToken, 'aicycle', {
         prompt: message,
-        profile_id: caller.callerId,
+        profile_id: caller.callerId || undefined,
         mode: 'coders_team',
         fallback_prefs: prefs,
         history: Array.isArray(body.history) ? body.history : [],
-        agent_system: `LIVE STATUS:\n${statusCtx}`,
+        agent_system: `${COLLECTIVE_CAUSE}\n\n${guestNote}\n\nLIVE STATUS:\n${statusCtx}`,
       })
 
       let action: Record<string, unknown> | null = null
@@ -355,7 +367,7 @@ serve(async (req) => {
         action = { type: 'probe', force, via: probe.via, ok: !!(probe.text || probe.response) }
       }
 
-      if (runBuild || (isBuildTask(message) && force === 'composer')) {
+      if (!isGuest && (runBuild || (isBuildTask(message) && force === 'composer'))) {
         const engine = force === 'composer' ? 'composer' : 'grok'
         const inner = await invokeFn(base, anon, caller.authToken, 'aci', {
           mode: 'coders',
@@ -392,12 +404,25 @@ serve(async (req) => {
         full += `\n\n[Action: ${tag} #${action.summon_id || '?'} · ${action.via || action.engine}]`
       }
 
+      if (memoryOwnerId && full) {
+        await sb.from('ai_memory').insert({
+          profile_id: memoryOwnerId,
+          content: `[coders${isGuest ? '-guest' : ''}] Q: ${message.slice(0, 160)} A: ${full.slice(0, 320)}`,
+          is_private: false,
+          source: 'cic_log',
+          importance: 1.15,
+          distilled: false,
+        }).catch(() => {})
+      }
+
       return json({
         ok: true,
         team: true,
+        always_on: true,
+        guest: isGuest,
         text: full,
         response: full,
-        label: 'Astranov Coders Team',
+        label: isGuest ? 'Astranov Coders · Guest' : 'Astranov Coders',
         via,
         composer_status: composer,
         roster,
