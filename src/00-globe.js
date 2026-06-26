@@ -77,6 +77,7 @@ scene.add(globePivot);
 const earth = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 64), earthMat);
 globePivot.add(earth);
 globePivot.rotation.y = 0.82;
+window.earth = earth;
 
 // lat/lng to 3D sphere position
 function latLngToPos(lat, lng, r = 1) {

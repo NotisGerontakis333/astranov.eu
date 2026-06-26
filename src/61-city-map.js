@@ -1,16 +1,19 @@
 // === CITY MAP — satellite + streets when zoomed to city level ===
 const CityMap = {
-  ENTER_Z: 1.38,
-  EXIT_Z: 1.48,
+  ENTER_Z: 2.05,
+  EXIT_Z: 2.22,
   active: false,
   map: null,
   _ready: false,
   _center: { lat: 36.44, lng: 28.22 },
   _layers: {},
+  _onMap: new Set(),
   _markers: {},
   _route: null,
   _driverTimer: null,
   _syncTimer: null,
+  _demoDrivers: [],
+  _demoPhase: 0,
 
   init() {
     if (!window.L) {
@@ -31,9 +34,24 @@ const CityMap = {
     this._buildLayers();
     AstranovTheme?.registerMap?.(this);
     this.map.setView([this._center.lat, this._center.lng], 14);
+    this.map.on('zoomend moveend', () => {
+      if (!this.active) return;
+      const c = this.map.getCenter();
+      this._center = { lat: c.lat, lng: c.lng };
+    });
+    window.addEventListener('resize', () => {
+      if (this.active) this._invalidate();
+    });
     this._ready = true;
     this._driverTimer = setInterval(() => this._tickDrivers(), 2800);
     this._syncTimer = setInterval(() => this._syncMarkers(), 1200);
+  },
+
+  _invalidate() {
+    if (!this.map) return;
+    try {
+      this.map.invalidateSize({ animate: false });
+    } catch (_) {}
   },
 
   _buildLayers() {
@@ -59,15 +77,20 @@ const CityMap = {
 
   _applyBaseLayers() {
     if (!this.map) return;
-    Object.values(this._layers).forEach(l => { try { this.map.removeLayer(l); } catch (_) {} });
+    this._onMap.forEach(l => { try { this.map.removeLayer(l); } catch (_) {} });
+    this._onMap.clear();
     const mode = AstranovTheme?.mode || 'dark';
+    const add = l => { l.addTo(this.map); this._onMap.add(l); };
     if (mode === 'bright') {
-      this._layers.sat.addTo(this.map);
-      this._layers.brightStreets.addTo(this.map);
+      add(this._layers.sat);
+      this._layers.brightStreets.setOpacity(0.55);
+      add(this._layers.brightStreets);
     } else {
-      this._layers.sat.addTo(this.map);
-      this._layers.streets.addTo(this.map);
+      add(this._layers.sat);
+      this._layers.streets.setOpacity(0.42);
+      add(this._layers.streets);
     }
+    if (this.active) this._invalidate();
   },
 
   onThemeChange() {
@@ -75,16 +98,16 @@ const CityMap = {
   },
 
   camZToZoom(camZ) {
-    const z = Math.max(1.02, Math.min(1.38, camZ));
-    const t = (1.38 - z) / (1.38 - 1.02);
-    return Math.round(12 + t * 7);
+    const z = Math.max(1.02, Math.min(2.05, camZ));
+    const t = (2.05 - z) / (2.05 - 1.02);
+    return Math.round(10 + t * 9);
   },
 
   globeCenterLatLng() {
+    globePivot.updateMatrixWorld(true);
     const v = new THREE.Vector3(0, 0, 1);
-    const q = globePivot.quaternion.clone();
-    q.invert();
-    v.applyQuaternion(q);
+    const inv = new THREE.Matrix4().copy(globePivot.matrixWorld).invert();
+    v.applyMatrix4(inv);
     const r = Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z) || 1;
     const lat = 90 - Math.acos(Math.max(-1, Math.min(1, v.y / r))) * 180 / Math.PI;
     let lng = Math.atan2(v.z, -v.x) * 180 / Math.PI - 180;
@@ -120,8 +143,12 @@ const CityMap = {
     const c = window._lastPos || this.globeCenterLatLng();
     this._center = c;
     this.map.setView([c.lat, c.lng], this.camZToZoom(camZ), { animate: false });
+    this._invalidate();
+    setTimeout(() => this._invalidate(), 120);
+    setTimeout(() => this._invalidate(), 500);
     this._syncMarkers();
     this._syncRoute();
+    this._seedDemoDrivers(c);
     CityLife?._updateChip?.(
       (CityLife?.nearbyVendors?.(c.lat, c.lng) || []).length,
       Object.keys(this._markers).filter(k => k.startsWith('drv_')).length
@@ -206,20 +233,49 @@ const CityMap = {
     });
   },
 
+  _driverLatLng(d, u, i) {
+    const lat = d.field_lat ?? d.lat ?? d.latitude;
+    const lng = d.field_lng ?? d.lng ?? d.longitude;
+    if (lat != null && lng != null) return { lat: +lat, lng: +lng };
+    return { lat: u.lat + (Math.sin(i * 1.7) * 0.006), lng: u.lng + (Math.cos(i * 1.3) * 0.006) };
+  },
+
+  _seedDemoDrivers(u) {
+    if (this._demoDrivers.length) return;
+    this._demoDrivers = [
+      { id: 'demo1', display_name: 'Nikos · delivery', field_lat: u.lat + 0.004, field_lng: u.lng - 0.003 },
+      { id: 'demo2', display_name: 'Elena · courier', field_lat: u.lat - 0.003, field_lng: u.lng + 0.005 },
+      { id: 'demo3', display_name: 'Alex · ride', field_lat: u.lat + 0.002, field_lng: u.lng + 0.004 },
+    ];
+  },
+
+  _animateDemoDrivers() {
+    this._demoPhase += 0.0012;
+    const u = window._lastPos || this._center;
+    this._demoDrivers.forEach((d, i) => {
+      d.field_lat = u.lat + Math.sin(this._demoPhase + i * 2.1) * 0.008;
+      d.field_lng = u.lng + Math.cos(this._demoPhase + i * 1.6) * 0.008;
+    });
+  },
+
   async _tickDrivers() {
     if (!this.active) return;
     const u = window._lastPos || this._center;
-    const drivers = Commerce?.fetchNearbyDrivers
+    let drivers = Commerce?.fetchNearbyDrivers
       ? await Commerce.fetchNearbyDrivers(u.lat, u.lng)
       : [];
+    if (!drivers.length) {
+      this._seedDemoDrivers(u);
+      this._animateDemoDrivers();
+      drivers = this._demoDrivers;
+    }
     Commerce?.showDriversOnGlobe?.(drivers);
     const seen = new Set();
     drivers.forEach((d, i) => {
-      const lat = d.lat ?? d.latitude ?? (u.lat + (Math.random() - 0.5) * 0.01);
-      const lng = d.lng ?? d.longitude ?? (u.lng + (Math.random() - 0.5) * 0.01);
+      const p = this._driverLatLng(d, u, i);
       const id = 'drv_' + (d.id || i);
       seen.add(id);
-      this._setMarker(id, lat, lng, {
+      this._setMarker(id, p.lat, p.lng, {
         emoji: '🚗', color: 'rgba(80,180,255,0.92)', title: d.display_name || 'Driver',
       });
     });

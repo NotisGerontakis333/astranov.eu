@@ -1,6 +1,7 @@
 // === EARTH REALISM — live day/night terminator, sun & moon ===
 const EarthRealism = {
   _inited: false,
+  _shaderReady: false,
   sunDir: new THREE.Vector3(1, 0.2, 0.4),
   moonMesh: null,
   sunGlow: null,
@@ -66,6 +67,9 @@ const EarthRealism = {
     });
     earth.material = mat;
     earth.material.needsUpdate = true;
+    this._shaderReady = true;
+    window._earthShaderReady = true;
+    this.tick();
   },
 
   onThemeChange() {
@@ -162,11 +166,27 @@ const EarthRealism = {
     return { lat, lng };
   },
 
+  _earthSpin(date) {
+    const d = date || new Date();
+    const utc = d.getUTCHours() + d.getUTCMinutes() / 60 + d.getUTCSeconds() / 3600;
+    return (utc / 24) * Math.PI * 2;
+  },
+
+  _sunLocal(sunDir) {
+    if (!earth) return sunDir;
+    earth.updateMatrixWorld(true);
+    const m = new THREE.Matrix4().copy(earth.matrixWorld).invert();
+    return sunDir.clone().transformDirection(m).normalize();
+  },
+
   tick() {
     const sunDir = this._solarPosition();
     this.sunDir.copy(sunDir);
-    if (earth?.material?.uniforms?.sunDirection) {
-      earth.material.uniforms.sunDirection.value.copy(sunDir);
+    if (earth) {
+      earth.rotation.y = this._earthSpin();
+      if (earth.material?.uniforms?.sunDirection) {
+        earth.material.uniforms.sunDirection.value.copy(this._sunLocal(sunDir));
+      }
     }
     if (typeof sun !== 'undefined' && sun?.position) {
       sun.position.copy(sunDir.clone().multiplyScalar(8));
@@ -189,7 +209,7 @@ const EarthRealism = {
     const camZ = camera?.position?.z ?? 2.5;
     if (level === 'earth' && camZ < 3.4 && !CityMap?.active) {
       const now = Date.now();
-      if (now - this._hudTimer > 4000) {
+      if (!this._hudTimer || now - this._hudTimer > 3500) {
         this._hudTimer = now;
         const el = document.getElementById('cosmic-guide');
         if (el) el.innerHTML = this._formatHud(sunDir);

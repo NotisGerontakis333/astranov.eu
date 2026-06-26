@@ -1,6 +1,6 @@
 // === CITY LIFE — real-user scenarios: locate → city → shops · drivers · friends · news ===
 const CityLife = {
-  CITY_ZOOM: 1.12,
+  CITY_ZOOM: 1.85,
   NEARBY_KM: 12,
   _friendTimer: null,
   _lastDrop: null,
@@ -55,6 +55,7 @@ const CityLife = {
     this._showLocalNews(lat, lng);
     this._updateChip(nearby.length, drivers.length);
 
+    CityMap?.onCamera?.(camera?.position?.z ?? CityLife.CITY_ZOOM, 'earth');
     const msg = nearby.length + ' shops · ' + drivers.length + ' drivers · ' + (window.others?.length || 0) + ' friends nearby';
     GlobeDeck?.setPreview('🏙 ' + msg);
     AciCli?.print('◎ City view · ' + msg, 'ok');
@@ -95,11 +96,14 @@ const CityLife = {
 
   _tickFriends() {
     const markers = window._friendMarkers || [];
-    (window.others || []).forEach((u) => {
+    const friends = window.others || [];
+    friends.forEach((u) => {
       u.lat += (Math.random() - 0.5) * 0.0012;
       u.lng += (Math.random() - 0.5) * 0.0012;
     });
-    GlobeEntity?.syncFriends?.(window.others);
+    window.others = friends;
+    GlobeEntity?.syncFriends?.(friends);
+    if (CityMap?.active) CityMap._syncMarkers?.();
   },
 
   async locateAndDropIn() {

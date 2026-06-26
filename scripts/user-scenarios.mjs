@@ -1,0 +1,233 @@
+#!/usr/bin/env node
+/**
+ * Real-user scenario tests for Astranov globe (city map, theme, earth realism).
+ * Run: node scripts/user-scenarios.mjs [--url http://127.0.0.1:8765]
+ */
+import { chromium } from 'playwright';
+import { createServer } from 'node:http';
+import { readFileSync, existsSync } from 'node:fs';
+import { join, extname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..');
+const PORT = 8765;
+const MIME = {
+  '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
+  '.json': 'application/json', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json',
+};
+
+function startServer() {
+  return new Promise(resolve => {
+    const srv = createServer((req, res) => {
+      const p = join(ROOT, (req.url || '/').split('?')[0].replace(/^\//, '') || 'index.html');
+      const file = existsSync(p) && !p.endsWith('..') ? p : join(ROOT, 'index.html');
+      try {
+        const body = readFileSync(file);
+        res.writeHead(200, { 'Content-Type': MIME[extname(file)] || 'application/octet-stream' });
+        res.end(body);
+      } catch {
+        res.writeHead(404); res.end('not found');
+      }
+    });
+    srv.listen(PORT, '127.0.0.1', () => resolve(srv));
+  });
+}
+
+const SCENARIOS = [
+  {
+    name: 'boot — globals and WebGL',
+    run: async (page) => {
+      const r = await page.evaluate(() => ({
+        three: !!window.THREE,
+        cityMap: !!window.CityMap,
+        theme: !!window.AstranovTheme,
+        earth: !!window.EarthRealism,
+        leaflet: !!window.L,
+        renderer: !!window.renderer,
+        cityReady: window.CityMap?._ready,
+      }));
+      if (!r.three || !r.cityMap || !r.theme || !r.earth) throw new Error('missing globals: ' + JSON.stringify(r));
+      if (!r.leaflet) throw new Error('Leaflet not loaded');
+      if (!r.cityReady) throw new Error('CityMap not initialized');
+      return r;
+    },
+  },
+  {
+    name: 'earth realism — shader + sun/moon',
+    run: async (page) => {
+      await page.waitForTimeout(2500);
+      const r = await page.evaluate(() => ({
+        shaderReady: !!window._earthShaderReady,
+        hasUniform: !!window.earth?.material?.uniforms?.sunDirection,
+        sunVis: !!window.EarthRealism?.sunGlow?.visible,
+        moonVis: !!window.EarthRealism?.moonMesh?.visible,
+        guideHasSun: /Sun/i.test(document.getElementById('cosmic-guide')?.textContent || ''),
+      }));
+      if (!r.shaderReady || !r.hasUniform) throw new Error('Earth shader not applied: ' + JSON.stringify(r));
+      if (!r.guideHasSun) throw new Error('cosmic-guide missing sun info');
+      return r;
+    },
+  },
+  {
+    name: 'theme — dark/bright toggle',
+    run: async (page) => {
+      const r = await page.evaluate(() => {
+        AstranovTheme.set('bright');
+        const bright = document.documentElement.dataset.theme;
+        AstranovTheme.set('dark');
+        const dark = document.documentElement.dataset.theme;
+        AstranovTheme.toggle();
+        const toggled = AstranovTheme.mode;
+        return { bright, dark, toggled };
+      });
+      if (r.bright !== 'bright' || r.dark !== 'dark') throw new Error('theme set failed: ' + JSON.stringify(r));
+      if (r.toggled !== 'bright') throw new Error('theme toggle failed');
+      return r;
+    },
+  },
+  {
+    name: 'zoom — city map activates',
+    run: async (page) => {
+      await page.evaluate(() => {
+        camera.position.z = 2.5;
+        CityMap.onCamera(2.5, 'earth');
+      });
+      let active = await page.evaluate(() => CityMap.active);
+      if (active) throw new Error('city map active too early at z=2.5');
+
+      await page.evaluate(() => {
+        camera.position.z = 1.95;
+        CityMap.onCamera(1.95, 'earth');
+      });
+      await page.waitForTimeout(600);
+      active = await page.evaluate(() => ({
+        active: CityMap.active,
+        hasTiles: !!document.querySelector('#city-map .leaflet-tile-loaded'),
+        cls: document.getElementById('city-map')?.classList.contains('active'),
+      }));
+      if (!active.active || !active.cls) throw new Error('city map did not activate at z=1.95: ' + JSON.stringify(active));
+      return active;
+    },
+  },
+  {
+    name: 'scenario city — dropIn Rhodes',
+    run: async (page) => {
+      const r = await page.evaluate(async () => {
+        await CityLife.dropIn(36.44, 28.22, { label: 'Rhodes test' });
+        await new Promise(r => setTimeout(r, 1200));
+        return {
+          active: CityMap.active,
+          pos: window._lastPos,
+          friends: (window.others || []).length,
+          friendMarkers: Object.keys(CityMap._markers || {}).filter(k => k.startsWith('friend_')).length,
+          markers: Object.keys(CityMap._markers || {}).length,
+          zoom: CityMap.map?.getZoom?.(),
+        };
+      });
+      if (!r.active) throw new Error('city map not active after dropIn');
+      if (!r.pos || Math.abs(r.pos.lat - 36.44) > 0.01) throw new Error('position not set');
+      if (r.friends < 1) throw new Error('no friends in window.others');
+      if (r.friendMarkers < 1) throw new Error('no friend markers on city map');
+      return r;
+    },
+  },
+  {
+    name: 'scenario drivers — markers with coords',
+    run: async (page) => {
+      const r = await page.evaluate(async () => {
+        await CityMap._tickDrivers();
+        const keys = Object.keys(CityMap._markers || {}).filter(k => k.startsWith('drv_'));
+        const demo = CityMap._demoDrivers?.length || 0;
+        return { driverMarkers: keys.length, demo };
+      });
+      if (r.driverMarkers < 1 && r.demo < 1) throw new Error('no driver markers');
+      return r;
+    },
+  },
+  {
+    name: 'routing — OSRM polyline on city map',
+    run: async (page) => {
+      const r = await page.evaluate(async () => {
+        window._lastPos = { lat: 36.44, lng: 28.22 };
+        DrivingView.destination = { lat: 36.46, lng: 28.24 };
+        await DrivingView.fetchRoadRoute();
+        CityMap.setRoute(DrivingView.routeCoords);
+        return {
+          coords: DrivingView.routeCoords?.length || 0,
+          hasRoute: !!CityMap._route,
+        };
+      });
+      if (r.coords < 2) throw new Error('OSRM route failed');
+      if (!r.hasRoute) throw new Error('route not drawn on city map');
+      return r;
+    },
+  },
+  {
+    name: 'CLI — theme + scenario commands',
+    run: async (page) => {
+      const r = await page.evaluate(async () => {
+        const out = [];
+        const orig = AciCli.print;
+        AciCli.print = (t) => out.push(t);
+        await SuperCli.exec('dark');
+        await SuperCli.exec('scenario list');
+        AciCli.print = orig;
+        return { mode: AstranovTheme.mode, lines: out.length, hasScenarios: out.some(l => /scenarios/i.test(l)) };
+      });
+      if (r.mode !== 'dark') throw new Error('CLI dark failed');
+      if (!r.hasScenarios) throw new Error('scenario list failed');
+      return r;
+    },
+  },
+];
+
+async function main() {
+  const argUrl = process.argv.find((a, i) => process.argv[i - 1] === '--url');
+  let srv;
+  let url = argUrl || `http://127.0.0.1:${PORT}/index.html`;
+  if (!argUrl) {
+    srv = await startServer();
+    console.log('Local server →', url);
+  }
+
+  const browser = await chromium.launch({ headless: true });
+  const context = await browser.newContext({
+    geolocation: { latitude: 36.44, longitude: 28.22 },
+    permissions: ['geolocation'],
+  });
+  const page = await context.newPage();
+  await page.route('**/*', route => {
+    const u = route.request().url();
+    if (/supabase\.co|allorigins|feeds\.bbci/i.test(u)) return route.abort();
+    route.continue();
+  });
+  page.on('pageerror', e => console.error('PAGE ERROR:', e.message));
+  page.on('console', msg => { if (msg.type() === 'error') console.error('CONSOLE:', msg.text()); });
+
+  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
+  await page.waitForFunction(() => window.CityMap?._ready && window.EarthRealism?._inited, { timeout: 45000 });
+  await page.waitForFunction(() => window._earthShaderReady === true, { timeout: 30000 });
+  await page.waitForTimeout(800);
+
+  const results = [];
+  let failed = 0;
+  for (const sc of SCENARIOS) {
+    try {
+      const data = await sc.run(page);
+      console.log('✓', sc.name, JSON.stringify(data));
+      results.push({ name: sc.name, ok: true, data });
+    } catch (e) {
+      console.error('✗', sc.name, e.message);
+      results.push({ name: sc.name, ok: false, error: e.message });
+      failed++;
+    }
+  }
+
+  await browser.close();
+  if (srv) srv.close();
+
+  console.log('\n---', results.filter(r => r.ok).length + '/' + results.length, 'passed ---');
+  if (failed) process.exit(1);
+}
+
+main().catch(e => { console.error(e); process.exit(1); });

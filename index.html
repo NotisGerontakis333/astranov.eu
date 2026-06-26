@@ -543,6 +543,7 @@ scene.add(globePivot);
 const earth = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 64), earthMat);
 globePivot.add(earth);
 globePivot.rotation.y = 0.82;
+window.earth = earth;
 
 // lat/lng to 3D sphere position
 function latLngToPos(lat, lng, r = 1) {
@@ -6012,7 +6013,7 @@ window.SuperSpaceHud = SuperSpaceHud;
 
 // === CITY LIFE — real-user scenarios: locate → city → shops · drivers · friends · news ===
 const CityLife = {
-  CITY_ZOOM: 1.12,
+  CITY_ZOOM: 1.85,
   NEARBY_KM: 12,
   _friendTimer: null,
   _lastDrop: null,
@@ -6067,6 +6068,7 @@ const CityLife = {
     this._showLocalNews(lat, lng);
     this._updateChip(nearby.length, drivers.length);
 
+    CityMap?.onCamera?.(camera?.position?.z ?? CityLife.CITY_ZOOM, 'earth');
     const msg = nearby.length + ' shops · ' + drivers.length + ' drivers · ' + (window.others?.length || 0) + ' friends nearby';
     GlobeDeck?.setPreview('🏙 ' + msg);
     AciCli?.print('◎ City view · ' + msg, 'ok');
@@ -6107,11 +6109,14 @@ const CityLife = {
 
   _tickFriends() {
     const markers = window._friendMarkers || [];
-    (window.others || []).forEach((u) => {
+    const friends = window.others || [];
+    friends.forEach((u) => {
       u.lat += (Math.random() - 0.5) * 0.0012;
       u.lng += (Math.random() - 0.5) * 0.0012;
     });
-    GlobeEntity?.syncFriends?.(window.others);
+    window.others = friends;
+    GlobeEntity?.syncFriends?.(friends);
+    if (CityMap?.active) CityMap._syncMarkers?.();
   },
 
   async locateAndDropIn() {
@@ -7921,7 +7926,7 @@ function onGlobeClick(e) {
 
   const intersects = raycaster.intersectObject(earth);
   if (intersects.length > 0) {
-    flyToPoint(intersects[0].point, 1.72);
+    flyToPoint(intersects[0].point, 1.95);
     cityLevel = true;
     MapDepict.action('explore', { detail: 'tap' });
   }
@@ -7962,7 +7967,11 @@ function tickGlobeFly() {
   camera.lookAt(0, 0, 0);
   CosmicZoom.update(camera.position.z);
   CityMap?.onCamera?.(camera.position.z, CosmicZoom?.level);
-  if (p >= 1) window._globeFly = null;
+  if (p >= 1) {
+    window._globeFly = null;
+    cityLevel = camera.position.z <= 2.1;
+    CityMap?.onCamera?.(camera.position.z, CosmicZoom?.level);
+  }
 }
 window.tickGlobeFly = tickGlobeFly;
 
@@ -7981,17 +7990,20 @@ setTimeout(showGestureHint, 600);
 
 // === CITY MAP — satellite + streets when zoomed to city level ===
 const CityMap = {
-  ENTER_Z: 1.38,
-  EXIT_Z: 1.48,
+  ENTER_Z: 2.05,
+  EXIT_Z: 2.22,
   active: false,
   map: null,
   _ready: false,
   _center: { lat: 36.44, lng: 28.22 },
   _layers: {},
+  _onMap: new Set(),
   _markers: {},
   _route: null,
   _driverTimer: null,
   _syncTimer: null,
+  _demoDrivers: [],
+  _demoPhase: 0,
 
   init() {
     if (!window.L) {
@@ -8012,9 +8024,24 @@ const CityMap = {
     this._buildLayers();
     AstranovTheme?.registerMap?.(this);
     this.map.setView([this._center.lat, this._center.lng], 14);
+    this.map.on('zoomend moveend', () => {
+      if (!this.active) return;
+      const c = this.map.getCenter();
+      this._center = { lat: c.lat, lng: c.lng };
+    });
+    window.addEventListener('resize', () => {
+      if (this.active) this._invalidate();
+    });
     this._ready = true;
     this._driverTimer = setInterval(() => this._tickDrivers(), 2800);
     this._syncTimer = setInterval(() => this._syncMarkers(), 1200);
+  },
+
+  _invalidate() {
+    if (!this.map) return;
+    try {
+      this.map.invalidateSize({ animate: false });
+    } catch (_) {}
   },
 
   _buildLayers() {
@@ -8040,15 +8067,20 @@ const CityMap = {
 
   _applyBaseLayers() {
     if (!this.map) return;
-    Object.values(this._layers).forEach(l => { try { this.map.removeLayer(l); } catch (_) {} });
+    this._onMap.forEach(l => { try { this.map.removeLayer(l); } catch (_) {} });
+    this._onMap.clear();
     const mode = AstranovTheme?.mode || 'dark';
+    const add = l => { l.addTo(this.map); this._onMap.add(l); };
     if (mode === 'bright') {
-      this._layers.sat.addTo(this.map);
-      this._layers.brightStreets.addTo(this.map);
+      add(this._layers.sat);
+      this._layers.brightStreets.setOpacity(0.55);
+      add(this._layers.brightStreets);
     } else {
-      this._layers.sat.addTo(this.map);
-      this._layers.streets.addTo(this.map);
+      add(this._layers.sat);
+      this._layers.streets.setOpacity(0.42);
+      add(this._layers.streets);
     }
+    if (this.active) this._invalidate();
   },
 
   onThemeChange() {
@@ -8056,16 +8088,16 @@ const CityMap = {
   },
 
   camZToZoom(camZ) {
-    const z = Math.max(1.02, Math.min(1.38, camZ));
-    const t = (1.38 - z) / (1.38 - 1.02);
-    return Math.round(12 + t * 7);
+    const z = Math.max(1.02, Math.min(2.05, camZ));
+    const t = (2.05 - z) / (2.05 - 1.02);
+    return Math.round(10 + t * 9);
   },
 
   globeCenterLatLng() {
+    globePivot.updateMatrixWorld(true);
     const v = new THREE.Vector3(0, 0, 1);
-    const q = globePivot.quaternion.clone();
-    q.invert();
-    v.applyQuaternion(q);
+    const inv = new THREE.Matrix4().copy(globePivot.matrixWorld).invert();
+    v.applyMatrix4(inv);
     const r = Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z) || 1;
     const lat = 90 - Math.acos(Math.max(-1, Math.min(1, v.y / r))) * 180 / Math.PI;
     let lng = Math.atan2(v.z, -v.x) * 180 / Math.PI - 180;
@@ -8101,8 +8133,12 @@ const CityMap = {
     const c = window._lastPos || this.globeCenterLatLng();
     this._center = c;
     this.map.setView([c.lat, c.lng], this.camZToZoom(camZ), { animate: false });
+    this._invalidate();
+    setTimeout(() => this._invalidate(), 120);
+    setTimeout(() => this._invalidate(), 500);
     this._syncMarkers();
     this._syncRoute();
+    this._seedDemoDrivers(c);
     CityLife?._updateChip?.(
       (CityLife?.nearbyVendors?.(c.lat, c.lng) || []).length,
       Object.keys(this._markers).filter(k => k.startsWith('drv_')).length
@@ -8187,20 +8223,49 @@ const CityMap = {
     });
   },
 
+  _driverLatLng(d, u, i) {
+    const lat = d.field_lat ?? d.lat ?? d.latitude;
+    const lng = d.field_lng ?? d.lng ?? d.longitude;
+    if (lat != null && lng != null) return { lat: +lat, lng: +lng };
+    return { lat: u.lat + (Math.sin(i * 1.7) * 0.006), lng: u.lng + (Math.cos(i * 1.3) * 0.006) };
+  },
+
+  _seedDemoDrivers(u) {
+    if (this._demoDrivers.length) return;
+    this._demoDrivers = [
+      { id: 'demo1', display_name: 'Nikos · delivery', field_lat: u.lat + 0.004, field_lng: u.lng - 0.003 },
+      { id: 'demo2', display_name: 'Elena · courier', field_lat: u.lat - 0.003, field_lng: u.lng + 0.005 },
+      { id: 'demo3', display_name: 'Alex · ride', field_lat: u.lat + 0.002, field_lng: u.lng + 0.004 },
+    ];
+  },
+
+  _animateDemoDrivers() {
+    this._demoPhase += 0.0012;
+    const u = window._lastPos || this._center;
+    this._demoDrivers.forEach((d, i) => {
+      d.field_lat = u.lat + Math.sin(this._demoPhase + i * 2.1) * 0.008;
+      d.field_lng = u.lng + Math.cos(this._demoPhase + i * 1.6) * 0.008;
+    });
+  },
+
   async _tickDrivers() {
     if (!this.active) return;
     const u = window._lastPos || this._center;
-    const drivers = Commerce?.fetchNearbyDrivers
+    let drivers = Commerce?.fetchNearbyDrivers
       ? await Commerce.fetchNearbyDrivers(u.lat, u.lng)
       : [];
+    if (!drivers.length) {
+      this._seedDemoDrivers(u);
+      this._animateDemoDrivers();
+      drivers = this._demoDrivers;
+    }
     Commerce?.showDriversOnGlobe?.(drivers);
     const seen = new Set();
     drivers.forEach((d, i) => {
-      const lat = d.lat ?? d.latitude ?? (u.lat + (Math.random() - 0.5) * 0.01);
-      const lng = d.lng ?? d.longitude ?? (u.lng + (Math.random() - 0.5) * 0.01);
+      const p = this._driverLatLng(d, u, i);
       const id = 'drv_' + (d.id || i);
       seen.add(id);
-      this._setMarker(id, lat, lng, {
+      this._setMarker(id, p.lat, p.lng, {
         emoji: '🚗', color: 'rgba(80,180,255,0.92)', title: d.display_name || 'Driver',
       });
     });
@@ -8304,6 +8369,7 @@ window.AstranovTheme = AstranovTheme;
 // === EARTH REALISM — live day/night terminator, sun & moon ===
 const EarthRealism = {
   _inited: false,
+  _shaderReady: false,
   sunDir: new THREE.Vector3(1, 0.2, 0.4),
   moonMesh: null,
   sunGlow: null,
@@ -8369,6 +8435,9 @@ const EarthRealism = {
     });
     earth.material = mat;
     earth.material.needsUpdate = true;
+    this._shaderReady = true;
+    window._earthShaderReady = true;
+    this.tick();
   },
 
   onThemeChange() {
@@ -8465,11 +8534,27 @@ const EarthRealism = {
     return { lat, lng };
   },
 
+  _earthSpin(date) {
+    const d = date || new Date();
+    const utc = d.getUTCHours() + d.getUTCMinutes() / 60 + d.getUTCSeconds() / 3600;
+    return (utc / 24) * Math.PI * 2;
+  },
+
+  _sunLocal(sunDir) {
+    if (!earth) return sunDir;
+    earth.updateMatrixWorld(true);
+    const m = new THREE.Matrix4().copy(earth.matrixWorld).invert();
+    return sunDir.clone().transformDirection(m).normalize();
+  },
+
   tick() {
     const sunDir = this._solarPosition();
     this.sunDir.copy(sunDir);
-    if (earth?.material?.uniforms?.sunDirection) {
-      earth.material.uniforms.sunDirection.value.copy(sunDir);
+    if (earth) {
+      earth.rotation.y = this._earthSpin();
+      if (earth.material?.uniforms?.sunDirection) {
+        earth.material.uniforms.sunDirection.value.copy(this._sunLocal(sunDir));
+      }
     }
     if (typeof sun !== 'undefined' && sun?.position) {
       sun.position.copy(sunDir.clone().multiplyScalar(8));
@@ -8492,7 +8577,7 @@ const EarthRealism = {
     const camZ = camera?.position?.z ?? 2.5;
     if (level === 'earth' && camZ < 3.4 && !CityMap?.active) {
       const now = Date.now();
-      if (now - this._hudTimer > 4000) {
+      if (!this._hudTimer || now - this._hudTimer > 3500) {
         this._hudTimer = now;
         const el = document.getElementById('cosmic-guide');
         if (el) el.innerHTML = this._formatHud(sunDir);
@@ -9590,9 +9675,10 @@ function placeMe(lat, lng, opts) {
   if (shouldFly && typeof flyToPoint === 'function') {
     const z = opts.zoom || (opts.cityDrop ? (CityLife?.CITY_ZOOM || 1.12) : 1.38);
     flyToPoint(new THREE.Vector3(pos.x, pos.y, pos.z), z);
-    cityLevel = z <= 1.25;
+    cityLevel = z <= 2.1;
     GlobeControl?.noteAutoFly?.();
     CosmicZoom?.update?.(z);
+    CityMap?.onCamera?.(z, 'earth');
   } else if (shouldFly) {
     camera.position.set(pos.x*0.6, pos.y*0.6 + 0.4, 1.6);
     camera.lookAt(pos.x*0.2, pos.y*0.2, 0);
@@ -9637,6 +9723,7 @@ function showOtherUsers() {
     { id: 'o3', name: 'Αξάς', lat: base.lat - 0.005, lng: base.lng + 0.012, hidden: false, emoji: '🛸' },
     { id: 'o2', name: 'Σταύρος', lat: base.lat + 0.004, lng: base.lng - 0.009, hidden: false, emoji: '🍻' },
   ];
+  window.others = others;
   GlobeEntity?.syncFriends?.(others);
   window._friendMarkers = [...(GlobeEntity?.entities?.values() || [])].filter(e => e.type === 'friend').map(e => e.mesh);
 }

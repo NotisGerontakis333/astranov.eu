@@ -262,9 +262,10 @@ function placeMe(lat, lng, opts) {
   if (shouldFly && typeof flyToPoint === 'function') {
     const z = opts.zoom || (opts.cityDrop ? (CityLife?.CITY_ZOOM || 1.12) : 1.38);
     flyToPoint(new THREE.Vector3(pos.x, pos.y, pos.z), z);
-    cityLevel = z <= 1.25;
+    cityLevel = z <= 2.1;
     GlobeControl?.noteAutoFly?.();
     CosmicZoom?.update?.(z);
+    CityMap?.onCamera?.(z, 'earth');
   } else if (shouldFly) {
     camera.position.set(pos.x*0.6, pos.y*0.6 + 0.4, 1.6);
     camera.lookAt(pos.x*0.2, pos.y*0.2, 0);
@@ -309,6 +310,7 @@ function showOtherUsers() {
     { id: 'o3', name: 'Αξάς', lat: base.lat - 0.005, lng: base.lng + 0.012, hidden: false, emoji: '🛸' },
     { id: 'o2', name: 'Σταύρος', lat: base.lat + 0.004, lng: base.lng - 0.009, hidden: false, emoji: '🍻' },
   ];
+  window.others = others;
   GlobeEntity?.syncFriends?.(others);
   window._friendMarkers = [...(GlobeEntity?.entities?.values() || [])].filter(e => e.type === 'friend').map(e => e.mesh);
 }

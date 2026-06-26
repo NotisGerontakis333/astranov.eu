@@ -1,3 +1,4 @@
+node_modules/
 .vercel
 supabase/.temp/
 src/.assembled-check.js
