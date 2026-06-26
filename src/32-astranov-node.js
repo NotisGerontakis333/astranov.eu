@@ -283,7 +283,7 @@ const AstranovNode = {
     if (Voice.maySpeak()) speak(msg.slice(0, 120), () => resumeListening());
   },
 
-  /** Register local Astranov Decentralized Server for SuperBooking sync relay */
+  /** Register local Astranov Decentralized Server for Astranov Sites sync relay */
   registerSuperBookingSync() {
     const port = localStorage.getItem('astranov_decentral_port') || '8787';
     const url = 'http://127.0.0.1:' + port;
@@ -291,10 +291,9 @@ const AstranovNode = {
     try {
       localStorage.setItem('astranov_decentral_node_v1', JSON.stringify({ url, registeredAt: Date.now(), ...meta }));
     } catch { /* */ }
-    if (window.SuperBookingDecentral?.registerNode) {
-      SuperBookingDecentral.registerNode(url, meta);
-    }
-    AciCli?.print('SuperBooking sync node · ' + url + '/superbooking/sync', 'ok');
+    const decentral = window.AstranovSitesDecentral || window.SuperBookingDecentral;
+    if (decentral?.registerNode) decentral.registerNode(url, meta);
+    AciCli?.print('Astranov Sites sync node · ' + url + '/superbooking/sync', 'ok');
   },
 
   async joinBatchChannel(name) {

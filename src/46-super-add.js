@@ -301,8 +301,9 @@ const SuperAdd = {
       let vendorId = null;
       if (asVendor) vendorId = await this.registerVendor(vendorName || caption);
       if (asBooker) {
-        const parsed = SuperBookingProvision?.parseAsk?.(bookerSlug || bookerName || caption || vendorName) || {};
-        await SuperBookingProvision?.provision?.({
+        const prov = window.AstranovSitesProvision || window.SuperBookingProvision;
+        const parsed = prov?.parseAsk?.(bookerSlug || bookerName || caption || vendorName) || {};
+        await prov?.provision?.({
           slug: bookerSlug || parsed.slug,
           business_name: bookerName || parsed.name || vendorName || caption,
           business_type: parsed.businessType,
@@ -318,7 +319,7 @@ const SuperAdd = {
 
       FieldBrain?.pulse?.('post', channel + ' · ' + (caption || 'video').slice(0, 80), { role: 'client' });
       AciCli?.print('posted → ' + channel + (url ? ' · video' : ' · pin'), 'ok');
-      ACIControl?.reply('Posted to ' + channel + (asVendor ? ' · vendor on map' : '') + (asBooker ? ' · SuperBooking site' : '') + (asDriver ? ' · driver on' : ''));
+      ACIControl?.reply('Posted to ' + channel + (asVendor ? ' · vendor on map' : '') + (asBooker ? ' · Astranov Site' : '') + (asDriver ? ' · driver on' : ''));
       GlobeDeck?.setPreview?.('➕ posted · ' + channel);
 
       this._blob = null;

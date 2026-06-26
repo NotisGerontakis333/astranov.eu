@@ -277,12 +277,13 @@ const AciCli = {
         GlobeDeck.activeTask = 'commerce';
         return;
       }
-      if (cmd === 'book' || cmd === 'booker' || cmd === 'site') {
+      if (cmd === 'book' || cmd === 'booker' || cmd === 'site' || cmd === 'sites') {
         try {
-          const r = await SuperBookingProvision?.cli?.(parts);
+          const prov = window.AstranovSitesProvision || window.SuperBookingProvision;
+          const r = await prov?.cli?.(parts);
           if (r?.error) { this.print(r.error, 'err'); GlobeDeck?.finishCliIfOneShot(cmd); return; }
           if (r?.sites) {
-            if (!r.sites.length) { this.print('no SuperBooking sites yet — book create my-name', 'dim'); }
+            if (!r.sites.length) { this.print('no Astranov Sites yet — site create my-name', 'dim'); }
             else r.sites.forEach(s => this.print((s.domain || s.id) + ' · ' + s.business_type + ' · ' + s.mode, 'ok'));
             GlobeDeck?.finishCliIfOneShot(cmd);
             return;

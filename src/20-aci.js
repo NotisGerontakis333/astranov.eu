@@ -287,11 +287,12 @@ const ACIControl = {
       await Commerce.showPicker();
       return { executed: true };
     }
-    if (/superbook|booking site|web presence|my site|create.*site|make.*site|\.astranov\.eu|astranov subdomain/.test(low)) {
-      if (!Auth?.user) { Auth.signInGoogle(); this.reply('Sign in (G) — then ask again for your site'); return { executed: true }; }
+    if (/astranov\s*sites?|superbook|booking site|web presence|my site|create.*site|make.*site|\.astranov\.eu|astranov subdomain/.test(low)) {
+      if (!Auth?.user) { Auth.signInGoogle(); this.reply('Sign in (G) — then ask again for your Astranov Site'); return { executed: true }; }
       try {
-        const parsed = SuperBookingProvision.parseAsk(text);
-        await SuperBookingProvision.provision(parsed);
+        const prov = window.AstranovSitesProvision || window.SuperBookingProvision;
+        const parsed = prov.parseAsk(text);
+        await prov.provision(parsed);
       } catch (e) {
         this.reply(e.message || 'Site creation failed');
       }

@@ -225,7 +225,7 @@
   <div id="globe"></div>
   <div id="superspace-hud"></div>
   <div id="city-life-chip"></div>
-  <button id="super-add-fab" type="button" title="Super Add — post · vendor · SuperBooking site · driver">+</button>
+  <button id="super-add-fab" type="button" title="Super Add — post · vendor · Astranov Site · driver">+</button>
   <div id="globe-entity-labels"></div>
   <div id="globe-entity-hud">
     <div id="ge-hud-type">◎ Place</div>
@@ -320,7 +320,7 @@
         <label><input id="sa-as-vendor" type="checkbox" /> Add me as vendor (shop on map)</label>
         <input id="sa-vendor-name" type="text" placeholder="Shop name (if vendor)" />
         <label><input id="sa-as-driver" type="checkbox" /> Add me as delivery driver</label>
-        <label><input id="sa-as-booker" type="checkbox" /> Create SuperBooking site (yourname.astranov.eu)</label>
+        <label><input id="sa-as-booker" type="checkbox" /> Create Astranov Site (yourname.astranov.eu)</label>
         <input id="sa-booker-slug" type="text" placeholder="Subdomain e.g. marina-diving" style="display:none" />
         <input id="sa-booker-name" type="text" placeholder="Business / profile name" style="display:none" />
       </div>
@@ -2440,12 +2440,13 @@ const AciCli = {
         GlobeDeck.activeTask = 'commerce';
         return;
       }
-      if (cmd === 'book' || cmd === 'booker' || cmd === 'site') {
+      if (cmd === 'book' || cmd === 'booker' || cmd === 'site' || cmd === 'sites') {
         try {
-          const r = await SuperBookingProvision?.cli?.(parts);
+          const prov = window.AstranovSitesProvision || window.SuperBookingProvision;
+          const r = await prov?.cli?.(parts);
           if (r?.error) { this.print(r.error, 'err'); GlobeDeck?.finishCliIfOneShot(cmd); return; }
           if (r?.sites) {
-            if (!r.sites.length) { this.print('no SuperBooking sites yet — book create my-name', 'dim'); }
+            if (!r.sites.length) { this.print('no Astranov Sites yet — site create my-name', 'dim'); }
             else r.sites.forEach(s => this.print((s.domain || s.id) + ' · ' + s.business_type + ' · ' + s.mode, 'ok'));
             GlobeDeck?.finishCliIfOneShot(cmd);
             return;
@@ -3752,11 +3753,12 @@ const ACIControl = {
       await Commerce.showPicker();
       return { executed: true };
     }
-    if (/superbook|booking site|web presence|my site|create.*site|make.*site|\.astranov\.eu|astranov subdomain/.test(low)) {
-      if (!Auth?.user) { Auth.signInGoogle(); this.reply('Sign in (G) — then ask again for your site'); return { executed: true }; }
+    if (/astranov\s*sites?|superbook|booking site|web presence|my site|create.*site|make.*site|\.astranov\.eu|astranov subdomain/.test(low)) {
+      if (!Auth?.user) { Auth.signInGoogle(); this.reply('Sign in (G) — then ask again for your Astranov Site'); return { executed: true }; }
       try {
-        const parsed = SuperBookingProvision.parseAsk(text);
-        await SuperBookingProvision.provision(parsed);
+        const prov = window.AstranovSitesProvision || window.SuperBookingProvision;
+        const parsed = prov.parseAsk(text);
+        await prov.provision(parsed);
       } catch (e) {
         this.reply(e.message || 'Site creation failed');
       }
@@ -4943,7 +4945,7 @@ const AstranovNode = {
     if (Voice.maySpeak()) speak(msg.slice(0, 120), () => resumeListening());
   },
 
-  /** Register local Astranov Decentralized Server for SuperBooking sync relay */
+  /** Register local Astranov Decentralized Server for Astranov Sites sync relay */
   registerSuperBookingSync() {
     const port = localStorage.getItem('astranov_decentral_port') || '8787';
     const url = 'http://127.0.0.1:' + port;
@@ -4951,10 +4953,9 @@ const AstranovNode = {
     try {
       localStorage.setItem('astranov_decentral_node_v1', JSON.stringify({ url, registeredAt: Date.now(), ...meta }));
     } catch { /* */ }
-    if (window.SuperBookingDecentral?.registerNode) {
-      SuperBookingDecentral.registerNode(url, meta);
-    }
-    AciCli?.print('SuperBooking sync node · ' + url + '/superbooking/sync', 'ok');
+    const decentral = window.AstranovSitesDecentral || window.SuperBookingDecentral;
+    if (decentral?.registerNode) decentral.registerNode(url, meta);
+    AciCli?.print('Astranov Sites sync node · ' + url + '/superbooking/sync', 'ok');
   },
 
   async joinBatchChannel(name) {
@@ -6165,8 +6166,9 @@ const SuperAdd = {
       let vendorId = null;
       if (asVendor) vendorId = await this.registerVendor(vendorName || caption);
       if (asBooker) {
-        const parsed = SuperBookingProvision?.parseAsk?.(bookerSlug || bookerName || caption || vendorName) || {};
-        await SuperBookingProvision?.provision?.({
+        const prov = window.AstranovSitesProvision || window.SuperBookingProvision;
+        const parsed = prov?.parseAsk?.(bookerSlug || bookerName || caption || vendorName) || {};
+        await prov?.provision?.({
           slug: bookerSlug || parsed.slug,
           business_name: bookerName || parsed.name || vendorName || caption,
           business_type: parsed.businessType,
@@ -6182,7 +6184,7 @@ const SuperAdd = {
 
       FieldBrain?.pulse?.('post', channel + ' · ' + (caption || 'video').slice(0, 80), { role: 'client' });
       AciCli?.print('posted → ' + channel + (url ? ' · video' : ' · pin'), 'ok');
-      ACIControl?.reply('Posted to ' + channel + (asVendor ? ' · vendor on map' : '') + (asBooker ? ' · SuperBooking site' : '') + (asDriver ? ' · driver on' : ''));
+      ACIControl?.reply('Posted to ' + channel + (asVendor ? ' · vendor on map' : '') + (asBooker ? ' · Astranov Site' : '') + (asDriver ? ' · driver on' : ''));
       GlobeDeck?.setPreview?.('➕ posted · ' + channel);
 
       this._blob = null;
@@ -6218,8 +6220,8 @@ const SuperAdd = {
 };
 window.SuperAdd = SuperAdd;
 
-// === SUPERBOOKING PROVISION — instant {slug}.astranov.eu web presence ===
-const SuperBookingProvision = {
+// === ASTRANOV SITES PROVISION — instant {slug}.astranov.eu web presence ===
+const AstranovSitesProvision = {
   BASE_DOMAIN: 'astranov.eu',
 
   slugify(text) {
@@ -6234,7 +6236,7 @@ const SuperBookingProvision = {
   parseAsk(text) {
     const raw = String(text || '').trim();
     const low = raw.toLowerCase();
-    const m = raw.match(/(?:create|make|start|open|provision|build)\s+(?:my\s+)?(?:site|shop|page|presence|profile|booking|superbook(?:er|ing)?)\s*(?:at|on|for)?\s*([a-z0-9][a-z0-9-]{1,30}[a-z0-9])?/i)
+    const m = raw.match(/(?:create|make|start|open|provision|build)\s+(?:my\s+)?(?:astranov\s+)?(?:sites?|shop|page|presence|profile|booking|superbook(?:er|ing)?)\s*(?:at|on|for)?\s*([a-z0-9][a-z0-9-]{1,30}[a-z0-9])?/i)
       || raw.match(/([a-z0-9][a-z0-9-]{1,30}[a-z0-9])\.astranov\.eu/i)
       || raw.match(/(?:^|\s)([a-z0-9][a-z0-9-]{2,30}[a-z0-9])(?:\s|$)/i);
     let slug = m?.[1] ? this.slugify(m[1]) : '';
@@ -6252,7 +6254,7 @@ const SuperBookingProvision = {
       : 'generic';
     const mode = /charter|yacht|week|range/.test(low) ? 'range' : 'slot';
     if (!slug) {
-      const words = raw.replace(/\.astranov\.eu/gi, '').split(/\s+/).filter(w => w.length > 2 && !/^(my|the|a|an|for|at|on|create|make|site|shop|page)$/i.test(w));
+      const words = raw.replace(/\.astranov\.eu/gi, '').split(/\s+/).filter(w => w.length > 2 && !/^(my|the|a|an|for|at|on|create|make|site|sites|shop|page|astranov)$/i.test(w));
       slug = this.slugify(words.slice(0, 2).join('-') || Auth?.user?.email?.split('@')[0] || 'my-place');
     }
     if (!name) name = slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
@@ -6262,7 +6264,7 @@ const SuperBookingProvision = {
   async provision(opts = {}) {
     if (!Auth?.user) {
       Auth?.signInGoogle?.();
-      throw new Error('Sign in (G) to create your site.');
+      throw new Error('Sign in (G) to create your Astranov Site.');
     }
     const slug = this.slugify(opts.slug);
     if (!slug || slug.length < 3) throw new Error('Choose a subdomain (3+ letters, e.g. my-shop).');
@@ -6297,7 +6299,7 @@ const SuperBookingProvision = {
     const title = opts.business_name || result.slug;
 
     GlobeEntity?.register?.({
-      id: 'booker-' + result.site_id,
+      id: 'site-' + result.site_id,
       type: 'place',
       lat: pos.lat,
       lng: pos.lng,
@@ -6309,9 +6311,9 @@ const SuperBookingProvision = {
     });
 
     MapDepict?.pulse?.(pos.lat, pos.lng, 0x49b7ff, title + ' · live', 14000);
-    FieldBrain?.pulse?.('commerce', 'site live · ' + result.domain, { role: 'client', props: { site_id: result.site_id } });
-    AciCli?.print('SuperBooking live → ' + url, 'ok');
-    ACIControl?.reply('Your site is live: ' + url);
+    FieldBrain?.pulse?.('commerce', 'astranov site live · ' + result.domain, { role: 'client', props: { site_id: result.site_id } });
+    AciCli?.print('Astranov Site live → ' + url, 'ok');
+    ACIControl?.reply('Your Astranov Site is live: ' + url);
     GlobeDeck?.setPreview?.('◎ ' + result.domain);
   },
 
@@ -6329,10 +6331,11 @@ const SuperBookingProvision = {
       const name = parts.slice(3).join(' ') || slug;
       return this.provision({ slug, business_name: name });
     }
-    return { error: 'usage: book create <slug> [name] | book list' };
+    return { error: 'usage: site create <slug> [name] | site list  (aliases: sites, book)' };
   },
 };
-window.SuperBookingProvision = SuperBookingProvision;
+window.SuperBookingProvision = AstranovSitesProvision;
+window.AstranovSitesProvision = AstranovSitesProvision;
 
 // === GLOBE ENTITIES — every map thing has a name, proximity label, tap action ===
 const GlobeEntity = {
