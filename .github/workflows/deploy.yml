@@ -28,14 +28,23 @@ jobs:
           FAILED=""
           deploy_one() {
             local fn="$1"
+            local tries="${2:-3}"
             echo ""
             echo "=== Deploying $fn ==="
             if [ ! -d "supabase/functions/$fn" ]; then
               echo "skipped (no source dir)"
               return 0
             fi
-            supabase functions deploy "$fn" --no-verify-jwt
-            return $?
+            local n=0
+            while [ "$n" -lt "$tries" ]; do
+              n=$((n + 1))
+              if supabase functions deploy "$fn" --no-verify-jwt; then
+                return 0
+              fi
+              echo "deploy $fn attempt $n failed — retry in 15s"
+              sleep 15
+            done
+            return 1
           }
           for fn in $CRITICAL; do
             deploy_one "$fn" || FAILED="$FAILED $fn"
