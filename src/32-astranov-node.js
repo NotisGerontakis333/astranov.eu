@@ -273,12 +273,28 @@ const AstranovNode = {
     if (!this.isInstalled()) this.setStep(2, 'active', 'Εγκατάστασε node για πλήρη native relay');
     else this.setStep(2, 'done', 'Node ενεργό — decentralized server applet');
 
+    this.registerSuperBookingSync();
+
     const msg = 'Batch ' + r.short_id + ' live · ' + this.peerCount + ' node(s) · δουλεύουμε μαζί';
     ACIControl?.reply(msg);
     MapDepict?.action('batch', { lat: pos.lat, lng: pos.lng, detail: r.short_id + ' · ' + this.peerCount + ' nodes' });
     FieldBrain?.pulse('batch', r.short_id + ' · peers ' + this.peerCount, { role: 'client', props: { batch_id: r.batch_id, node_id: r.node_id } });
 
     if (Voice.maySpeak()) speak(msg.slice(0, 120), () => resumeListening());
+  },
+
+  /** Register local Astranov Decentralized Server for SuperBooking sync relay */
+  registerSuperBookingSync() {
+    const port = localStorage.getItem('astranov_decentral_port') || '8787';
+    const url = 'http://127.0.0.1:' + port;
+    const meta = { platform: this.platform(), nodeId: this.nodeId, batchId: this.batchId };
+    try {
+      localStorage.setItem('astranov_decentral_node_v1', JSON.stringify({ url, registeredAt: Date.now(), ...meta }));
+    } catch { /* */ }
+    if (window.SuperBookingDecentral?.registerNode) {
+      SuperBookingDecentral.registerNode(url, meta);
+    }
+    AciCli?.print('SuperBooking sync node · ' + url + '/superbooking/sync', 'ok');
   },
 
   async joinBatchChannel(name) {
