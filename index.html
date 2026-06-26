@@ -207,8 +207,8 @@
   #superspace-hud .ss-row { margin:2px 0; color:#dde; }
   #superspace-hud .ss-row b { color:#a88cff; font-weight:600; }
   #superspace-hud .ss-tri { margin-top:8px; padding-top:6px; border-top:1px solid rgba(170,136,255,0.25); color:#9ab; font-size:9px; }
-  #super-add-fab { position:fixed; bottom:96px; left:50%; transform:translateX(-50%); z-index:125; width:58px; height:58px; border-radius:50%; border:2px solid rgba(0,255,200,0.75); background:linear-gradient(145deg,rgba(0,120,90,0.92),rgba(0,60,120,0.92)); color:#fff; font-size:32px; font-weight:300; line-height:1; cursor:pointer; box-shadow:0 4px 22px rgba(0,255,160,0.35); display:flex; align-items:center; justify-content:center; touch-action:manipulation; pointer-events:auto; }
-  #super-add-fab:active { transform:translateX(-50%) scale(0.94); }
+  #super-cli-bar #super-add-fab { width:34px; height:34px; font-size:18px; font-weight:600; line-height:1; border-radius:50%; border:1px solid rgba(0,255,160,0.45); background:rgba(0,100,80,0.4); color:#8fc; cursor:pointer; flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; touch-action:manipulation; box-shadow:none; transform:none; position:static; }
+  #super-cli-bar #super-add-fab:active { transform:scale(0.94); }
   #globe-super-add { display:none; padding:8px 10px; background:rgba(4,12,8,0.96); pointer-events:auto; font:11px/1.4 system-ui; color:#e8f4ff; }
   #globe-super-add.open, #globe-super-add.deck-active { display:block; }
   #globe-super-add .sa-head { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:8px; color:#6fc; font-weight:600; }
@@ -274,7 +274,7 @@
   #astranov-site-shell { display:none; position:fixed; top:0; left:0; right:0; bottom:118px; z-index:110; flex-direction:column; pointer-events:auto; }
   #astranov-site-shell.open { display:flex; }
   body.site-shell-open #globe { opacity:0.42; filter:saturate(0.85) blur(0.3px); }
-  body.site-shell-open #super-add-fab { opacity:0.35; pointer-events:none; }
+  body.site-shell-open #super-cli-bar #super-add-fab { opacity:0.35; pointer-events:none; }
   .as-shell-bar { display:flex; align-items:center; gap:8px; padding:6px 10px; background:linear-gradient(180deg,rgba(2,8,18,0.94),rgba(2,8,18,0.72)); border-bottom:1px solid rgba(73,183,255,0.35); font:11px system-ui; color:#9ef; }
   #as-shell-domain { flex:1; font-weight:700; }
   .as-shell-bar button { padding:6px 10px; border-radius:8px; border:1px solid rgba(73,183,255,0.35); background:rgba(0,0,0,0.35); color:#def; cursor:pointer; font-size:11px; }
@@ -334,7 +334,6 @@
   <div id="superspace-hud"></div>
   <div id="city-map"></div>
   <div id="city-life-chip"></div>
-  <button id="super-add-fab" type="button" title="Super Add — post · vendor · Astranov Site · driver">+</button>
   <div id="globe-entity-labels"></div>
   <div id="globe-entity-hud">
     <div id="ge-hud-type">◎ Place</div>
@@ -368,6 +367,7 @@
         <button id="aci-batch" title="Batch" type="button">🔗</button>
         <button id="aci-vhf" title="PMR radio" type="button">📡</button>
         <button id="aci-call" title="Phone" type="button">☎️</button>
+        <button id="super-add-fab" type="button" title="Super Add — post · vendor · site">+</button>
       </div>
       <div id="globe-deck-body">
         <div id="globe-deck-log"></div>
@@ -1793,15 +1793,15 @@ const SuperCli = {
   CORE: ['aci-login', 'aci-cli-toggle', 'aci-stop', 'aci-hold', 'aci-theme'],
   INPUT_BTNS: ['aci-mic', 'aci-voice', 'globe-deck-send'],
   CONTEXT_BTNS: {
-    idle: ['aci-locate', 'aci-order', 'aci-batch', 'aci-vhf', 'aci-call'],
-    guest: ['aci-locate', 'aci-order', 'aci-vhf', 'aci-call'],
+    idle: ['aci-locate', 'aci-order', 'aci-batch', 'aci-vhf', 'aci-call', 'super-add-fab'],
+    guest: ['aci-locate', 'aci-order', 'aci-vhf', 'aci-call', 'super-add-fab'],
     commerce: ['aci-locate', 'aci-order'],
     batch: ['aci-batch', 'aci-vhf', 'aci-locate'],
     radio: ['aci-vhf', 'aci-call'],
     drive: ['aci-locate', 'aci-order', 'aci-stop'],
     phone: ['aci-call'],
     news: ['aci-locate'],
-    add: ['aci-locate', 'aci-order'],
+    add: ['aci-locate', 'aci-order', 'super-add-fab'],
   },
 
   init() {

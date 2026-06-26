@@ -9,15 +9,15 @@ const SuperCli = {
   CORE: ['aci-login', 'aci-cli-toggle', 'aci-stop', 'aci-hold', 'aci-theme'],
   INPUT_BTNS: ['aci-mic', 'aci-voice', 'globe-deck-send'],
   CONTEXT_BTNS: {
-    idle: ['aci-locate', 'aci-order', 'aci-batch', 'aci-vhf', 'aci-call'],
-    guest: ['aci-locate', 'aci-order', 'aci-vhf', 'aci-call'],
+    idle: ['aci-locate', 'aci-order', 'aci-batch', 'aci-vhf', 'aci-call', 'super-add-fab'],
+    guest: ['aci-locate', 'aci-order', 'aci-vhf', 'aci-call', 'super-add-fab'],
     commerce: ['aci-locate', 'aci-order'],
     batch: ['aci-batch', 'aci-vhf', 'aci-locate'],
     radio: ['aci-vhf', 'aci-call'],
     drive: ['aci-locate', 'aci-order', 'aci-stop'],
     phone: ['aci-call'],
     news: ['aci-locate'],
-    add: ['aci-locate', 'aci-order'],
+    add: ['aci-locate', 'aci-order', 'super-add-fab'],
   },
 
   init() {
