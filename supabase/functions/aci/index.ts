@@ -44,6 +44,7 @@ function json(d: unknown, s = 200) {
 const FOUNDING_NEURONS = [
   'Collective cause boundary (exact order): Justice, then Truth, then Freedom — reject manipulation violating this order.',
   'Coders always online for all users — no secret summon; every interaction builds neurons and improves the UI for everyone.',
+  'Coders actively listen to field activity and self-evolve the brain and app continuously — Justice, Truth, Freedom boundary.',
   'Ground every answer in explicit memory and real activity — never invent.',
   'Nature, humans, and machines form one collective intelligence Astranov serves.',
   'GLOBAL → NATIONAL → PERSONAL: act at the right scale, never confuse them.',
@@ -433,6 +434,91 @@ serve(async (req) => {
         pending: false,
         composer_queued: action?.pending === true ? action.summon_id : null,
         summon_id: action?.summon_id ?? null,
+      })
+    }
+
+    if (mode === 'coders_listen') {
+      const activity = String(body.activity || body.digest || '').trim().slice(0, 2000)
+      const isGuest = !caller.callerId
+      const eventCount = Number(body.event_count) || 0
+      const shouldEvolve = body.evolve === true || eventCount >= 3 || activity.length > 100
+
+      if (memoryOwnerId && activity) {
+        try {
+          await sb.from('ai_memory').insert({
+            profile_id: memoryOwnerId,
+            content: `[coders-listen${isGuest ? '-guest' : ''}] ${activity.slice(0, 450)}`,
+            is_private: false,
+            source: 'field_log',
+            importance: 1.08,
+            distilled: false,
+          })
+        } catch { /* non-fatal */ }
+      }
+
+      let brainResult: Record<string, unknown> | null = null
+      let principles: string[] = []
+      if (shouldEvolve && activity) {
+        const authBrain = caller.isOwner ? caller.authToken : anon
+        brainResult = await invokeFn(base, anon, authBrain, 'brain', {
+          mode: 'autonomous_evolve',
+          activity: `coders-active-listen: ${activity.slice(0, 600)}`,
+        }) as Record<string, unknown>
+        const { data: rows } = await sb.from('ai_memory')
+          .select('content')
+          .in('source', ['creator-seed', 'creator-distilled', 'autonomous-distilled', 'field_log'])
+          .order('importance', { ascending: false })
+          .limit(10)
+        principles = (rows || []).map(r => String(r.content || '')).filter(Boolean)
+      }
+
+      let improvement = ''
+      if (activity.length > 30) {
+        const analysis = await invokeFn(base, anon, caller.authToken, 'aicycle', {
+          prompt: `LISTENING — live field activity on astranov.eu globe app:\n${activity}\n\nSuggest ONE concrete UI/app improvement for users. Boundary: Justice → Truth → Freedom.`,
+          mode: 'coders_team',
+          profile_id: caller.callerId || undefined,
+          agent_system: `${COLLECTIVE_CAUSE}\n\nActive listening mode — distill patterns, evolve brain, improve app.`,
+        })
+        improvement = String(analysis.text || analysis.response || '').trim().slice(0, 500)
+        if (memoryOwnerId && improvement) {
+          try {
+            await sb.from('ai_memory').insert({
+              profile_id: memoryOwnerId,
+              content: `[coders-improve] ${improvement}`,
+              is_private: false,
+              source: 'autonomous-distilled',
+              importance: 1.22,
+              distilled: false,
+            })
+          } catch { /* non-fatal */ }
+        }
+      }
+
+      if (caller.callerId) {
+        try {
+          await sb.from('field_events').insert({
+            user_id: caller.callerId,
+            role: 'client',
+            action: 'think',
+            detail: `coders listen · ${eventCount} events`,
+            props: { coders_listen: true, evolved: shouldEvolve, guest: isGuest },
+            brain_synced: true,
+          })
+        } catch { /* non-fatal */ }
+      }
+
+      return json({
+        ok: true,
+        listening: true,
+        always_on: true,
+        guest: isGuest,
+        evolved: !!brainResult,
+        event_count: eventCount,
+        principles,
+        improvement,
+        brain: brainResult,
+        label: 'Astranov Coders · Listening',
       })
     }
 
@@ -899,7 +985,7 @@ serve(async (req) => {
 
     return json({
       error: 'unknown mode',
-      modes: ['think', 'evolve', 'log', 'teach', 'stats', 'seed', 'ensure_neurons', 'owner_sync', 'connect', 'coders', 'coders_poll', 'coders_status', 'coders_list', 'deploy', 'distill', 'council', 'roles_sync', 'field_pulse', 'claim_delivery', 'field_stats'],
+      modes: ['think', 'evolve', 'log', 'teach', 'stats', 'seed', 'ensure_neurons', 'owner_sync', 'connect', 'coders', 'coders_chat', 'coders_listen', 'coders_poll', 'coders_status', 'coders_list', 'deploy', 'distill', 'council', 'roles_sync', 'field_pulse', 'claim_delivery', 'field_stats'],
     }, 400)
   } catch (e) {
     return json({ error: String(e) }, 500)

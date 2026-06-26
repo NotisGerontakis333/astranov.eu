@@ -10,9 +10,19 @@ const AciCoders = {
   armed: false,
   fallbackPrefs: { force: null, skip: [] },
   _pollTimer: null,
+  _listenTimer: null,
+  _evolveTimer: null,
   _started: false,
+  _listening: false,
+  _listenBusy: false,
+  _activityBuffer: [],
+  _activityCount: 0,
+  _listenTicks: 0,
+  _lastListenAt: 0,
 
   CAUSE: 'Justice → Truth → Freedom',
+  LISTEN_MS: 75000,
+  EVOLVE_MS: 180000,
 
   loadPrefs() {
     try {
@@ -41,9 +51,95 @@ const AciCoders = {
   },
 
   updateHud() {
-    const title = 'Collective Coders · ' + this.CAUSE + (Auth?.user ? '' : ' · guest');
+    const listen = this._listening ? ' · listening' : '';
+    const evo = this._activityCount > 0 ? ' · evolving' : '';
+    const title = 'Collective Coders · ' + this.CAUSE + listen + (Auth?.user ? '' : ' · guest');
     GlobeDeck?.setTitle(title);
-    GlobeDeck?.setMapStatus?.('Coders online');
+    GlobeDeck?.setMapStatus?.('Coders ' + (this._listening ? 'listening · evolving' : 'online'));
+  },
+
+  observeActivity(source, detail, props) {
+    const d = String(detail || source || '').slice(0, 120);
+    if (!d) return;
+    this._activityBuffer.push({ source: String(source || 'field'), detail: d, ts: Date.now(), props: props || {} });
+    if (this._activityBuffer.length > 48) this._activityBuffer = this._activityBuffer.slice(-48);
+    this._activityCount++;
+    this.updateHud();
+  },
+
+  _buildDigest() {
+    const recent = this._activityBuffer.slice(-14);
+    if (!recent.length) return '';
+    return recent.map(e => e.source + ':' + e.detail).join(' · ').slice(0, 1200);
+  },
+
+  startListening() {
+    if (this._listenTimer) return;
+    this._listening = true;
+    this.updateHud();
+    this._listenTimer = setInterval(() => this.listenTick(), this.LISTEN_MS);
+    this._evolveTimer = setInterval(() => this.evolveTick(), this.EVOLVE_MS);
+    setTimeout(() => this.listenTick(), 20000);
+  },
+
+  stopListening() {
+    if (this._listenTimer) { clearInterval(this._listenTimer); this._listenTimer = null; }
+    if (this._evolveTimer) { clearInterval(this._evolveTimer); this._evolveTimer = null; }
+    this._listening = false;
+  },
+
+  async listenTick() {
+    if (this._listenBusy) return;
+    this._listenBusy = true;
+    this._listenTicks++;
+    try {
+      const digest = this._buildDigest();
+      const eventCount = this._activityBuffer.length;
+      const evolve = eventCount >= 3 || this._listenTicks % 3 === 0;
+      const r = await AciCli.api({
+        mode: 'coders_listen',
+        activity: digest || 'heartbeat · coders online',
+        event_count: eventCount,
+        evolve,
+      });
+      this._lastListenAt = Date.now();
+      if (r.ok) this._applyListenResult(r);
+    } catch (_) {
+      /* retry next tick */
+    } finally {
+      this._listenBusy = false;
+    }
+  },
+
+  _applyListenResult(r) {
+    if (r.principles?.length) ACI?.syncNeuronsFromPrinciples?.(r.principles);
+    if (r.evolved) {
+      MapDepict?.action('evolve', { detail: 'coders listen · brain evolved' });
+      ACI?.pulse?.(1.35);
+      for (let i = 0; i < 2; i++) {
+        ACI?.spawnNeuron?.(
+          (Math.random() - 0.5) * 60,
+          (Math.random() - 0.5) * 120,
+          1.1 + Math.random() * 0.3,
+          r.improvement?.slice(0, 80) || 'collective neuron'
+        );
+      }
+    }
+    if (r.improvement && !document.hidden) {
+      GlobeDeck?.log?.('Coders · ' + r.improvement.slice(0, 160), 'dim');
+    }
+    this._activityBuffer = this._activityBuffer.slice(-6);
+    this._activityCount = Math.max(0, this._activityCount - 2);
+    this.updateHud();
+  },
+
+  async evolveTick() {
+    if (this._activityCount < 2) return;
+    try {
+      await ACI?.evolve?.('coders-active-listen');
+      this._activityCount = Math.max(0, this._activityCount - 3);
+      this.updateHud();
+    } catch (_) {}
   },
 
   async ensureSession() {
@@ -72,9 +168,13 @@ const AciCoders = {
     await this.ensureBridge();
     if (GlobeDeck) GlobeDeck.activeTask = 'coders';
     this.updateHud();
-    if (this._started) return;
+    if (this._started) {
+      this.startListening();
+      return;
+    }
     this._started = true;
     window._aciCodersAlwaysOn = true;
+    this.startListening();
   },
 
   /** Strip optional legacy "coders" prefix — coders listen to all messages. */
@@ -216,10 +316,12 @@ const AciCoders = {
       speak(text.slice(0, 120), () => resumeListening());
     }
 
+    this.observeActivity('chat', userMsg, { coders: true, guest: !!r.guest });
     FieldBrain?.pulse?.('think', 'coders: ' + userMsg.slice(0, 48), {
       role: Auth?.user ? 'client' : 'anon',
       props: { coders: true, guest: !!r.guest, always_on: true },
     });
+    if (this._activityCount >= 2) setTimeout(() => this.listenTick(), 4000);
 
     return r;
   },

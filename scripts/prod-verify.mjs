@@ -55,7 +55,7 @@ await check('assemble + syntax', () => {
 await check('live site has coders bridge', async () => {
   const r = await fetch(SITE + '/index.html');
   const html = await r.text();
-  const markers = ['AciCoders', 'alwaysOn', 'Justice', 'handleMessage'];
+  const markers = ['AciCoders', 'alwaysOn', 'startListening', 'observeActivity'];
   const missing = markers.filter(m => !html.includes(m));
   if (missing.length) throw new Error('missing: ' + missing.join(', '));
   return markers.length + ' markers present';
@@ -80,6 +80,17 @@ await check('coders_chat always on (guest ok)', async () => {
   if (!j.ok || !j.text) throw new Error(JSON.stringify(j));
   if (!j.always_on) throw new Error('always_on flag missing');
   return 'guest=' + !!j.guest + ' · ' + String(j.text).slice(0, 40);
+});
+
+await check('coders_listen active evolution', async () => {
+  const j = await api('/functions/v1/aci', {
+    mode: 'coders_listen',
+    activity: 'verify:guest browse globe',
+    event_count: 2,
+    evolve: true,
+  });
+  if (!j.ok || !j.listening) throw new Error(JSON.stringify(j));
+  return 'listening · evolved=' + !!j.evolved;
 });
 
 const secretPath = path.join(ROOT, 'scripts', '.coders-bridge-secret');

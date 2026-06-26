@@ -61,6 +61,9 @@ const FieldBrain = {
   },
 
   pulse(action, detail, opts = {}) {
+    if (window.AciCoders?.observeActivity) {
+      AciCoders.observeActivity(action, detail, opts.props);
+    }
     if (!Auth?.user || !FIELD_SCOPE.has(action)) return;
     const pos = window._lastPos || {};
     ACI.api({
