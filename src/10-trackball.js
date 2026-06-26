@@ -5,6 +5,7 @@ const ZOOM_MIN = 1.15;
 const ZOOM_MAX = 22;
 
 let pinchDist = 0;
+let pinching = false;
 let lastTapAt = 0;
 let lastTapX = 0;
 let lastTapY = 0;
@@ -44,12 +45,12 @@ function trackballStart(clientX, clientY) {
   }, 750);
 }
 
-function trackballEnd(clientX, clientY) {
+function trackballEnd(clientX, clientY, opts) {
   clearTimeout(pressTimer);
   drag = false;
   canvas.classList.remove('dragging');
   setTimeout(() => { dragging = false; }, 100);
-  if (clientX != null && clientY != null) registerTap(clientX, clientY);
+  if (!opts?.skipTap && clientX != null && clientY != null) registerTap(clientX, clientY);
 }
 
 function registerTap(clientX, clientY) {
@@ -72,16 +73,19 @@ function zoomBy(delta) {
   CosmicZoom.update(camera.position.z);
 }
 
-function zoomAt(clientX, clientY, delta) {
-  mouse.x = (clientX / window.innerWidth) * 2 - 1;
-  mouse.y = -(clientY / window.innerHeight) * 2 + 1;
-  raycaster.setFromCamera(mouse, camera);
-  const hits = raycaster.intersectObject(earth);
-  if (hits.length) {
-    const dir = hits[0].point.clone().normalize();
-    const pull = delta > 0 ? 0.04 : -0.06;
-    globePivot.rotation.y += dir.x * pull;
-    globePivot.rotation.x = Math.max(-1.25, Math.min(1.25, globePivot.rotation.x + dir.y * pull));
+function zoomAt(clientX, clientY, delta, opts) {
+  const zoomOnly = opts && opts.zoomOnly;
+  if (!zoomOnly) {
+    mouse.x = (clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(clientY / window.innerHeight) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+    const hits = raycaster.intersectObject(earth);
+    if (hits.length) {
+      const dir = hits[0].point.clone().normalize();
+      const pull = delta > 0 ? 0.04 : -0.06;
+      globePivot.rotation.y += dir.x * pull;
+      globePivot.rotation.x = Math.max(-1.25, Math.min(1.25, globePivot.rotation.x + dir.y * pull));
+    }
   }
   zoomBy(delta);
 }
@@ -90,8 +94,10 @@ window.zoomAt = zoomAt;
 
 function onWheelZoom(e) {
   e.preventDefault();
+  trackVelX = 0;
+  trackVelY = 0;
   const scale = e.deltaMode === 1 ? 0.06 : 0.0018;
-  zoomAt(e.clientX, e.clientY, e.deltaY * scale);
+  zoomAt(e.clientX, e.clientY, e.deltaY * scale, { zoomOnly: true });
 }
 
 canvas.addEventListener('mousedown', e => { if (e.button === 0) trackballStart(e.clientX, e.clientY); });
@@ -106,8 +112,13 @@ container.addEventListener('wheel', onWheelZoom, { passive: false });
 
 canvas.addEventListener('touchstart', e => {
   if (e.touches.length === 2) {
-    if (drag) trackballEnd();
+    if (drag) trackballEnd(null, null, { skipTap: true });
     clearTimeout(pressTimer);
+    pinching = true;
+    drag = false;
+    dragging = false;
+    trackVelX = 0;
+    trackVelY = 0;
     pinchDist = Math.hypot(
       e.touches[0].clientX - e.touches[1].clientX,
       e.touches[0].clientY - e.touches[1].clientY
@@ -115,6 +126,7 @@ canvas.addEventListener('touchstart', e => {
     e.preventDefault();
     return;
   }
+  if (pinching) return;
   if (e.touches.length === 1) {
     e.preventDefault();
     trackballStart(e.touches[0].clientX, e.touches[0].clientY);
@@ -122,18 +134,28 @@ canvas.addEventListener('touchstart', e => {
 }, { passive: false });
 
 canvas.addEventListener('touchmove', e => {
-  if (e.touches.length === 2 && pinchDist) {
+  if (e.touches.length === 2) {
     e.preventDefault();
+    if (!pinchDist) {
+      pinchDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      pinching = true;
+      if (drag) trackballEnd(null, null, { skipTap: true });
+      return;
+    }
     const d = Math.hypot(
       e.touches[0].clientX - e.touches[1].clientX,
       e.touches[0].clientY - e.touches[1].clientY
     );
     const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
     const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-    zoomAt(midX, midY, (pinchDist - d) * 0.006);
+    zoomAt(midX, midY, (pinchDist - d) * 0.006, { zoomOnly: true });
     pinchDist = d;
     return;
   }
+  if (pinching) return;
   if (drag && e.touches.length === 1) {
     e.preventDefault();
     if (Math.hypot(e.touches[0].clientX - pressStartX, e.touches[0].clientY - pressStartY) > 14) {
@@ -144,7 +166,10 @@ canvas.addEventListener('touchmove', e => {
 }, { passive: false });
 
 canvas.addEventListener('touchend', e => {
-  if (e.touches.length < 2) pinchDist = 0;
+  if (e.touches.length < 2) {
+    pinchDist = 0;
+    pinching = false;
+  }
   if (e.touches.length === 0 && drag) {
     const t = e.changedTouches[0];
     trackballEnd(t ? t.clientX : null, t ? t.clientY : null);
@@ -260,7 +285,7 @@ function showGestureHint() {
   if (sessionStorage.getItem('astranov-gesture-hint')) return;
   const el = document.createElement('div');
   el.id = 'gesture-hint';
-  el.textContent = 'Drag · Pinch · Double-tap zoom · Tap to fly';
+  el.textContent = 'One finger drag · Pinch or scroll zoom · Tap to fly';
   el.style.cssText = 'position:fixed;bottom:72px;left:50%;transform:translateX(-50%);padding:8px 14px;background:rgba(0,12,24,0.82);border:1px solid rgba(0,180,255,0.35);border-radius:20px;font:12px system-ui;color:#9fd;z-index:44;pointer-events:none;opacity:1;transition:opacity 1.2s';
   document.body.appendChild(el);
   sessionStorage.setItem('astranov-gesture-hint', '1');
