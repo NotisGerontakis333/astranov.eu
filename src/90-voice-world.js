@@ -262,7 +262,7 @@ function placeMe(lat, lng, opts) {
   if (shouldFly && typeof flyToPoint === 'function') {
     const z = opts.zoom || (opts.cityDrop ? (CityLife?.CITY_ZOOM || 1.12) : 1.38);
     flyToPoint(new THREE.Vector3(pos.x, pos.y, pos.z), z);
-    cityLevel = z <= 2.1;
+    cityLevel = z <= 1.65;
     GlobeControl?.noteAutoFly?.();
     CosmicZoom?.update?.(z);
     CityMap?.onCamera?.(z, 'earth');

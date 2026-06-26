@@ -239,7 +239,7 @@ function onGlobeClick(e) {
 
   const intersects = raycaster.intersectObject(earth);
   if (intersects.length > 0) {
-    flyToPoint(intersects[0].point, 1.95);
+    flyToPoint(intersects[0].point, 1.82);
     cityLevel = true;
     MapDepict.action('explore', { detail: 'tap' });
   }
@@ -282,7 +282,7 @@ function tickGlobeFly() {
   CityMap?.onCamera?.(camera.position.z, CosmicZoom?.level);
   if (p >= 1) {
     window._globeFly = null;
-    cityLevel = camera.position.z <= 2.1;
+    cityLevel = camera.position.z <= 1.65;
     CityMap?.onCamera?.(camera.position.z, CosmicZoom?.level);
   }
 }

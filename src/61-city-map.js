@@ -1,7 +1,7 @@
 // === CITY MAP — satellite + streets when zoomed to city level ===
 const CityMap = {
-  ENTER_Z: 2.05,
-  EXIT_Z: 2.22,
+  ENTER_Z: 1.58,
+  EXIT_Z: 1.72,
   active: false,
   map: null,
   _ready: false,
@@ -30,6 +30,10 @@ const CityMap = {
       zoomControl: false,
       attributionControl: true,
       preferCanvas: true,
+      scrollWheelZoom: false,
+      doubleClickZoom: false,
+      touchZoom: false,
+      boxZoom: false,
     });
     this._buildLayers();
     AstranovTheme?.registerMap?.(this);
@@ -42,6 +46,7 @@ const CityMap = {
     window.addEventListener('resize', () => {
       if (this.active) this._invalidate();
     });
+    this._bindZoomBridge(el);
     this._ready = true;
     this._driverTimer = setInterval(() => this._tickDrivers(), 2800);
     this._syncTimer = setInterval(() => this._syncMarkers(), 1200);
@@ -98,9 +103,45 @@ const CityMap = {
   },
 
   camZToZoom(camZ) {
-    const z = Math.max(1.02, Math.min(2.05, camZ));
-    const t = (2.05 - z) / (2.05 - 1.02);
+    const z = Math.max(1.02, Math.min(1.58, camZ));
+    const t = (1.58 - z) / (1.58 - 1.02);
     return Math.round(10 + t * 9);
+  },
+
+  _bindZoomBridge(el) {
+    if (!el || el._cityZoomBridge) return;
+    el._cityZoomBridge = true;
+    let pinchDist = 0;
+
+    el.addEventListener('wheel', e => {
+      if (!this.active) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const scale = e.deltaMode === 1 ? 0.035 : 0.00022;
+      if (typeof zoomBy === 'function') zoomBy(e.deltaY * scale);
+    }, { passive: false });
+
+    el.addEventListener('touchstart', e => {
+      if (!this.active || e.touches.length !== 2) return;
+      pinchDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+    }, { passive: true });
+
+    el.addEventListener('touchmove', e => {
+      if (!this.active || e.touches.length !== 2 || !pinchDist) return;
+      e.preventDefault();
+      const d = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      const delta = (pinchDist - d) * 0.004;
+      pinchDist = d;
+      if (typeof zoomBy === 'function') zoomBy(delta);
+    }, { passive: false });
+
+    el.addEventListener('touchend', () => { pinchDist = 0; });
   },
 
   globeCenterLatLng() {
@@ -156,13 +197,15 @@ const CityMap = {
     const chip = document.getElementById('city-life-chip');
     if (chip) {
       chip.classList.add('open');
-      chip.innerHTML = '<b>City map</b> · satellite · streets · friends · drivers · routing';
+      chip.innerHTML = '<b>City map</b> · scroll/pinch <b>out</b> for globe';
     }
-    AciCli?.print?.('◎ City map — satellite · navigation · live drivers', 'ok');
+    MapDepict?.setHud?.('City map', 'pinch/scroll out → globe');
+    GlobeDeck?.setPreview?.('City map · scroll/pinch out to return to globe');
   },
 
   _exit() {
     this.active = false;
+    cityLevel = false;
     const el = document.getElementById('city-map');
     const globe = document.getElementById('globe');
     if (el) el.classList.remove('active');

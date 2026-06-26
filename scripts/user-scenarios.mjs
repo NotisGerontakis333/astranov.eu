@@ -96,8 +96,8 @@ const SCENARIOS = [
       if (active) throw new Error('city map active too early at z=2.5');
 
       await page.evaluate(() => {
-        camera.position.z = 1.95;
-        CityMap.onCamera(1.95, 'earth');
+        camera.position.z = 1.5;
+        CityMap.onCamera(1.5, 'earth');
       });
       await page.waitForTimeout(600);
       active = await page.evaluate(() => ({
@@ -105,7 +105,15 @@ const SCENARIOS = [
         hasTiles: !!document.querySelector('#city-map .leaflet-tile-loaded'),
         cls: document.getElementById('city-map')?.classList.contains('active'),
       }));
-      if (!active.active || !active.cls) throw new Error('city map did not activate at z=1.95: ' + JSON.stringify(active));
+      if (!active.active || !active.cls) throw new Error('city map did not activate at z=1.5: ' + JSON.stringify(active));
+
+      await page.evaluate(() => {
+        for (let i = 0; i < 8 && CityMap.active; i++) {
+          if (typeof zoomBy === 'function') zoomBy(0.45);
+        }
+      });
+      const exited = await page.evaluate(() => !CityMap.active && camera.position.z > CityMap.EXIT_Z);
+      if (!exited) throw new Error('zoom out did not return to globe');
       return active;
     },
   },

@@ -1,6 +1,6 @@
 // === CITY LIFE — real-user scenarios: locate → city → shops · drivers · friends · news ===
 const CityLife = {
-  CITY_ZOOM: 1.85,
+  CITY_ZOOM: 1.42,
   NEARBY_KM: 12,
   _friendTimer: null,
   _lastDrop: null,
