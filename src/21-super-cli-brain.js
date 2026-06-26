@@ -7,6 +7,7 @@ Object.assign(SuperCli, {
     vendor: 'vendor-menu', vendors: 'vendor-menu', order: 'vendor-menu', shop: 'vendor-menu',
     batch: 'node-batch', node: 'node-batch',
     radio: 'sat-radio', vhf: 'sat-radio', pmr: 'sat-radio',
+    video: 'globe-youtube', youtube: 'globe-youtube', yt: 'globe-youtube',
   },
 
   CITIES: {
@@ -55,6 +56,7 @@ Object.assign(SuperCli, {
       'teach', 'stats', 'owner', 'seed', 'distill', 'council', 'mode', 'batch', 'vendors',
       'shops', 'order', 'vendor', 'ping', 'locate', 'gps', 'me', 'vhf', 'call', 'phone',
       'drive', 'news', 'roles', 'claim', 'field_stats', 'hold', 'resume', 'stop',
+      'youtube', 'yt', 'watch', 'play',
     ]);
     return known.has(c);
   },
@@ -108,7 +110,8 @@ Object.assign(SuperCli, {
     const owner = Auth?.isOwner;
     this.out('── Astranov Command Line — brain + UI + dev ──', 'dim');
     this.out('dev on|off · dev task <msg> · dev peers · dev deploy · dev status', 'ok');
-    this.out('ui show batch|radio|vendor · ui hide · ui fly athens · ui zoom galaxy', 'ok');
+    this.out('ui show batch|radio|vendor|youtube · ui hide · ui fly athens · ui zoom galaxy', 'ok');
+    this.out('youtube <search> · watch <url> · play 2 (pick result)', 'ok');
     this.out('brain think|evolve|teach|coders|listen on|off|status · brain order <task>', owner ? 'ok' : 'dim');
     this.out('locate · order · batch · vhf · coders · deploy · think · type anything', 'ok');
     if (owner) this.out('Owner: brain order <task> = execute · coders <task> = explicit order', 'dim');
@@ -177,6 +180,7 @@ Object.assign(SuperCli, {
         if (key === 'vendor' || key === 'order') await Commerce?.showPicker?.();
         if (key === 'batch' || key === 'node') AstranovNode?.showPanel?.();
         if (key === 'radio' || key === 'vhf') Comms?.startVHF?.();
+        if (key === 'video' || key === 'youtube' || key === 'yt') GlobeVideo?.showPanel?.('YouTube on globe');
         this.setContext(this.inferContext());
         this.out('ui show → ' + key, 'ok');
         return { ok: true };
@@ -368,6 +372,24 @@ Object.assign(SuperCli, {
       }
       if (cmd === 'stop') {
         userIntervene?.();
+        return { handled: true };
+      }
+      if (cmd === 'youtube' || cmd === 'yt') {
+        await GlobeVideo?.find?.(rest || parts.slice(1).join(' '));
+        return { handled: true };
+      }
+      if (cmd === 'watch' || cmd === 'play') {
+        const arg = rest || parts[1] || '';
+        if (/^\d+$/.test(arg)) { GlobeVideo?.playIndex?.(arg); return { handled: true }; }
+        const id = GlobeVideo?.parseId?.(arg);
+        if (id) { GlobeVideo?.play?.(id, { title: arg }); return { handled: true }; }
+        if (arg) await GlobeVideo?.find?.(arg);
+        else ACIControl?.reply('usage: watch <url|#> · play 2');
+        return { handled: true };
+      }
+      if (GlobeVideo?.wantsYoutube?.(raw)) {
+        const q = GlobeVideo.queryFromText(raw);
+        if (q) await GlobeVideo.find(q);
         return { handled: true };
       }
 

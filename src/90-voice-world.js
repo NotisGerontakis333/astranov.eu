@@ -53,7 +53,8 @@ function scheduleVoiceResume() {
 function voiceWantsAciControl(line) {
   const low = line.toLowerCase();
   return /pitogyra|πιτογυρ|explore|εξερεύ|πήγαινε|go to|focus/.test(low)
-    || /video|βίντεο|orbital/.test(low)
+    || GlobeVideo?.wantsYoutube?.(line)
+    || /video\s+call|orbital\s+video|κλήση\s+βίντεο/.test(low)
     || /telecom|sat radio|satellite radio|ασύρματος/.test(low)
     || /αγγλικά|english|ελληνικά|greek|athenian|αθηναϊκ|spartan|σπαρτιατ|myrmidon|μυρμιδόν/.test(low)
     || /^(remember|θυμήσου|να θυμάσαι)\b/.test(low)

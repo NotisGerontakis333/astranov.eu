@@ -270,9 +270,14 @@ const ACIControl = {
       say('Driving.');
       return { executed: true, action: 'drive' };
     }
-    if (/vhf|ασυρμ/.test(low) && !/video/.test(low)) { Comms.startVHF(); return { executed: true }; }
-    if (/phone|τηλέφων/.test(low) && !/video|βίντεο/.test(low)) { Comms.startPhone(); return { executed: true }; }
-    if (/video|βίντεο|orbital/.test(low)) {
+    if (/vhf|ασυρμ/.test(low) && !/video|βίντεο|youtube/.test(low)) { Comms.startVHF(); return { executed: true }; }
+    if (/phone|τηλέφων/.test(low) && !/video|βίντεο|youtube/.test(low)) { Comms.startPhone(); return { executed: true }; }
+    if (GlobeVideo?.wantsYoutube?.(text)) {
+      const q = GlobeVideo.queryFromText(text) || text;
+      await GlobeVideo.find(q);
+      return { executed: true, action: 'youtube' };
+    }
+    if (/video\s+call|orbital\s+video|κλήση\s+βίντεο/.test(low)) {
       MapDepict.action('video', { detail: 'Αξαδίνα' });
       startOrbitalVideoCall('Αξαδίνα');
       return { executed: true, action: 'video' };

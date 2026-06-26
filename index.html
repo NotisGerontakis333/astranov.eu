@@ -77,7 +77,7 @@
   #aci-bar { display:none !important; }
   #news-ticker { display:none !important; }
   #drive-guide { display:none !important; }
-  #sat-radio:not(.deck-active), #node-batch:not(.deck-active), #vendor-menu:not(.deck-active) { display:none !important; }
+  #sat-radio:not(.deck-active), #node-batch:not(.deck-active), #vendor-menu:not(.deck-active), #globe-youtube:not(.deck-active) { display:none !important; }
   #globe-deck.deck-ping { border-color:rgba(0,255,200,0.85); box-shadow:0 0 12px rgba(0,255,160,0.35); }
   #globe-deck.deck-thinking #globe-deck-title { color:#fc8; }
   #globe-deck-log .deck-thinking-line { animation:deck-pulse 1s ease infinite; }
@@ -104,6 +104,20 @@
   #globe-deck-stage > #vendor-menu.deck-active { display:flex !important; flex-direction:column; }
   #globe-deck-stage #sat-radio, #globe-deck-stage #node-batch { border:none; border-top:1px solid rgba(255,255,255,0.06); }
   #globe-deck-stage #vendor-menu { border:none; border-top:1px solid rgba(255,170,60,0.2); overflow:hidden; }
+  #globe-youtube { display:none; padding:8px 10px; background:rgba(6,0,12,0.95); pointer-events:auto; font:11px/1.4 system-ui; color:#e8f4ff; }
+  #globe-youtube.open, #globe-youtube.deck-active { display:block; }
+  #globe-youtube .yt-head { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:6px; color:#f88; }
+  #globe-youtube .yt-head button { background:transparent; border:1px solid #666; color:#aaa; border-radius:8px; padding:4px 10px; cursor:pointer; font-size:10px; }
+  #yt-now-title { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600; color:#fda; }
+  #yt-player-wrap { position:relative; width:100%; padding-bottom:56.25%; height:0; background:#000; border-radius:10px; overflow:hidden; border:1px solid rgba(255,80,80,0.35); margin-bottom:8px; }
+  #yt-frame { position:absolute; inset:0; width:100%; height:100%; border:0; }
+  #yt-hint { font-size:10px; color:#9ab; margin-bottom:6px; }
+  #yt-results { display:flex; flex-direction:column; gap:4px; max-height:22vh; overflow-y:auto; }
+  .yt-row { display:flex; gap:8px; align-items:flex-start; width:100%; text-align:left; padding:8px; border-radius:10px; border:1px solid rgba(255,80,80,0.2); background:rgba(0,0,0,0.35); color:#def; cursor:pointer; }
+  .yt-row:hover { border-color:rgba(255,120,120,0.55); }
+  .yt-n { font-weight:700; color:#f88; min-width:18px; }
+  .yt-meta b { display:block; font-size:11px; margin-bottom:2px; }
+  .yt-meta small { color:#9ab; font-size:10px; }
   #globe-deck-input-row { display:flex; align-items:center; gap:6px; padding:8px 10px; border-top:1px solid rgba(0,255,160,0.15); flex-shrink:0; }
   #aci-cli-prompt { color:#6fc; flex-shrink:0; font-size:11px; }
   #aci-cli-in { flex:1; background:transparent; border:none; color:#e8f4ff; font:inherit; outline:none; min-width:0; }
@@ -211,6 +225,16 @@
       <div style="margin:8px 0;font-size:10px;color:#9ab">Batch: <b id="nb-batch-id" style="color:#8cf">—</b> · Peers: <b id="nb-peers" style="color:#8cf">0</b></div>
       <button id="nb-join-comms" type="button">📡 Open comms channel (PMR/WebRTC)</button>
       <div id="nb-status" style="color:#9cb;font-size:10px;margin-top:6px">Install node to work together without browser babysitting</div>
+    </div>
+    <div id="globe-youtube">
+      <div class="yt-head">
+        <span id="yt-now-title">YouTube on globe</span>
+        <button id="yt-open-ext" type="button">Open ↗</button>
+        <button id="yt-close" type="button">✖</button>
+      </div>
+      <div id="yt-player-wrap"><iframe id="yt-frame" title="YouTube player" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe></div>
+      <div id="yt-hint">CLI: youtube rhodes travel · play 2 · watch URL</div>
+      <div id="yt-results"></div>
     </div>
     <div id="vendor-menu">
       <div id="vm-header"><span id="vm-title">Καταστήματα</span><button id="vm-close" type="button">✖️</button></div>
@@ -794,6 +818,8 @@ function userIntervene() {
   voiceSessionActive = false;
   voiceEnabled = false;
   SessionHold?.release?.();
+  GlobeVideo?.stop?.();
+  GlobeVideo?.hide?.();
   const cliIn = document.getElementById('aci-cli-in');
   if (cliIn) cliIn.placeholder = 'type or tap 🎤 · Enter or ➡';
   GlobeControl?.userTookGlobe?.('stop');
@@ -1068,7 +1094,7 @@ const GlobeDeck = {
     if (handle) handle.onclick = e => { e.stopPropagation(); this.toggle(); };
     if (hdr) hdr.onclick = () => this.toggle();
     this.bindDeckGestures();
-    ['sat-radio', 'node-batch', 'vendor-menu'].forEach(id => {
+    ['sat-radio', 'node-batch', 'vendor-menu', 'globe-youtube'].forEach(id => {
       const el = document.getElementById(id);
       const stage = document.getElementById('globe-deck-stage');
       if (el && stage && el.parentElement !== stage) stage.appendChild(el);
@@ -1298,6 +1324,7 @@ const GlobeDeck = {
       'vendor-menu': 'Καταστήματα · παραγγελία',
       'node-batch': 'Work together · Astranov node',
       'sat-radio': 'EU PMR Ch 11 · comms',
+      'globe-youtube': 'YouTube on globe',
     };
     return titles[panelId] || 'Collective — globe deck';
   },
@@ -1498,6 +1525,7 @@ Object.assign(SuperCli, {
     vendor: 'vendor-menu', vendors: 'vendor-menu', order: 'vendor-menu', shop: 'vendor-menu',
     batch: 'node-batch', node: 'node-batch',
     radio: 'sat-radio', vhf: 'sat-radio', pmr: 'sat-radio',
+    video: 'globe-youtube', youtube: 'globe-youtube', yt: 'globe-youtube',
   },
 
   CITIES: {
@@ -1546,6 +1574,7 @@ Object.assign(SuperCli, {
       'teach', 'stats', 'owner', 'seed', 'distill', 'council', 'mode', 'batch', 'vendors',
       'shops', 'order', 'vendor', 'ping', 'locate', 'gps', 'me', 'vhf', 'call', 'phone',
       'drive', 'news', 'roles', 'claim', 'field_stats', 'hold', 'resume', 'stop',
+      'youtube', 'yt', 'watch', 'play',
     ]);
     return known.has(c);
   },
@@ -1599,7 +1628,8 @@ Object.assign(SuperCli, {
     const owner = Auth?.isOwner;
     this.out('── Astranov Command Line — brain + UI + dev ──', 'dim');
     this.out('dev on|off · dev task <msg> · dev peers · dev deploy · dev status', 'ok');
-    this.out('ui show batch|radio|vendor · ui hide · ui fly athens · ui zoom galaxy', 'ok');
+    this.out('ui show batch|radio|vendor|youtube · ui hide · ui fly athens · ui zoom galaxy', 'ok');
+    this.out('youtube <search> · watch <url> · play 2 (pick result)', 'ok');
     this.out('brain think|evolve|teach|coders|listen on|off|status · brain order <task>', owner ? 'ok' : 'dim');
     this.out('locate · order · batch · vhf · coders · deploy · think · type anything', 'ok');
     if (owner) this.out('Owner: brain order <task> = execute · coders <task> = explicit order', 'dim');
@@ -1668,6 +1698,7 @@ Object.assign(SuperCli, {
         if (key === 'vendor' || key === 'order') await Commerce?.showPicker?.();
         if (key === 'batch' || key === 'node') AstranovNode?.showPanel?.();
         if (key === 'radio' || key === 'vhf') Comms?.startVHF?.();
+        if (key === 'video' || key === 'youtube' || key === 'yt') GlobeVideo?.showPanel?.('YouTube on globe');
         this.setContext(this.inferContext());
         this.out('ui show → ' + key, 'ok');
         return { ok: true };
@@ -1859,6 +1890,24 @@ Object.assign(SuperCli, {
       }
       if (cmd === 'stop') {
         userIntervene?.();
+        return { handled: true };
+      }
+      if (cmd === 'youtube' || cmd === 'yt') {
+        await GlobeVideo?.find?.(rest || parts.slice(1).join(' '));
+        return { handled: true };
+      }
+      if (cmd === 'watch' || cmd === 'play') {
+        const arg = rest || parts[1] || '';
+        if (/^\d+$/.test(arg)) { GlobeVideo?.playIndex?.(arg); return { handled: true }; }
+        const id = GlobeVideo?.parseId?.(arg);
+        if (id) { GlobeVideo?.play?.(id, { title: arg }); return { handled: true }; }
+        if (arg) await GlobeVideo?.find?.(arg);
+        else ACIControl?.reply('usage: watch <url|#> · play 2');
+        return { handled: true };
+      }
+      if (GlobeVideo?.wantsYoutube?.(raw)) {
+        const q = GlobeVideo.queryFromText(raw);
+        if (q) await GlobeVideo.find(q);
         return { handled: true };
       }
 
@@ -2238,6 +2287,19 @@ const AciCli = {
         return;
       }
       if (cmd === 'news') { NewsFeed.flash(); this.print('news', 'ok'); GlobeDeck?.finishCliIfOneShot(cmd); return; }
+      if (cmd === 'youtube' || cmd === 'yt') {
+        await GlobeVideo?.find?.(rest);
+        GlobeDeck.activeTask = 'video';
+        return;
+      }
+      if (cmd === 'watch' || cmd === 'play') {
+        if (/^\d+$/.test(rest)) { GlobeVideo?.playIndex?.(rest); return; }
+        const id = GlobeVideo?.parseId?.(rest);
+        if (id) { GlobeVideo?.play?.(id, { title: rest }); return; }
+        if (rest) await GlobeVideo?.find?.(rest);
+        else this.print('usage: watch <url|#> · play 2', 'err');
+        return;
+      }
       if (cmd === 'roles') {
         await FieldBrain?.onAuth();
         this.print('roles: ' + (FieldBrain?.roles || []).join(' + '), 'ok');
@@ -3431,9 +3493,14 @@ const ACIControl = {
       say('Driving.');
       return { executed: true, action: 'drive' };
     }
-    if (/vhf|ασυρμ/.test(low) && !/video/.test(low)) { Comms.startVHF(); return { executed: true }; }
-    if (/phone|τηλέφων/.test(low) && !/video|βίντεο/.test(low)) { Comms.startPhone(); return { executed: true }; }
-    if (/video|βίντεο|orbital/.test(low)) {
+    if (/vhf|ασυρμ/.test(low) && !/video|βίντεο|youtube/.test(low)) { Comms.startVHF(); return { executed: true }; }
+    if (/phone|τηλέφων/.test(low) && !/video|βίντεο|youtube/.test(low)) { Comms.startPhone(); return { executed: true }; }
+    if (GlobeVideo?.wantsYoutube?.(text)) {
+      const q = GlobeVideo.queryFromText(text) || text;
+      await GlobeVideo.find(q);
+      return { executed: true, action: 'youtube' };
+    }
+    if (/video\s+call|orbital\s+video|κλήση\s+βίντεο/.test(low)) {
       MapDepict.action('video', { detail: 'Αξαδίνα' });
       startOrbitalVideoCall('Αξαδίνα');
       return { executed: true, action: 'video' };
@@ -5019,6 +5086,214 @@ const PmrRadio = {
 window.PmrRadio = PmrRadio;
 window.SatRadio = PmrRadio;
 
+// === YOUTUBE ON GLOBE — search + watch in Astranov Command Line deck ===
+const GlobeVideo = {
+  _results: [],
+  _currentId: null,
+  _marker: null,
+
+  PIPED: [
+    'https://pipedapi.kavin.rocks',
+    'https://pipedapi.adminforge.de',
+    'https://api.piped.projectsegfau.lt',
+  ],
+
+  init() {
+    document.getElementById('yt-close')?.addEventListener('click', () => this.hide());
+    document.getElementById('yt-open-ext')?.addEventListener('click', () => {
+      if (this._currentId) window.open('https://www.youtube.com/watch?v=' + this._currentId, '_blank', 'noopener');
+    });
+  },
+
+  parseId(input) {
+    const s = String(input || '').trim();
+    if (!s) return null;
+    const m1 = s.match(/(?:v=|youtu\.be\/|embed\/)([A-Za-z0-9_-]{11})/i);
+    if (m1) return m1[1];
+    if (/^[A-Za-z0-9_-]{11}$/.test(s)) return s;
+    return null;
+  },
+
+  async pipedSearch(query) {
+    const q = encodeURIComponent(query);
+    let lastErr = '';
+    for (const base of this.PIPED) {
+      try {
+        const r = await fetch(base + '/search?q=' + q + '&filter=videos', {
+          headers: { Accept: 'application/json' },
+        });
+        if (!r.ok) { lastErr = r.status + ' ' + base; continue; }
+        const items = await r.json();
+        if (!Array.isArray(items) || !items.length) { lastErr = 'empty ' + base; continue; }
+        return items.slice(0, 8).map((it, i) => {
+          const url = it.url || '';
+          const id = it.id || this.parseId(url) || this.parseId('https://youtube.com' + url);
+          return {
+            id,
+            title: it.title || ('Video ' + (i + 1)),
+            channel: it.uploaderName || it.uploader || '',
+            duration: it.duration || 0,
+            thumbnail: it.thumbnail,
+          };
+        }).filter(v => v.id);
+      } catch (e) {
+        lastErr = String(e.message || e);
+      }
+    }
+    throw new Error(lastErr || 'search failed');
+  },
+
+  showPanel(title) {
+    GlobeDeck?.showStage('globe-youtube', 'video', title || 'YouTube on globe');
+    SuperCli?.setContext?.('idle');
+    const panel = document.getElementById('globe-youtube');
+    if (panel) panel.classList.add('open', 'deck-active');
+  },
+
+  hide() {
+    this.stop();
+    document.getElementById('globe-youtube')?.classList.remove('open', 'deck-active');
+    if (GlobeDeck?.activeTask === 'video') GlobeDeck?.completeTask('video');
+    SuperCli?.setContext?.(SuperCli.inferContext?.() || 'idle');
+  },
+
+  stop() {
+    const frame = document.getElementById('yt-frame');
+    if (frame) frame.src = 'about:blank';
+    this._currentId = null;
+    if (this._marker?.parent) this._marker.parent.remove(this._marker);
+    this._marker = null;
+  },
+
+  renderResults(items, query) {
+    const list = document.getElementById('yt-results');
+    if (!list) return;
+    list.innerHTML = '';
+    items.forEach((v, i) => {
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'yt-row';
+      const mins = v.duration ? Math.floor(v.duration / 60) + ':' + String(v.duration % 60).padStart(2, '0') : '';
+      row.innerHTML = '<span class="yt-n">' + (i + 1) + '</span>'
+        + '<span class="yt-meta"><b>' + this.esc(v.title) + '</b>'
+        + '<small>' + this.esc(v.channel) + (mins ? ' · ' + mins : '') + '</small></span>';
+      row.onclick = () => this.play(v.id, v);
+      list.appendChild(row);
+    });
+    const hint = document.getElementById('yt-hint');
+    if (hint) hint.textContent = items.length
+      ? 'Tap a result or type: play 2 · ' + query
+      : 'No results — try another search';
+  },
+
+  esc(s) {
+    return String(s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  },
+
+  play(videoId, meta) {
+    const id = this.parseId(videoId);
+    if (!id) {
+      AciCli?.print('invalid video id', 'err');
+      return;
+    }
+    this._currentId = id;
+    this.showPanel((meta?.title || 'YouTube').slice(0, 48));
+    const frame = document.getElementById('yt-frame');
+    const title = document.getElementById('yt-now-title');
+    if (title) title.textContent = meta?.title || id;
+    if (frame) {
+      frame.src = 'https://www.youtube-nocookie.com/embed/' + id
+        + '?autoplay=1&rel=0&modestbranding=1&playsinline=1';
+    }
+    GlobeDeck?.expand('YouTube · ' + (meta?.title || id).slice(0, 40));
+    AciCli?.print('▶ ' + (meta?.title || id), 'ok');
+    ACIControl?.reply('Playing on globe — ' + (meta?.title || id).slice(0, 80));
+    MapDepict?.action('video', { detail: (meta?.title || id).slice(0, 40) });
+    this.pulseOnGlobe();
+    AciCoders?.observeActivity?.('youtube', (meta?.title || id).slice(0, 80));
+    FieldBrain?.pulse?.('media', 'youtube · ' + (meta?.title || id).slice(0, 60), { role: 'client' });
+  },
+
+  pulseOnGlobe() {
+    const u = window._lastPos || { lat: 36.22, lng: 28.12 };
+    MapDepict?.pulse?.(u.lat, u.lng, 0xff4466, '▶ YouTube', 12000);
+    if (this._marker?.parent) this._marker.parent.remove(this._marker);
+    const pos = latLngToPos(u.lat, u.lng, 1.06);
+    const plane = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.14, 0.08),
+      new THREE.MeshBasicMaterial({ color: 0xff2244, transparent: true, opacity: 0.75, side: THREE.DoubleSide })
+    );
+    plane.position.set(pos.x, pos.y, pos.z);
+    plane.lookAt(0, 0, 0);
+    plane.userData = { type: 'yt-screen' };
+    globePivot.add(plane);
+    this._marker = plane;
+  },
+
+  async find(query) {
+    const q = String(query || '').trim();
+    if (!q) {
+      ACIControl?.reply('usage: youtube <search> · watch <url> · find video about …');
+      return { error: 'empty' };
+    }
+    const direct = this.parseId(q);
+    if (direct) {
+      this.play(direct, { title: q });
+      return { ok: true, id: direct };
+    }
+
+    this.showPanel('Searching YouTube…');
+    GlobeDeck?.setThinking(true, 'Finding videos…');
+    AciCli?.print('youtube search · ' + q, 'cmd');
+
+    try {
+      const items = await this.pipedSearch(q);
+      this._results = items;
+      this.renderResults(items, q);
+      GlobeDeck?.setThinking(false);
+      if (!items.length) {
+        AciCli?.print('no videos found', 'err');
+        return { error: 'empty' };
+      }
+      items.forEach((v, i) => {
+        AciCli?.print((i + 1) + '. ' + v.title.slice(0, 70) + (v.channel ? ' · ' + v.channel : ''), 'dim');
+      });
+      ACIControl?.reply('Found ' + items.length + ' — playing #1 · tap others in deck');
+      this.play(items[0].id, items[0]);
+      return { ok: true, count: items.length };
+    } catch (e) {
+      GlobeDeck?.setThinking(false);
+      const msg = 'YouTube search failed: ' + (e.message || e);
+      AciCli?.print(msg, 'err');
+      ACIControl?.reply('Search failed — try again or paste a youtube link');
+      return { error: msg };
+    }
+  },
+
+  playIndex(n) {
+    const idx = parseInt(n, 10) - 1;
+    const v = this._results[idx];
+    if (!v) {
+      AciCli?.print('no result #' + n + ' — search first', 'err');
+      return;
+    }
+    this.play(v.id, v);
+  },
+
+  wantsYoutube(text) {
+    const low = String(text || '').toLowerCase();
+    return /youtube|youtu\.be|^yt\b|find\s+(me\s+)?(a\s+)?videos?\b|watch\s+.*video|βίντεο\s+(για|στο)|δες\s+(βίντεο|youtube)|παρακολούθησε|show\s+me\s+.*video/.test(low)
+      || this.parseId(text);
+  },
+
+  queryFromText(text) {
+    return String(text || '')
+      .replace(/^(youtube|yt|find\s+videos?\s+(about|on|for)?|find\s+me\s+a\s+video\s+(about|on|for)?|watch\s+videos?\s+(about|on|for)?|watch|video\s+find|βίντεο\s+(για|στο)?|δες\s+βίντεο\s+(για|στο)?|παρακολούθησε)\s*/i, '')
+      .trim();
+  },
+};
+window.GlobeVideo = GlobeVideo;
+
 // ── COSMIC ZOOM: Earth → satellites → solar system → galaxy ──
 const CosmicZoom = {
   level: 'earth',
@@ -6362,7 +6637,8 @@ function scheduleVoiceResume() {
 function voiceWantsAciControl(line) {
   const low = line.toLowerCase();
   return /pitogyra|πιτογυρ|explore|εξερεύ|πήγαινε|go to|focus/.test(low)
-    || /video|βίντεο|orbital/.test(low)
+    || GlobeVideo?.wantsYoutube?.(line)
+    || /video\s+call|orbital\s+video|κλήση\s+βίντεο/.test(low)
     || /telecom|sat radio|satellite radio|ασύρματος/.test(low)
     || /αγγλικά|english|ελληνικά|greek|athenian|αθηναϊκ|spartan|σπαρτιατ|myrmidon|μυρμιδόν/.test(low)
     || /^(remember|θυμήσου|να θυμάσαι)\b/.test(low)
@@ -6839,6 +7115,7 @@ setTimeout(() => Auth.refreshAuthority(), 800);
 setTimeout(() => AciCoders?.autoStart?.(), 1200);
 ACIControl.init();
 PmrRadio.bindUI();
+GlobeVideo.init();
 DrivingView.init();
 CosmicZoom.init();
 if (typeof orbitalSats !== 'undefined') CosmicZoom.registerOrbitalSats(orbitalSats);

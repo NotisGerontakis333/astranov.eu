@@ -62,6 +62,7 @@ setTimeout(() => Auth.refreshAuthority(), 800);
 setTimeout(() => AciCoders?.autoStart?.(), 1200);
 ACIControl.init();
 PmrRadio.bindUI();
+GlobeVideo.init();
 DrivingView.init();
 CosmicZoom.init();
 if (typeof orbitalSats !== 'undefined') CosmicZoom.registerOrbitalSats(orbitalSats);

@@ -18,7 +18,7 @@ const GlobeDeck = {
     if (handle) handle.onclick = e => { e.stopPropagation(); this.toggle(); };
     if (hdr) hdr.onclick = () => this.toggle();
     this.bindDeckGestures();
-    ['sat-radio', 'node-batch', 'vendor-menu'].forEach(id => {
+    ['sat-radio', 'node-batch', 'vendor-menu', 'globe-youtube'].forEach(id => {
       const el = document.getElementById(id);
       const stage = document.getElementById('globe-deck-stage');
       if (el && stage && el.parentElement !== stage) stage.appendChild(el);
@@ -248,6 +248,7 @@ const GlobeDeck = {
       'vendor-menu': 'Καταστήματα · παραγγελία',
       'node-batch': 'Work together · Astranov node',
       'sat-radio': 'EU PMR Ch 11 · comms',
+      'globe-youtube': 'YouTube on globe',
     };
     return titles[panelId] || 'Collective — globe deck';
   },

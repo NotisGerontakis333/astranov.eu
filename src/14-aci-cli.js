@@ -352,6 +352,19 @@ const AciCli = {
         return;
       }
       if (cmd === 'news') { NewsFeed.flash(); this.print('news', 'ok'); GlobeDeck?.finishCliIfOneShot(cmd); return; }
+      if (cmd === 'youtube' || cmd === 'yt') {
+        await GlobeVideo?.find?.(rest);
+        GlobeDeck.activeTask = 'video';
+        return;
+      }
+      if (cmd === 'watch' || cmd === 'play') {
+        if (/^\d+$/.test(rest)) { GlobeVideo?.playIndex?.(rest); return; }
+        const id = GlobeVideo?.parseId?.(rest);
+        if (id) { GlobeVideo?.play?.(id, { title: rest }); return; }
+        if (rest) await GlobeVideo?.find?.(rest);
+        else this.print('usage: watch <url|#> · play 2', 'err');
+        return;
+      }
       if (cmd === 'roles') {
         await FieldBrain?.onAuth();
         this.print('roles: ' + (FieldBrain?.roles || []).join(' + '), 'ok');
